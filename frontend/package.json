@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "check:css": "node scripts/check-css-balance.mjs",
+    "build": "npm run check:css && tsc -b && vite build",
     "test": "vitest",
     "test:run": "vitest run",
     "preview": "vite preview",

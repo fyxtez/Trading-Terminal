@@ -11,4 +11,12 @@ export VITE_TRADING_API_URL=""
 export VITE_TRADING_LOCAL_API_URL=""
 export VITE_PUBLIC_TERMINAL_URL=""
 
-exec npm run build
+npm run build
+
+# Absolute root paths work in Vite's HTTP development server but can leave a
+# packaged Tauri WebView without styles or other assets. Keep this assertion in
+# the release command so both local builds and CI catch the regression.
+if grep -E -q '(src|href)="/' dist/index.html; then
+  echo "Desktop index contains an absolute asset URL" >&2
+  exit 1
+fi

@@ -5,6 +5,10 @@ const tauriDevHost = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   plugins: [react()],
+  // Tauri serves the production bundle from its own application protocol.
+  // Relative asset URLs work there and also keep browser deployments portable
+  // when the terminal is hosted below a non-root path.
+  base: "./",
   clearScreen: false,
   server: {
     host: tauriDevHost || false,
