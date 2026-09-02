@@ -2,14 +2,12 @@ name: CI
 
 on:
   push:
+    branches: [master]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   frontend:
@@ -18,49 +16,67 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22.12.0
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: npm run test:run
       - run: npm run build
+      - name: Verify desktop build strips development capabilities
+        env:
+          VITE_TRADING_API_TOKEN: ci-token-must-not-enter-desktop-assets
+        run: |
+          bash scripts/build-desktop-frontend.sh
+          if grep -R -F -q 'ci-token-must-not-enter-desktop-assets' dist; then
+            echo 'Desktop assets contain the development capability'
+            exit 1
+          fi
+      - run: npm audit --audit-level=high
 
-  backend:
+  rust:
     runs-on: ubuntu-22.04
-    defaults:
-      run:
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            backend
+            frontend/src-tauri
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Check backend
         working-directory: backend
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend -> target
-      - run: cargo fmt --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
-
-  tauri:
-    runs-on: ubuntu-22.04
-    defaults:
-      run:
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+      - name: Prepare development sidecar
+        run: frontend/scripts/prepare-sidecar.sh debug
+      - name: Check Tauri shell
         working-directory: frontend/src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
+  security:
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v7
-      - name: Install Linux desktop dependencies
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
-        working-directory: .
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v6
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: taiki-e/install-action@v2
         with:
-          workspaces: frontend/src-tauri -> target
-      - run: cargo fmt --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
+          tool: cargo-audit
+      - run: cargo audit --file backend/Cargo.lock
+      - run: cargo audit --file frontend/src-tauri/Cargo.lock

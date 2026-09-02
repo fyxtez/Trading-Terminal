@@ -1,0 +1,97 @@
+# Linux desktop releases
+
+The first supported release target is Linux x86_64. Ubuntu/Debian users should
+install the `.deb`; AppImage is a portable fallback. GitHub releases are created
+as drafts so no artifact is published before the clean-machine check.
+
+The first release intentionally has no automatic updater. Installing is still a
+single user action: open the downloaded `.deb` in the system software installer
+and choose Install. AppImage users make the file executable and open it.
+
+## Build locally
+
+Install the Linux prerequisites listed in the official Tauri documentation,
+then run:
+
+```bash
+cd frontend
+npm ci
+npm run test:run
+npm run desktop:build
+```
+
+The Tauri pre-build command compiles the Axum backend in release mode and places
+the target-suffixed binary in the ignored `src-tauri/binaries/` directory. Tauri
+then embeds it as an external binary and creates `.deb` and AppImage bundles.
+
+The build inputs are the exact Git commit, both Cargo lockfiles, the npm
+lockfile, Rust 1.96.0 from `rust-toolchain.toml`, Node 22.12.0 in CI, and the
+Ubuntu 22.04 runner. Keep generated sidecars and bundles out of Git. Builds are
+not claimed to be bit-for-bit reproducible across runner-image updates, so every
+release must record artifact SHA-256 hashes.
+
+## Create a draft GitHub release
+
+1. Make the version in `frontend/src-tauri/tauri.conf.json` match the intended
+   tag.
+2. Push a tag such as `v0.1.0`, or manually run **Linux desktop release** from
+   GitHub Actions.
+3. Download the draft assets and perform the clean-machine test below.
+4. Record SHA-256 checksums in the release notes.
+5. Publish the draft only after all acceptance checks pass.
+
+No automatic updater is included in the first release.
+
+## Ownership, signing, and rollback
+
+The repository owner is the release owner. Only that account, or a separately
+approved GitHub Environment with required review, may publish the draft created
+by CI. Tag and package versions must match and release tags are immutable after
+publication; corrections use a new patch version.
+
+Before the first non-prerelease distribution, create a dedicated release-signing
+key outside this repository. Keep the private key in a hardware-backed local
+key store or GitHub Actions environment secret, protect it with a separate
+passphrase secret, and restrict secret access to protected version tags. Never
+place the key, passphrase, exported keyring, or decoded secret in Git, workflow
+artifacts, caches, command arguments, or logs. Publish the public key and its
+fingerprint through a separately controlled project channel.
+
+Sign the final `.deb` and AppImage (or their published SHA-256 checksum
+manifest) with that release key after clean-machine acceptance. Verify every
+signature and checksum from a fresh download before publishing. The current CI
+deliberately creates unsigned draft/prerelease artifacts because no signing
+identity has yet been provisioned; it must not be promoted to a production
+release until this step is completed.
+
+Rollback is manual in v1: withdraw the affected GitHub release, leave the tag
+for auditability, publish the last known-good signed artifact and checksums, and
+issue a higher patch version with the fix. Application data and OS credential
+entries must not be deleted during an upgrade or rollback. Revoke Binance keys
+immediately if an incident could have exposed credentials.
+
+## Clean-machine acceptance
+
+Use a supported Ubuntu/Debian machine or VM that does not have Cargo, Node.js or
+the repository installed.
+
+- Install the `.deb` by double-clicking it in the system software installer.
+- Confirm the application menu and taskbar use the Fyxtez icon.
+- Confirm first launch starts without `.env` files or developer tools.
+- Skip every connection and verify chart-only mode works.
+- Add testnet credentials and verify balance, positions and stream connectivity.
+- Restart the app and verify credentials remain available without being shown.
+- Edit the connection, select Mainnet, and verify explicit real-funds
+  confirmation is required. Do not submit a real order during installation
+  acceptance.
+- Configure and remove ntfy and Telegram independently.
+- Launch the app a second time and verify the existing window receives focus.
+- Terminate the sidecar during a session and verify bounded recovery/degraded
+  behavior plus the explicit **Retry backend** action after retries are
+  exhausted.
+- Upgrade over the installed version and verify application data remains.
+- Uninstall and document whether local application data is retained by the OS.
+
+Keep screenshots/logs of the test with secrets redacted. A CI build alone does
+not satisfy this acceptance gate because hosted runners do not reproduce a real
+desktop keyring and taskbar session.

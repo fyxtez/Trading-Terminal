@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 
 export type DesktopCredentialStatus = {
   binanceConfigured: boolean;
+  binanceNetwork: "mainnet" | "testnet" | null;
   ntfyConfigured: boolean;
   telegramConfigured: boolean;
 };
@@ -14,6 +15,7 @@ export const DESKTOP_ONBOARDING_KEY = "fyxtez:desktop-onboarding-complete";
 
 let currentStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
+  binanceNetwork: null,
   ntfyConfigured: false,
   telegramConfigured: false,
 };

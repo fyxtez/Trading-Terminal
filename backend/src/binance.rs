@@ -22,7 +22,7 @@ use crate::{
         AlgoOrderResponse, BinanceOrderResponse, ExchangeInfo, FuturesAccountInfo, LeverageBracket,
         LeverageBracketSymbol, OrderSide, PriceResponse, SymbolFilters,
     },
-    secure_store::{self, BINANCE_API_KEY, BINANCE_API_SECRET},
+    secure_store::{self, BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_NETWORK},
 };
 
 const TESTNET_BASE: &str = "https://demo-fapi.binance.com";
@@ -62,16 +62,30 @@ pub struct BinanceClient {
 }
 
 impl BinanceClient {
-    pub fn from_secure_store() -> AppResult<Self> {
-        let testnet = env_bool("BINANCE_TESTNET", true)?;
-        if !testnet && !env_bool("ALLOW_MAINNET", false)? {
-            return Err(AppError::Config(
-                "Mainnet is blocked. Set BINANCE_TESTNET=false and ALLOW_MAINNET=true intentionally".into(),
-            ));
-        }
+    pub fn from_secure_store(desktop_sidecar: bool) -> AppResult<Self> {
+        let stored_network = load_secure_network()?;
+        let (testnet, credentials) = if desktop_sidecar {
+            // A desktop key pair without an explicit network is deliberately
+            // ignored. Mainnet and testnet keys are not interchangeable, and
+            // guessing here could point signed requests at the wrong venue.
+            let testnet = matches!(stored_network.as_deref(), Some("testnet"));
+            let credentials = if stored_network.is_some() {
+                load_secure_credentials()?
+            } else {
+                None
+            };
+            (testnet, credentials)
+        } else {
+            let testnet = env_bool("BINANCE_TESTNET", true)?;
+            if !testnet && !env_bool("ALLOW_MAINNET", false)? {
+                return Err(AppError::Config(
+                    "Mainnet is blocked. Set BINANCE_TESTNET=false and ALLOW_MAINNET=true intentionally".into(),
+                ));
+            }
+            (testnet, load_secure_credentials()?)
+        };
 
         let base_url = if testnet { TESTNET_BASE } else { MAINNET_BASE };
-        let credentials = load_secure_credentials()?;
 
         let http = reqwest::Client::builder()
             .user_agent("binance-futures-axum/0.1")
@@ -879,6 +893,18 @@ impl BinanceClient {
                     "Binance is not connected. Configure it in desktop Settings.".into(),
                 )
             })
+    }
+}
+
+fn load_secure_network() -> AppResult<Option<String>> {
+    let network = secure_store::read(BINANCE_NETWORK).map_err(AppError::Config)?;
+    match network.as_ref().map(|value| value.as_str().trim()) {
+        Some("mainnet") => Ok(Some("mainnet".into())),
+        Some("testnet") => Ok(Some("testnet".into())),
+        Some(_) => Err(AppError::Config(
+            "stored Binance network must be mainnet or testnet".into(),
+        )),
+        None => Ok(None),
     }
 }
 

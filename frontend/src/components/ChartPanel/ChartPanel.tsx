@@ -16,7 +16,6 @@ import ChartContextBadges from "../ChartContextBadges/ChartContextBadges";
 import { useCandleCountdown } from "../../hooks/useCandleCountdown";
 import ChartLoader from "../ChartLoader/ChartLoader";
 import ChartPositionPnl from "../ChartPositionPnl/ChartPositionPnl";
-import ChartIndicators from "../ChartIndicators/ChartIndicators";
 import PositionBracketOverlay from "../PositionBracketOverlay/PositionBracketOverlay";
 import AutoMarketOverlay from "../AutoMarketOverlay/AutoMarketOverlay";
 import SessionZonesOverlay from "../SessionZonesOverlay/SessionZonesOverlay";
@@ -27,6 +26,11 @@ import DrawingMoveToast from "../DrawingMoveToast/DrawingMoveToast";
 import type { AutoMarketDraft } from "../../hooks/useTradeMenu";
 import type { AlertPattern, PriceAlert } from "../../types/alert";
 import { startPacedLoop } from "../../utils/pacedLoop";
+import {
+  ChartTextEditor,
+  ReduceOrderEditor,
+  TemporaryTradePriceLine,
+} from "./ChartTransientEditors";
 import "./ChartPanel.css";
 
 type ChartPanelProps = {
@@ -242,20 +246,6 @@ type ChartPanelProps = {
 };
 
 
-type TemporaryTradePriceLineProps = {
-  candleRef: MutableRefObject<ISeriesApi<"Candlestick"> | null>;
-  chartWrapRef: MutableRefObject<HTMLDivElement | null>;
-  price: number;
-  pricePrecision: number;
-};
-
-function formatTemporaryTradePrice(price: number, pricePrecision: number): string {
-  return price.toLocaleString(undefined, {
-    minimumFractionDigits: pricePrecision,
-    maximumFractionDigits: pricePrecision,
-  });
-}
-
 const DRAWING_TOOL_CURSOR_ICONS: Record<DrawingTool, string> = {
   cursor: "↖",
   text: "T",
@@ -267,56 +257,6 @@ const DRAWING_TOOL_CURSOR_ICONS: Record<DrawingTool, string> = {
   vertical: "│",
   ruler: "↕%",
 };
-
-function TemporaryTradePriceLine({
-  candleRef,
-  chartWrapRef,
-  price,
-  pricePrecision,
-}: TemporaryTradePriceLineProps) {
-  const [top, setTop] = useState<number | null>(null);
-
-  useEffect(() => {
-    let previousTop: number | null = null;
-
-    const updatePosition = () => {
-      const series = candleRef.current;
-      const wrap = chartWrapRef.current;
-      const nextTop = series?.priceToCoordinate(price) ?? null;
-
-      const isVisible =
-        nextTop !== null &&
-        Number.isFinite(nextTop) &&
-        wrap !== null &&
-        nextTop >= 0 &&
-        nextTop <= wrap.clientHeight;
-
-      const normalizedTop = isVisible ? nextTop : null;
-
-      if (normalizedTop !== previousTop) {
-        previousTop = normalizedTop;
-        setTop(normalizedTop);
-      }
-
-    };
-
-    return startPacedLoop(updatePosition);
-  }, [candleRef, chartWrapRef, price]);
-
-  if (top === null) return null;
-
-  return (
-    <div
-      className="temporary-trade-price-line"
-      style={{ top }}
-      aria-hidden="true"
-    >
-      <span className="temporary-trade-price-label">
-        {formatTemporaryTradePrice(price, pricePrecision)}
-      </span>
-    </div>
-  );
-}
 
 export default function ChartPanel({
   symbol,
@@ -633,32 +573,6 @@ export default function ChartPanel({
     };
   }, [chartWrapRef, isCandleCountdownMoving]);
 
-  /*
-   * A stable (never-changing) ref callback, not an inline arrow function -
-   * that distinction matters here. An inline `ref={(el) => el?.focus(...)}`
-   * gets a NEW function identity every render, and React treats a changed
-   * ref identity as "detach then reattach" even for the same DOM node - so
-   * it would refire on every keystroke (since typing updates editingText,
-   * which re-renders this component), reselecting all the text on every
-   * character and making it impossible to type. useCallback with an empty
-   * dependency array keeps the same function identity across renders, so
-   * React only calls it on the input's actual mount (i.e. only when the
-   * `key={editingText.drawingId}` below changes to a different drawing).
-   */
-  const focusTextEditor = useCallback((element: HTMLInputElement | null) => {
-    // NOT autoFocus: that's the browser's built-in .focus() call, which
-    // comes with an automatic "scroll the nearest scrollable ancestor to
-    // reveal this element" side effect. A text box resized while zoomed
-    // way out can be thousands of pixels wide once viewed again at a
-    // normal zoom level (its on-screen size now derives from real
-    // chart-space distance between two anchors - see getTextRect in
-    // useDrawingCanvas.ts) - focusing that on mount was dragging the
-    // WHOLE PAGE sideways just to bring the far edge of an oversized
-    // input into view. preventScroll skips exactly that unwanted scroll
-    // while still focusing the input normally.
-    element?.focus({ preventScroll: true });
-  }, []);
-
   const touchStartRef = useRef<{
     pointerId: number;
     x: number;
@@ -839,114 +753,20 @@ export default function ChartPanel({
       <canvas ref={canvasRef} className="drawing-canvas" />
 
       {reduceOrderEditor && (
-        <div
-          className="chart-reduce-order-editor"
-          style={{
-            left: reduceOrderEditor.left,
-            top: reduceOrderEditor.top,
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          {/*
-           * UX: keep TP sizing intentionally minimal. The previous preset/custom
-           * controls made a tiny chart action feel like a form, so the editor now
-           * exposes one native range slider and a single live percentage value.
-           */}
-          <div className="chart-reduce-order-editor-header">
-            <div className="chart-reduce-order-editor-title">Take profit size</div>
-            <button
-              type="button"
-              className="chart-reduce-order-editor-close"
-              disabled={reduceOrderEditor.isSubmitting}
-              onClick={onCloseReduceOrderEditor}
-              aria-label="Close take-profit editor"
-            >
-              ×
-            </button>
-          </div>
-          <div className="chart-reduce-order-editor-slider-row">
-            <input
-              className="chart-reduce-order-editor-slider"
-              type="range"
-              min="1"
-              max="100"
-              step="1"
-              value={reduceOrderEditor.reducePct}
-              disabled={reduceOrderEditor.isSubmitting}
-              onChange={(event) =>
-                onReduceOrderEditorPctChange(Number(event.target.value))
-              }
-              onKeyDown={(event) => {
-                event.stopPropagation();
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  onSubmitReduceOrderEditor();
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  onCloseReduceOrderEditor();
-                }
-              }}
-              aria-label="Take-profit percentage"
-            />
-            <output className="chart-reduce-order-editor-value">
-              {reduceOrderEditor.reducePct}%
-            </output>
-          </div>
-          <div className="chart-reduce-order-editor-actions">
-            <button
-              type="button"
-              className="secondary"
-              disabled={reduceOrderEditor.isSubmitting}
-              onClick={onCloseReduceOrderEditor}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="primary"
-              disabled={reduceOrderEditor.isSubmitting}
-              onClick={onSubmitReduceOrderEditor}
-            >
-              {reduceOrderEditor.isSubmitting ? "Updating…" : "Update TP"}
-            </button>
-          </div>
-        </div>
+        <ReduceOrderEditor
+          editor={reduceOrderEditor}
+          onPercentageChange={onReduceOrderEditorPctChange}
+          onSubmit={onSubmitReduceOrderEditor}
+          onClose={onCloseReduceOrderEditor}
+        />
       )}
 
       {editingText && showDrawings && (
-        <input
-          key={editingText.drawingId}
-          className="chart-text-editor"
-          ref={focusTextEditor}
-          value={editingText.value}
-          style={{
-            left: editingText.left,
-            top: editingText.top,
-            width: editingText.width,
-            height: editingText.height,
-            fontSize: editingText.fontSize,
-            color: editingText.color,
-            textAlign: editingText.align,
-          }}
-          onFocus={(event) => event.currentTarget.select()}
-          onChange={(event) => onEditingTextChange(event.target.value)}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-          onBlur={onCommitTextEditing}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onCommitTextEditing();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              onCancelTextEditing();
-            }
-          }}
-          aria-label="Edit chart text"
+        <ChartTextEditor
+          editor={editingText}
+          onChange={onEditingTextChange}
+          onCommit={onCommitTextEditing}
+          onCancel={onCancelTextEditing}
         />
       )}
 

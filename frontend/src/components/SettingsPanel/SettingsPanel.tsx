@@ -23,7 +23,12 @@ import {
 } from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
+import {
+  AvailableBalanceCard,
+  DesktopConnectionsSection,
+} from "./SettingsSummaryCards";
 import "./SettingsPanel.css";
+import "./SettingsPanel.sections.css";
 
 type SettingsPanelProps = {
   isOpen: boolean;
@@ -167,11 +172,6 @@ function readStoredSectionVisibility(key: string): boolean {
     return true;
   }
 }
-
-const balanceFormatter = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 const alertPriceFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
@@ -1074,72 +1074,18 @@ export default function SettingsPanel({
         </div>
 
         <div className={`settings-body ${isFullyOpen ? "scrollable" : ""}`}>
-          {showDesktopConnections && <section className="settings-section settings-desktop-connections">
-            <div className="settings-section-heading"><h3>Desktop connections</h3><p>Credentials stored securely on this computer.</p></div>
-            <div className="settings-connection-statuses">
-              <div className={desktopCredentials.status.binanceConfigured ? "connected" : ""}>
-                <span>Binance</span>
-                <div>
-                  <b>{desktopCredentials.status.binanceConfigured ? "CONNECTED" : "NOT SET"}</b>
-                  <button type="button" onClick={() => desktopCredentials.openSetup("binance")}>
-                    {desktopCredentials.status.binanceConfigured ? "EDIT" : "CONNECT"}
-                  </button>
-                </div>
-              </div>
-              <div className={desktopCredentials.status.ntfyConfigured ? "connected" : ""}>
-                <span>ntfy</span>
-                <div>
-                  <b>{desktopCredentials.status.ntfyConfigured ? "CONNECTED" : "NOT SET"}</b>
-                  <button type="button" onClick={() => desktopCredentials.openSetup("ntfy")}>
-                    {desktopCredentials.status.ntfyConfigured ? "EDIT" : "CONNECT"}
-                  </button>
-                </div>
-              </div>
-              <div className={desktopCredentials.status.telegramConfigured ? "connected" : ""}>
-                <span>Telegram</span>
-                <div>
-                  <b>{desktopCredentials.status.telegramConfigured ? "CONNECTED" : "NOT SET"}</b>
-                  <button type="button" onClick={() => desktopCredentials.openSetup("telegram")}>
-                    {desktopCredentials.status.telegramConfigured ? "EDIT" : "CONNECT"}
-                  </button>
-                </div>
-              </div>
-            </div>
-            {(!desktopCredentials.status.binanceConfigured ||
-              !desktopCredentials.status.ntfyConfigured ||
-              !desktopCredentials.status.telegramConfigured) && (
-              <button type="button" className="settings-manage-connections" onClick={() => desktopCredentials.openSetup()}>
-                SET UP MISSING CONNECTIONS
-              </button>
-            )}
-          </section>}
+          {showDesktopConnections && (
+            <DesktopConnectionsSection credentials={desktopCredentials} />
+          )}
           {showDesktopConnections && (showBalanceCard || showMarginSection) && <div className="settings-separator" />}
 
-          {showBalanceCard && <section
-            className="settings-balance-card"
-            aria-label="Available balance"
-          >
-            <div className="settings-balance-copy">
-              <span className="settings-balance-label">Available balance</span>
-              <small>USDT futures wallet</small>
-            </div>
-
-            <div className="settings-balance-value">
-              <strong className={balanceError ? "error" : ""}>
-                {isLoadingBalance
-                  ? "Loading…"
-                  : balanceError
-                    ? "Unavailable"
-                    : availableBalance !== null
-                      ? balanceFormatter.format(availableBalance)
-                      : "—"}
-              </strong>
-
-              {!isLoadingBalance && !balanceError && (
-                <span className="settings-balance-unit">USDT</span>
-              )}
-            </div>
-          </section>}
+          {showBalanceCard && (
+            <AvailableBalanceCard
+              availableBalance={availableBalance}
+              error={balanceError}
+              isLoading={isLoadingBalance}
+            />
+          )}
 
           {isSearchingSettings && !hasAnySettingsSearchResult && (
             <div className="settings-search-empty">

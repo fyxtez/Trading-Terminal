@@ -1,4 +1,5 @@
 import type { UTCTimestamp } from "lightweight-charts";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
 /** Market-data/execution venue attached to each chart symbol. */
 export type ExchangeSource = "binance" | "mexc";
@@ -151,11 +152,18 @@ export const REMOTE_TRADING_API_BASE_URL =
 
 /** Current API target. It is intentionally remote-by-default. */
 export let TRADING_API_BASE_URL = REMOTE_TRADING_API_BASE_URL;
+export let TRADING_API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
 
 export const TRADING_API_BASE_URL_CHANGED_EVENT =
   "trading-api-base-url-changed";
 
 let tradingApiInitialization: Promise<string> | null = null;
+
+type DesktopRuntime = {
+  apiBaseUrl: string;
+  apiToken: string;
+  generation: number;
+};
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
@@ -178,6 +186,11 @@ function selectTradingApiBaseUrl(nextUrl: string): string {
   return normalized;
 }
 
+function applyDesktopRuntime(runtime: DesktopRuntime): string {
+  TRADING_API_TOKEN = runtime.apiToken;
+  return selectTradingApiBaseUrl(normalizeBaseUrl(runtime.apiBaseUrl));
+}
+
 /**
  * Keep backend selection deterministic.
  *
@@ -189,10 +202,26 @@ function selectTradingApiBaseUrl(nextUrl: string): string {
  * terminal default). Local development can still opt in explicitly by setting
  * VITE_TRADING_API_URL=http://127.0.0.1:8657 when starting/building the frontend.
  */
-export function refreshTradingApiBaseUrl(): Promise<string> {
+export async function refreshTradingApiBaseUrl(): Promise<string> {
+  if (isTauri()) {
+    return applyDesktopRuntime(await invoke<DesktopRuntime>("desktop_runtime"));
+  }
+
   return Promise.resolve(
     selectTradingApiBaseUrl(normalizeBaseUrl(REMOTE_TRADING_API_BASE_URL)),
   );
+}
+
+/** Explicit recovery after the native supervisor exhausts automatic retries. */
+export async function restartDesktopBackend(): Promise<string> {
+  if (!isTauri()) {
+    throw new Error("Backend restart is available only in the desktop app.");
+  }
+  const nextUrl = applyDesktopRuntime(
+    await invoke<DesktopRuntime>("restart_backend"),
+  );
+  tradingApiInitialization = Promise.resolve(nextUrl);
+  return nextUrl;
 }
 
 /** Select the configured backend once at app startup. */
@@ -209,6 +238,9 @@ export function initializeTradingApiBaseUrl(): Promise<string> {
  * history/BFCache.
  */
 export function refreshTradingApiBaseUrlAfterResume(): Promise<string> {
+  if (isTauri()) {
+    return refreshTradingApiBaseUrl();
+  }
   // FIX: do this synchronously before returning the resolved Promise so resumed
   // hooks cannot send even one REST/WS request to a stale localhost module value.
   selectTradingApiBaseUrl(REMOTE_TRADING_API_BASE_URL);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  getTradingWebSocketUrl,
+  getAuthenticatedTradingWebSocketUrl,
   parseTradingStreamEvent,
 } from "../trading/events";
 import type { OrderExecutedEvent } from "../trading/types";
@@ -60,11 +60,21 @@ export function useTradingStream({
       );
     };
 
-    const connect = () => {
+    const connect = async () => {
       if (disposed) return;
 
       setConnectionState("connecting");
-      socket = new WebSocket(getTradingWebSocketUrl());
+      try {
+        const socketUrl = await getAuthenticatedTradingWebSocketUrl();
+        if (disposed) return;
+        socket = new WebSocket(socketUrl);
+      } catch (error) {
+        if (!disposed) {
+          console.error("[trading-ws] ticket error", error);
+          scheduleReconnect();
+        }
+        return;
+      }
 
       socket.addEventListener("open", () => {
         if (disposed) return;
@@ -131,7 +141,7 @@ export function useTradingStream({
         if (reconnectForBackendChange) {
           reconnectForBackendChange = false;
           reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-          connect();
+        void connect();
           return;
         }
 
@@ -153,7 +163,7 @@ export function useTradingStream({
     // while its handshake is still in progress (the noisy browser warning).
     initialConnectTimer = window.setTimeout(() => {
       initialConnectTimer = null;
-      connect();
+      void connect();
     }, 0);
 
     const handleApiBaseUrlChanged = () => {
@@ -171,7 +181,7 @@ export function useTradingStream({
         return;
       }
 
-      connect();
+      void connect();
     };
 
     window.addEventListener(

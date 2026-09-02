@@ -4,6 +4,7 @@ use zeroize::Zeroizing;
 pub const SERVICE: &str = "com.fyxtez.terminal";
 pub const BINANCE_API_KEY: &str = "binance-api-key";
 pub const BINANCE_API_SECRET: &str = "binance-api-secret";
+pub const BINANCE_NETWORK: &str = "binance-network";
 pub const NTFY_URL: &str = "ntfy-url";
 pub const TELEGRAM_BOT_TOKEN: &str = "telegram-bot-token";
 pub const TELEGRAM_CHAT_ID: &str = "telegram-chat-id";

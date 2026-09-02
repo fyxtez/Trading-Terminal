@@ -31,6 +31,8 @@ type TopbarProps = {
    * whether the toolbar is expanded.
    */
   backendConnection: ConnectionState;
+  /** Explicit desktop recovery after native automatic retries are exhausted. */
+  onRetryBackend?: () => void;
   /** Trading websocket (order-fill stream) health, from useTradingStream(). */
   websocketConnection: ConnectionState;
   /**
@@ -66,6 +68,7 @@ export default function Topbar({
   isOrdersOpen,
   onToggleOrders,
   backendConnection,
+  onRetryBackend,
   websocketConnection,
   marketConnection,
 }: TopbarProps) {
@@ -169,13 +172,20 @@ export default function Topbar({
       <div className="topbar-spacer" />
 
       <div className="topbar-connection-group" aria-label="Connection status">
-        <div
+        <button
+          type="button"
           className={`topbar-connection-item ${backendConnection}`}
-          title={`Backend: ${backendConnection}`}
+          title={
+            backendConnection === "disconnected" && onRetryBackend
+              ? "Backend disconnected — click to retry"
+              : `Backend: ${backendConnection}`
+          }
+          disabled={backendConnection !== "disconnected" || !onRetryBackend}
+          onClick={onRetryBackend}
         >
           <span className="topbar-connection-dot" />
           <span>BACKEND</span>
-        </div>
+        </button>
 
         <div
           className={`topbar-connection-item ${marketConnection}`}

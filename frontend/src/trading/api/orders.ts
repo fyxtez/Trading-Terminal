@@ -3,6 +3,7 @@ import {
   LIMIT_ORDER_ENDPOINT,
   MARKET_ORDER_ENDPOINT,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
 } from "../../config/constants";
 import type {
   AutoMarketOrderRequest,
@@ -18,8 +19,6 @@ import type {
 } from "../types";
 import { parseOrderJsonText } from "./safeJson";
 import { canUseTradingAccount } from "../../desktop/credentials";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
 async function parseTradingResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type");
@@ -54,7 +53,7 @@ async function postBinanceOrder<T>(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${API_TOKEN}`,
+      Authorization: `Bearer ${TRADING_API_TOKEN}`,
     },
     body: JSON.stringify(payload),
   });
@@ -161,7 +160,7 @@ export async function modifyLimitOrder(
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
       body: JSON.stringify(payload),
     },
@@ -185,7 +184,7 @@ export async function repriceReduceOrder(
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
       body: JSON.stringify(payload),
     },
@@ -205,7 +204,7 @@ export async function cancelOrder(
     {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
     },
   );
@@ -288,7 +287,7 @@ export async function getOpenOrders(
 
     const response = await fetch(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${API_TOKEN}` },
+      headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
       signal,
     });
 
@@ -338,7 +337,7 @@ export async function updateReduceOrder(
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
       body: JSON.stringify({ reduce_pct: reducePct }),
     },
@@ -377,7 +376,7 @@ export async function chaseLimitOrder(
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
     },
   );
@@ -436,7 +435,7 @@ export async function cancelConditionalOrder(
     {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${TRADING_API_TOKEN}`,
       },
     },
   );

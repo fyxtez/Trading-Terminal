@@ -1,6 +1,7 @@
 import {
   SIZING_ENDPOINT,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
 } from "../../config/constants";
 
 export type SizingConfig = {
@@ -9,16 +10,14 @@ export type SizingConfig = {
   max_leverage: number;
 };
 
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
-
 function getHeaders(includeJson = false): HeadersInit {
-  if (!API_TOKEN) {
-    throw new Error("VITE_TRADING_API_TOKEN is missing");
+  if (!TRADING_API_TOKEN) {
+    throw new Error("Trading API token is missing");
   }
 
   return {
     Accept: "application/json",
-    Authorization: `Bearer ${API_TOKEN}`,
+    Authorization: `Bearer ${TRADING_API_TOKEN}`,
     ...(includeJson ? { "Content-Type": "application/json" } : {}),
   };
 }

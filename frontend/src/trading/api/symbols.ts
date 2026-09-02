@@ -1,6 +1,7 @@
-import { TRADING_API_BASE_URL } from "../../config/constants";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
+import {
+  TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
+} from "../../config/constants";
 
 export type BackendSymbol = {
   symbol: string;
@@ -29,7 +30,9 @@ type ListIconsResponse = { count: number; max: number; icons: BackendIcon[] };
 function headers(json = false): HeadersInit {
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}),
+    ...(TRADING_API_TOKEN
+      ? { Authorization: `Bearer ${TRADING_API_TOKEN}` }
+      : {}),
   };
 }
 
@@ -86,24 +89,24 @@ export async function listIcons(): Promise<ListIconsResponse> {
   return parseResponse<ListIconsResponse>(response);
 }
 
-/**
- * Builds a directly-usable `<img src>` URL for a cached symbol icon.
- * Authenticated via a `?token=` query parameter rather than the usual
- * Authorization header - a plain `<img>` element can't attach custom
- * headers, the same limitation getTradingWebSocketUrl (see
- * trading/events.ts) already works around for the trading WebSocket.
- * The backend's own `/api/icons/{symbol}/image` route is exempted from
- * header-based auth specifically to accept this instead - see `authorize`
- * in the backend's api.rs.
- */
-export function iconImageUrl(symbol: string, cachedAtMs?: number): string {
-  const token = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
+/** Fetches protected icon bytes with a bearer header and returns a local blob
+ * URL. The service capability therefore never appears in an image URL. */
+export async function fetchIconImageUrl(
+  symbol: string,
+  cachedAtMs?: number,
+): Promise<string> {
   const url = new URL(
     `${TRADING_API_BASE_URL}/api/icons/${encodeURIComponent(symbol)}/image`,
   );
-  url.searchParams.set("token", token);
   if (cachedAtMs !== undefined) {
     url.searchParams.set("v", String(cachedAtMs));
   }
-  return url.toString();
+  const response = await fetch(url, {
+    headers: headers(),
+    cache: "force-cache",
+  });
+  if (!response.ok) {
+    throw new Error(`Icon request failed with HTTP ${response.status}`);
+  }
+  return URL.createObjectURL(await response.blob());
 }

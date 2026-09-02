@@ -14,7 +14,11 @@ Use Tauri 2. Desktop source lives in `frontend/src-tauri`, while Vite produces
 repository-level `./run.sh`; browser development uses `npm run dev` when its
 backend is already running or `./run.sh browser` for the complete stack.
 
-The initial window is desktop-first (1600x1000, minimum 1100x700). Capabilities start with `core:default`, bundling is disabled until the backend sidecar and credential handoff are complete, and CSP explicitly lists the local backend and current market-data origins.
+The initial window is desktop-first (1600x1000, minimum 1100x700). Capabilities
+start with `core:default`; only native commands intentionally exposed by the
+invoke handler are available. CSP allows the ephemeral loopback backend plus
+the current market-data origins. Linux `.deb` and AppImage bundles include the
+sidecar described by ADR 0004.
 
 ## Consequences
 
@@ -25,4 +29,5 @@ The initial window is desktop-first (1600x1000, minimum 1100x700). Capabilities 
 
 ## Follow-up
 
-Enable bundle targets only after signed artifacts, backend inclusion, CSP tests and platform prerequisites are documented and verified.
+Verify Windows and macOS independently before enabling their release targets.
+Linux publishing remains gated on signing and clean-machine acceptance.

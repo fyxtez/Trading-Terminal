@@ -3,6 +3,7 @@ import {
   getSymbolConfig,
   intervalMs,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
   type Interval,
   type SymbolConfig,
 } from "../../config/constants";
@@ -10,8 +11,6 @@ import {
 const BINANCE_KLINE_LIMIT = 1500;
 const MEXC_KLINE_LIMIT = 2000;
 const MEXC_PROXY_PATH = "/api/market-data/mexc/klines";
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
-
 const MEXC_INTERVALS: Record<Interval, string> = {
   "1m": "Min1",
   "5m": "Min5",
@@ -134,7 +133,9 @@ async function fetchMexcRange(
   params.set("symbol", config.sourceSymbol);
 
   const headers: HeadersInit = { Accept: "application/json" };
-  if (API_TOKEN) headers.Authorization = `Bearer ${API_TOKEN}`;
+  if (TRADING_API_TOKEN) {
+    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
+  }
 
   const response = await fetch(
     `${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`,

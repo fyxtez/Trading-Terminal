@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import {
-  DEFAULT_LINE_COLOR,
   PENDING_LIMIT_LONG_COLOR,
   PENDING_LIMIT_SHORT_COLOR,
   getSymbolConfig,
   isSymbolUnconfirmed,
+  restartDesktopBackend,
 } from "../../config/constants";
 import { getLocalZoneLabel } from "../../utils/time";
 import { getSymbolInfo } from "../../config/symbols";
@@ -1317,6 +1317,15 @@ function App() {
         isOrdersOpen={isOrdersOpen}
         onToggleOrders={() => setIsOrdersOpen((open) => !open)}
         backendConnection={backendConnection}
+        onRetryBackend={
+          desktopCredentials.isDesktop
+            ? () => {
+                void restartDesktopBackend().catch((error: unknown) => {
+                  console.error("[backend] manual restart failed", error);
+                });
+              }
+            : undefined
+        }
         websocketConnection={websocketConnection}
         marketConnection={marketData.marketConnection}
       />

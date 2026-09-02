@@ -1,11 +1,12 @@
-import { TRADING_API_BASE_URL } from "../../config/constants";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
+import {
+  TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
+} from "../../config/constants";
 
 function authHeaders(includeJson = false): HeadersInit {
   return {
     Accept: "application/json",
-    Authorization: `Bearer ${API_TOKEN}`,
+    Authorization: `Bearer ${TRADING_API_TOKEN}`,
     ...(includeJson ? { "Content-Type": "application/json" } : {}),
   };
 }

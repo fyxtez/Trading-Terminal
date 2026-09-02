@@ -12,7 +12,12 @@ export type DesktopCredentialsContextValue = {
 
 export const DesktopCredentialsContext = createContext<DesktopCredentialsContextValue>({
   isDesktop: false,
-  status: { binanceConfigured: false, ntfyConfigured: false, telegramConfigured: false },
+  status: {
+    binanceConfigured: false,
+    binanceNetwork: null,
+    ntfyConfigured: false,
+    telegramConfigured: false,
+  },
   openSetup: () => {},
 });
 

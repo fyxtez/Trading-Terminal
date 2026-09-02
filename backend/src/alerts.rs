@@ -68,11 +68,12 @@ pub struct AlertStore {
 }
 
 impl AlertStore {
-    pub async fn connect(path: &str) -> AppResult<Self> {
-        if let Some(parent) = std::path::Path::new(path).parent() {
+    pub async fn connect(path: impl AsRef<std::path::Path>) -> AppResult<Self> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        let url = format!("sqlite://{path}?mode=rwc");
+        let url = format!("sqlite://{}?mode=rwc", path.display());
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&url)

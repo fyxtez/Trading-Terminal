@@ -18,6 +18,88 @@
   min-width: 104px;
 }
 
+.desktop-network-picker {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.desktop-network-picker legend {
+  color: #bbc1ca;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.desktop-network-picker > div {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.desktop-network-picker button {
+  background: #080a0e;
+  border: 1px solid #343a46;
+  border-radius: 5px;
+  color: #8e96a4;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+}
+
+.desktop-network-picker button strong {
+  color: #d5dae2;
+  font: 700 12px monospace;
+  letter-spacing: 0.08em;
+}
+
+.desktop-network-picker button span {
+  font-size: 12px;
+}
+
+.desktop-network-picker button.selected {
+  background: rgb(84 123 104 / 10%);
+  border-color: #547b68;
+}
+
+.desktop-network-picker button.selected strong {
+  color: #8ebca5;
+}
+
+.desktop-network-picker button.selected.danger {
+  background: rgb(228 72 93 / 8%);
+  border-color: #b94c5e;
+}
+
+.desktop-network-picker button.selected.danger strong {
+  color: #ef8796;
+}
+
+.desktop-mainnet-confirmation {
+  align-items: center;
+  background: rgb(228 72 93 / 7%);
+  border: 1px solid rgb(228 72 93 / 28%);
+  display: flex !important;
+  flex-direction: row !important;
+  padding: 14px 16px;
+}
+
+.desktop-mainnet-confirmation input {
+  accent-color: #e4485d;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  width: 16px;
+}
+
+.desktop-mainnet-confirmation span {
+  color: #ef9daa;
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .desktop-setup-actions {
     gap: 12px;

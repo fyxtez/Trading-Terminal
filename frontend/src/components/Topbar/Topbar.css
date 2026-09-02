@@ -79,15 +79,28 @@
 }
 
 .topbar-connection-item {
+  appearance: none;
   display: flex;
   align-items: center;
   gap: 5px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--text-faint);
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.3px;
+}
+
+button.topbar-connection-item:disabled {
+  opacity: 1;
+}
+
+button.topbar-connection-item:not(:disabled) {
+  cursor: pointer;
 }
 
 .topbar-connection-item + .topbar-connection-item {

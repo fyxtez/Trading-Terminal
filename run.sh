@@ -27,7 +27,15 @@ require_command() {
   fi
 }
 
-require_project_files() {
+require_frontend_dependencies() {
+  if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
+    echo "[fyxtez] Frontend dependencies are not installed." >&2
+    echo "          Run: cd frontend && npm install" >&2
+    exit 1
+  fi
+}
+
+require_browser_project_files() {
   if [[ ! -f "$BACKEND_DIR/.env" ]]; then
     echo "[fyxtez] Missing backend/.env" >&2
     echo "          Run: cp backend/.env.example backend/.env" >&2
@@ -40,11 +48,7 @@ require_project_files() {
     exit 1
   fi
 
-  if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-    echo "[fyxtez] Frontend dependencies are not installed." >&2
-    echo "          Run: cd frontend && npm install" >&2
-    exit 1
-  fi
+  require_frontend_dependencies
 }
 
 read_env_setting() {
@@ -92,23 +96,10 @@ ensure_backend_is_stopped() {
 run_desktop() {
   require_command cargo
   require_command npm
-  require_command curl
-  require_project_files
-  validate_local_auth
+  require_command rustc
+  require_frontend_dependencies
 
-  local backend_port
-  local backend_host
-  backend_port="$(read_env_setting "$BACKEND_DIR/.env" SERVER_PORT)"
-  backend_host="$(read_env_setting "$BACKEND_DIR/.env" SERVER_HOST)"
-  backend_port="${backend_port:-8657}"
-  backend_host="${backend_host:-127.0.0.1}"
-  if [[ "$backend_host" != "127.0.0.1" || "$backend_port" != "8657" ]]; then
-    echo "[fyxtez] Desktop development currently requires SERVER_HOST=127.0.0.1 and SERVER_PORT=8657." >&2
-    exit 1
-  fi
-  ensure_backend_is_stopped "http://127.0.0.1:8657"
-
-  echo "[fyxtez] Starting Tauri desktop application..."
+  echo "[fyxtez] Starting Tauri desktop application with its managed local backend..."
   cd "$FRONTEND_DIR"
   exec npm run desktop:dev
 }
@@ -117,7 +108,7 @@ run_browser() {
   require_command cargo
   require_command npm
   require_command curl
-  require_project_files
+  require_browser_project_files
   validate_local_auth
 
   local backend_pid=""

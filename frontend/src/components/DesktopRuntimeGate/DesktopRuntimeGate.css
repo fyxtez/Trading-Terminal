@@ -1,0 +1,53 @@
+.desktop-runtime-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  color: #f3f4f6;
+  background: #080b10;
+}
+
+.desktop-runtime-gate section {
+  width: min(680px, 100%);
+  padding: 56px;
+  border: 1px solid #27303d;
+  background: #10151d;
+}
+
+.desktop-runtime-gate img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  margin-bottom: 28px;
+}
+
+.desktop-runtime-gate small {
+  display: block;
+  color: #efad2d;
+  font: 700 12px/1.2 monospace;
+  letter-spacing: 0.18em;
+}
+
+.desktop-runtime-gate h1 {
+  margin: 14px 0 12px;
+  font-size: clamp(34px, 4vw, 54px);
+  letter-spacing: -0.04em;
+}
+
+.desktop-runtime-gate p {
+  margin: 0;
+  color: #9aa7b8;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.desktop-runtime-gate button {
+  margin-top: 28px;
+  padding: 14px 22px;
+  border: 1px solid #efad2d;
+  color: #080b10;
+  background: #efad2d;
+  font: 700 12px/1 monospace;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}

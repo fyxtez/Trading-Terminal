@@ -1,0 +1,790 @@
+.open-orders-heading-row,
+.open-order-row {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.15fr)
+    minmax(120px, 0.75fr)
+    minmax(170px, 1fr)
+    minmax(140px, 0.8fr)
+    minmax(130px, 0.7fr);
+  align-items: center;
+  column-gap: 18px;
+}
+
+.open-orders-heading-row {
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.25px;
+}
+
+.open-order-row {
+  position: relative;
+  height: 76px;
+  min-height: 76px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.open-order-row::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: transparent;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.open-order-row:hover {
+  background: rgba(245, 166, 35, 0.055);
+}
+
+.open-order-row:hover::before {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(245, 166, 35, 0.28);
+}
+
+.open-order-symbol-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+}
+
+.open-order-symbol-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/*
+ * FEATURE: Open Orders rows for other symbols stay dimmed as context, but
+ * their symbol is still a real navigation control so the user can jump to
+ * that chart directly without re-enabling Cancel/Chase/Edit on the row.
+ */
+.open-order-symbol-link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.open-order-symbol-link:hover {
+  color: var(--amber);
+}
+
+.open-order-symbol-link:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/*
+ * Second line under the symbol/side/badges row, showing the reduce %,
+ * order size, and remaining % for a REDUCE limit order - the same
+ * information the chart's pending-order tooltip already shows (see
+ * getPendingOrderLabelText in useDrawingCanvas.ts), previously only
+ * visible on the chart itself and not in this table at all.
+ */
+.open-order-reduce-detail {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.open-order-symbol-cell > strong,
+.open-order-value > strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.open-order-status {
+  color: var(--amber) !important;
+}
+
+.open-order-action-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.open-order-cancel {
+  min-width: 92px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid rgba(240, 69, 98, 0.4);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+}
+
+.open-order-cancel:hover:not(:disabled) {
+  border-color: rgba(240, 69, 98, 0.65);
+  background: var(--red-soft);
+}
+
+.open-order-cancel:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+@media (max-width: 900px) {
+  .open-orders-heading-row,
+  .open-order-row {
+    min-width: 700px;
+    grid-template-columns:
+      minmax(160px, 1fr)
+      minmax(100px, 0.7fr)
+      minmax(150px, 0.9fr)
+      minmax(120px, 0.75fr)
+      minmax(110px, 0.65fr);
+    column-gap: 12px;
+  }
+}
+
+.close-everything-group {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+
+.close-everything-group > span {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+}
+
+.close-everything-button {
+  min-width: 118px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(240, 69, 98, 0.42);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 700;
+  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+}
+
+.close-everything-button:hover:not(:disabled) {
+  border-color: rgba(240, 69, 98, 0.75);
+  background: var(--red-soft);
+}
+
+.close-everything-button:disabled {
+  cursor: pointer;
+  opacity: 0.4;
+}
+
+@keyframes close-everything-pulse {
+  from { box-shadow: 0 0 0 0 rgba(240, 69, 98, 0); }
+  to { box-shadow: 0 0 0 3px rgba(240, 69, 98, 0.12); }
+}
+
+.close-everything-wrap {
+  position: relative;
+}
+
+.close-everything-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 400;
+  min-width: 220px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.close-everything-option {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(240, 69, 98, 0.3);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+}
+
+.close-everything-option:hover:not(:disabled) {
+  border-color: rgba(240, 69, 98, 0.65);
+  background: var(--red-soft);
+}
+
+/*
+ * The FULL option is the more dangerous of the two (every symbol, not
+ * just the active one) - the same double-tap "armed" pulse the old
+ * single close-everything button used to have is kept specifically for
+ * this option, not the scoped one.
+ */
+.close-everything-option.full.armed {
+  border-color: rgba(240, 69, 98, 0.75);
+  background: var(--red-soft);
+  animation: close-everything-pulse 900ms ease-in-out infinite alternate;
+}
+
+.close-everything-option:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.open-order-edit {
+  /* FIX: keep the action label on one line on narrower panels. The old
+     98px minimum could squeeze "Edit Reduce" enough to wrap into two
+     rows while Cancel stayed single-line, making the action row uneven. */
+  min-width: 116px;
+  height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
+  border: 1px solid rgba(245, 166, 35, 0.42);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--amber);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  /* FIX: wasn't explicitly set, so it could inherit left-alignment from
+     an ancestor instead of reliably centering. */
+  text-align: center;
+}
+
+.open-order-edit:hover:not(:disabled) {
+  border-color: rgba(245, 166, 35, 0.68);
+  background: var(--amber-soft);
+}
+
+.open-order-edit:disabled {
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.open-order-reduce-badge {
+  /* Same vertical-centering fix as .position-side/.position-leverage above. */
+  padding: 3px 5px 1px;
+  border: 1px solid rgba(245, 166, 35, 0.4);
+  border-radius: 3px;
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+
+  /*
+   * FIX: on narrower layouts, this badge sits in a tight flex row
+   * alongside the symbol name and other badges with no explicit sizing
+   * of its own - "FULL SL" (longer than REDUCE/FULL TP) could get
+   * squeezed and either wrap onto a second line or spill past its own
+   * border. Keeping it single-line and refusing to shrink means the
+   * badge itself always renders correctly; if the row as a whole is too
+   * narrow, the row's own horizontal scroll (already enabled via
+   * min-width above) handles that instead of the badge's text breaking.
+   */
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.reduce-bump-notice {
+  margin: 0;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(245, 166, 35, 0.3);
+  background: var(--amber-soft);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.reduce-order-editor {
+  min-width: 760px;
+  padding: 14px 16px 16px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(360px, 1.4fr);
+  gap: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(245, 166, 35, 0.035);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.reduce-order-editor-copy strong {
+  display: block;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.reduce-order-editor-copy span {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+
+.reduce-order-editor-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.reduce-order-editor-summary > div {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+}
+
+.reduce-order-editor-summary span,
+.reduce-order-editor-summary strong {
+  display: block;
+}
+
+.reduce-order-editor-summary span {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  text-transform: uppercase;
+}
+
+.reduce-order-editor-summary strong {
+  margin-top: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.reduce-order-editor-slider {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--amber);
+}
+
+.reduce-order-editor-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.reduce-order-editor-actions button {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.reduce-order-editor-cancel {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.reduce-order-editor-save {
+  border: 1px solid rgba(245, 166, 35, 0.5);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.reduce-order-editor-actions button:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+@media (max-width: 900px) {
+  .close-everything-group > span {
+    display: none;
+  }
+
+  .close-everything-button {
+    min-width: 104px;
+  }
+
+  .reduce-order-editor {
+    min-width: 700px;
+    grid-template-columns: 1fr;
+  }
+
+  .reduce-order-editor-summary {
+    grid-template-columns: repeat(3, minmax(100px, 1fr));
+  }
+}
+
+.open-order-chase {
+  min-width: 76px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(96, 165, 250, 0.46);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.open-order-chase:hover:not(:disabled) {
+  border-color: rgba(96, 165, 250, 0.75);
+  background: rgba(96, 165, 250, 0.09);
+}
+
+.open-order-chase:disabled {
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.open-order-focus-cue {
+  width: 18px;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 21.5px;
+  line-height: 1;
+  opacity: 0.55;
+  transform: translateX(0);
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+  pointer-events: none;
+}
+
+.open-order-row:hover .open-order-focus-cue,
+.open-order-row:focus-visible .open-order-focus-cue,
+.focused-order-row .open-order-focus-cue {
+  color: var(--amber);
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.focusable-order-row {
+  cursor: pointer;
+  outline: none;
+}
+
+.focusable-order-row:hover {
+  background: rgba(245, 166, 35, 0.045);
+}
+
+.focusable-order-row:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.45);
+}
+
+.focused-order-row {
+  background: rgba(245, 166, 35, 0.085);
+  box-shadow: inset 3px 0 0 var(--amber);
+  animation: focused-order-row-pulse 360ms ease-in-out 4 alternate;
+}
+
+@keyframes focused-order-row-pulse {
+  from {
+    background: rgba(245, 166, 35, 0.045);
+  }
+
+  to {
+    background: rgba(245, 166, 35, 0.14);
+  }
+}
+
+.position-protection-value strong {
+  font-weight: 700;
+}
+
+.position-protection-value.take-profit strong {
+  color: var(--green);
+}
+
+.position-protection-value.stop-loss strong {
+  color: var(--red);
+}
+
+/*
+ * ============================================================
+ * MOBILE: convert the fixed-width grid tables into stacked
+ * label/value cards. Below this breakpoint there's no realistic
+ * amount of horizontal space to keep 9 (positions) or 5 (open
+ * orders) columns readable side by side, so each row becomes its
+ * own card and every value gets an explicit label instead of
+ * relying on column position.
+ * ============================================================
+ */
+@media (max-width: 720px) {
+  .positions-tabs {
+    height: auto;
+    min-height: 46px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .positions-tab {
+    padding: 6px 10px;
+    font-size: 14.5px;
+  }
+
+  .positions-tabs-spacer {
+    flex-basis: 100%;
+    height: 0;
+    flex: 0 0 100%;
+  }
+
+  .close-everything-group {
+    flex: 1;
+    height: auto;
+    padding: 4px 4px 4px 0;
+    border-right: 0;
+  }
+
+  .close-everything-button {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .positions-refresh {
+    flex-shrink: 0;
+  }
+
+  /* Column headings are redundant once every value carries its own label. */
+  .positions-heading-row,
+  .open-orders-heading-row {
+    display: none;
+  }
+
+  .position-row,
+  .open-order-row {
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 14px 16px;
+  }
+
+  .position-row::before,
+  .open-order-row::before {
+    top: 0;
+    bottom: 0;
+  }
+
+  .position-symbol-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .position-symbol-cell > div {
+    margin-top: 0;
+  }
+
+  .position-value {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .position-value > span {
+    display: inline-block;
+    color: var(--text-faint);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .position-value > strong {
+    text-align: right;
+  }
+
+  .position-value small {
+    margin-top: 0;
+    margin-left: 6px;
+  }
+
+  .position-close-cell {
+    margin-top: 2px;
+  }
+
+  .position-market-close {
+    width: 100%;
+    height: 38px;
+  }
+
+  .open-order-symbol-cell {
+    width: 100%;
+  }
+
+  .open-order-symbol-top {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .open-order-value {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /*
+   * These three .open-order-value cells (Type / Price / Status) have no
+   * label markup in the JSX - the desktop grid relies on the heading row
+   * above them for context, which is hidden on mobile. Rather than
+   * touching the component, label them positionally: they are always the
+   * 2nd, 3rd and 4th <div> children of .open-order-row (1st is the
+   * symbol cell, 5th is the action cell).
+   */
+  .open-order-row .open-order-value:nth-of-type(2)::before {
+    content: "Type";
+  }
+
+  .open-order-row .open-order-value:nth-of-type(3)::before {
+    content: "Price";
+  }
+
+  .open-order-row .open-order-value:nth-of-type(4)::before {
+    content: "Status";
+  }
+
+  .open-order-value::before {
+    color: var(--text-faint);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+  }
+
+  .open-order-action-cell {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-top: 2px;
+  }
+
+  .open-order-action-cell button {
+    flex: 1;
+    min-width: 96px;
+  }
+
+  .open-order-focus-cue {
+    display: none;
+  }
+
+  .reduce-order-editor {
+    min-width: 0;
+    grid-template-columns: 1fr;
+    padding: 14px;
+    gap: 10px 0;
+  }
+
+  .reduce-order-editor-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .reduce-order-editor-actions {
+    flex-direction: column-reverse;
+  }
+
+  .reduce-order-editor-actions button {
+    width: 100%;
+    height: 36px;
+  }
+}
+
+/* Rows for symbols other than the active chart remain visible as account
+   context, but must not look or behave like chart controls. Only ever
+   applies to Open Orders rows now - Positions rows are always clickable
+   regardless of symbol (see PositionRow's onSwitchSymbol) and so never
+   get this class at all. */
+.inactive-symbol-row {
+  cursor: default;
+}
+
+/*
+ * FIX: Do not put opacity on the entire inactive row because that also
+ * dims the clickable symbol and child opacity cannot override a parent's
+ * opacity. Instead, dim the row contents individually while leaving the
+ * symbol navigation link at full opacity.
+ */
+.inactive-symbol-row > *:not(.open-order-symbol-cell) {
+  opacity: 0.55;
+}
+
+.inactive-symbol-row .open-order-symbol-cell > *:not(.open-order-symbol-top) {
+  opacity: 0.55;
+}
+
+.inactive-symbol-row .open-order-symbol-top > *:not(.open-order-symbol-link) {
+  opacity: 0.55;
+}
+
+.inactive-symbol-row .open-order-symbol-link {
+  opacity: 1;
+}
+
+.position-row.inactive-symbol-row:hover,
+.open-order-row.inactive-symbol-row:hover {
+  background: transparent;
+}
+
+.open-order-row.inactive-symbol-row:hover::before {
+  opacity: 0;
+}
+
+.inactive-symbol-row .open-order-focus-cue {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .positions-resize-handle {
+    display: none;
+  }

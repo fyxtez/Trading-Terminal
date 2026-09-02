@@ -15,22 +15,23 @@ intended to remove.
 ## Decision
 
 Tauri and Axum use the same keyring service, `com.fyxtez.terminal`. Tauri writes
-credentials and returns only boolean status to React. Axum reads the same entries
-directly. After a save, Tauri sends Axum a reload signal that contains no secret
-values.
+credentials and returns only boolean status plus the non-secret network name to
+React. Axum reads the same entries directly. After a save, Tauri restarts the
+managed sidecar so network endpoints and credentials change as one runtime
+generation.
 
 Axum starts without Binance credentials and retains public chart-data support.
 Signed account/order methods and the private user stream fail closed until a
-complete key/secret pair exists. A credential reload refreshes reference data
-and account snapshots, and causes the private stream to reconnect.
+complete network/key/secret set exists. A restart refreshes reference data and
+account snapshots, and reconnects the private stream.
 
 Persistent alert delivery reads ntfy and Telegram configuration from the
 keyring. Local frontend alerts pass only rendered notification content to a
 native Tauri command; native Rust performs delivery. Exchange and notification
 secrets are not accepted from environment variables.
 
-This decision supersedes only the credential-handoff part of ADR 0004. Its
-sidecar lifecycle and per-launch service-capability proposal remain open.
+ADR 0004 completes the sidecar lifecycle and per-launch service-capability part
+of this decision. ADR 0006 defines explicit Binance network selection.
 
 ## Consequences
 
@@ -39,13 +40,12 @@ sidecar lifecycle and per-launch service-capability proposal remain open.
 - Both native Rust processes require access to the user's OS credential manager.
 - Plain browser development is chart-only and cannot deliver native
   notifications.
-- Updating credentials while the backend is running requires a credential
-  reload and private-stream reconnection.
-- The current secret-free reload signal is loopback-only but unauthenticated;
-  sidecar bootstrap must replace it with the per-launch capability.
+- Updating credentials restarts the backend, rebuilds exchange state, and
+  reconnects the private stream.
+- Desktop restart control remains behind Tauri IPC and the Axum bearer
+  boundary.
 
 ## Follow-up
 
-Package and supervise Axum as a Tauri sidecar. Replace the static development
-service token and fixed port with per-launch values before enabling release
-bundles.
+Verify credential-manager behavior on every supported operating system during
+clean-machine release acceptance.

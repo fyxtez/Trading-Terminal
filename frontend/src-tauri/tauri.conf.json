@@ -6,10 +6,11 @@
   "build": {
     "beforeDevCommand": "bash scripts/desktop-dev-server.sh",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "bash scripts/prepare-sidecar.sh release && bash scripts/build-desktop-frontend.sh",
     "frontendDist": "../dist"
   },
   "app": {
+    "enableGTKAppId": true,
     "windows": [
       {
         "title": "Fyxtez Terminal",
@@ -22,11 +23,19 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:8657 ws://127.0.0.1:8657 ws://localhost:5173 https://fapi.binance.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://contract.mexc.com; img-src 'self' asset: http://asset.localhost data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* ws://localhost:5173 https://fapi.binance.com https://testnet.binancefuture.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://stream.binancefuture.com wss://contract.mexc.com; img-src 'self' asset: http://asset.localhost data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all"
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "externalBin": ["binaries/binance-futures-axum"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }

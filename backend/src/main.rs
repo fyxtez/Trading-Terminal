@@ -7,24 +7,25 @@ mod error;
 mod icons;
 mod models;
 mod position_risk_state;
+mod runtime_config;
 mod secure_store;
 mod sizing_store;
 mod symbol_registry;
 mod trading_events;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use account_state::{AccountState, spawn_refresh_worker};
 use alerts::{AlertStore, spawn_alert_worker};
 use api::{AppState, router};
 use binance::BinanceClient;
-use dotenvy::dotenv;
 use error::{AppError, AppResult};
 use icons::IconStore;
 use models::{FuturesAccountInfo, MarginSizingConfig};
 use position_risk_state::{
     PositionRiskState, spawn_refresh_worker as spawn_position_risk_refresh_worker,
 };
+use runtime_config::RuntimeConfig;
 use sizing_store::SizingStore;
 use symbol_registry::{MarketDataSource, MarketKind, SymbolRegistry};
 use tokio::{
@@ -36,7 +37,7 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
-    dotenv().ok();
+    let runtime = RuntimeConfig::load()?;
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -44,7 +45,7 @@ async fn main() -> AppResult<()> {
         )
         .init();
 
-    let binance = BinanceClient::from_secure_store()?;
+    let binance = BinanceClient::from_secure_store(runtime.desktop_sidecar)?;
 
     info!("Synchronizing Binance server time");
     binance.sync_server_time().await?;
@@ -58,12 +59,9 @@ async fn main() -> AppResult<()> {
     }
     let reference_data_task = binance.spawn_reference_data_worker();
 
-    let symbol_registry_path =
-        std::env::var("SYMBOL_REGISTRY_PATH").unwrap_or_else(|_| "data/symbols.json".into());
-    let symbol_registry = SymbolRegistry::load(symbol_registry_path).await?;
+    let symbol_registry = SymbolRegistry::load(&runtime.symbol_registry_path).await?;
 
-    let icon_cache_dir = std::env::var("ICON_CACHE_DIR").unwrap_or_else(|_| "data/icons".into());
-    let icon_store = IconStore::load(icon_cache_dir).await?;
+    let icon_store = IconStore::load(&runtime.icon_cache_dir).await?;
 
     info!("Seeding default token icons");
     icon_store.seed(icons::DEFAULT_SEED_SYMBOLS).await;
@@ -166,9 +164,7 @@ async fn main() -> AppResult<()> {
     icon_store.seed(&registered_binance_symbol_refs).await;
 
     let sizing_defaults = load_sizing_config()?;
-    let sizing_path =
-        std::env::var("SIZING_CONFIG_PATH").unwrap_or_else(|_| "data/sizing.json".into());
-    let sizing_store = SizingStore::new(sizing_path);
+    let sizing_store = SizingStore::new(&runtime.sizing_config_path);
     let sizing = sizing_store.load(sizing_defaults).await?;
 
     let initial_account = if binance.is_configured() {
@@ -201,31 +197,9 @@ async fn main() -> AppResult<()> {
         position_risk_refresh_rx,
     );
 
-    let service_token = std::env::var("SERVICE_API_TOKEN")
-        .map_err(|_| AppError::Config("SERVICE_API_TOKEN must be set".into()))?;
-
-    if service_token.len() < 16 || service_token.starts_with("replace-with-") {
-        return Err(AppError::Config(
-            "SERVICE_API_TOKEN must be a non-placeholder random value containing at least 16 characters".into(),
-        ));
-    }
-
-    let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".into());
-
-    let port = std::env::var("SERVER_PORT")
-        .unwrap_or_else(|_| "8657".into())
-        .parse::<u16>()
-        .map_err(|_| AppError::Config("SERVER_PORT must be a valid u16".into()))?;
-
-    let address: SocketAddr = format!("{host}:{port}")
-        .parse()
-        .map_err(|_| AppError::Config("SERVER_HOST/SERVER_PORT form an invalid address".into()))?;
-
     let (trading_events, _) = broadcast::channel(512);
 
-    let alerts_db_path =
-        std::env::var("ALERTS_DB_PATH").unwrap_or_else(|_| "data/alerts.sqlite3".into());
-    let alert_store = AlertStore::connect(&alerts_db_path).await?;
+    let alert_store = AlertStore::connect(&runtime.alerts_db_path).await?;
     let (alert_runtime, alert_worker_task) = spawn_alert_worker(
         alert_store.clone(),
         binance.user_stream_ws_base().to_string(),
@@ -238,13 +212,14 @@ async fn main() -> AppResult<()> {
         position_risk_state: position_risk_state.clone(),
         sizing: Arc::new(RwLock::new(sizing)),
         sizing_store,
-        service_token,
+        service_token: runtime.service_token,
         trade_lock: Arc::new(tokio::sync::Mutex::new(())),
         trading_events: trading_events.clone(),
         alert_store,
         alert_runtime,
         symbol_registry,
         icon_store,
+        websocket_tickets: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
     };
 
     info!(
@@ -265,10 +240,10 @@ async fn main() -> AppResult<()> {
         trading_events,
     );
 
-    let listener = TcpListener::bind(address).await?;
+    let listener = TcpListener::bind(runtime.address).await?;
 
     info!(
-        %address,
+        address = %runtime.address,
         network = if binance.is_testnet() {
             "testnet"
         } else {

@@ -1,5 +1,6 @@
 import {
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
   TRADING_WEBSOCKET_ENDPOINT,
 } from "../config/constants";
 import type { TradingStreamEvent } from "./types";
@@ -11,12 +12,23 @@ function websocketBaseUrl(httpUrl: string): string {
   return parsed.toString().replace(/\/$/, "");
 }
 
-export function getTradingWebSocketUrl(): string {
-  const token = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
+export async function getAuthenticatedTradingWebSocketUrl(): Promise<string> {
+  const response = await fetch(`${TRADING_API_BASE_URL}/api/auth/ws-ticket`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`WebSocket ticket request failed with HTTP ${response.status}`);
+  }
+  const body = (await response.json()) as { ticket?: unknown };
+  if (typeof body.ticket !== "string" || !body.ticket) {
+    throw new Error("WebSocket ticket response is invalid");
+  }
   const url = new URL(
     `${websocketBaseUrl(TRADING_API_BASE_URL)}${TRADING_WEBSOCKET_ENDPOINT}`,
   );
-  url.searchParams.set("token", token);
+  url.searchParams.set("ticket", body.ticket);
   return url.toString();
 }
 

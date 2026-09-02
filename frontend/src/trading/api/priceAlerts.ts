@@ -1,10 +1,9 @@
 import {
   PRICE_ALERTS_ENDPOINT,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
 } from "../../config/constants";
 import type { PriceAlert } from "../../types/alert";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
 type BackendPriceAlert = {
   id: string;
@@ -24,7 +23,7 @@ export type ListedPriceAlert = PriceAlert & { symbol: string };
 function headers(json = false): HeadersInit {
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    Authorization: `Bearer ${API_TOKEN}`,
+    Authorization: `Bearer ${TRADING_API_TOKEN}`,
   };
 }
 

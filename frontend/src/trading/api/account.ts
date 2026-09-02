@@ -1,10 +1,9 @@
 import {
   AVAILABLE_BALANCE_ENDPOINT,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
 } from "../../config/constants";
 import { canUseTradingAccount } from "../../desktop/credentials";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -78,8 +77,8 @@ export async function getAvailableBalance(
     Accept: "application/json",
   };
 
-  if (API_TOKEN) {
-    headers.Authorization = `Bearer ${API_TOKEN}`;
+  if (TRADING_API_TOKEN) {
+    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
   }
 
   const response = await fetch(

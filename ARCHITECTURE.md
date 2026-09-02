@@ -7,30 +7,33 @@ browser owns presentation and interactive chart state. The backend is the trust
 boundary for exchange credentials, order validation, account state, persistent
 alerts, and exchange communication.
 
-The desktop migration adds a Tauri 2 native process around the existing SPA.
-During migration, the React/Axum contract remains intact:
+The desktop runtime adds a Tauri 2 native process around the existing SPA while
+preserving the React/Axum contract:
 
 ```text
 Tauri native process
   ├── OS credential-store commands (secrets never returned to WebView)
+  ├── single-instance guard and bounded sidecar supervisor
   ├── WebView: existing React/Vite terminal
-  └── Local Axum service
+  └── bundled Axum sidecar on 127.0.0.1:<ephemeral-port>
+      ├── receives port/capability/app-data path once over stdin
       └── reads the same OS credential-store service directly
 ```
 
-Production bundling is deliberately disabled until Tauri supervises the Axum
-sidecar and replaces the development service token with a per-launch
-capability. Decisions and constraints are recorded in
-[`docs/adr`](docs/adr/README.md).
+Linux x86_64 `.deb` and AppImage bundling is enabled. Distribution still
+requires artifact signing and clean-machine acceptance. Decisions and
+constraints are recorded in [`docs/adr`](docs/adr/README.md).
 
 ### Desktop connection modes
 
 - **Chart only:** no Binance secret is configured; public market data and local
   chart tools work, but account state and execution are disabled in both UI and
   frontend API guards.
-- **Trading connected:** Binance key and secret exist in the OS credential
-  manager. Native status exposes only booleans to React; Axum reads the same
-  keychain entries without a JavaScript or `.env` credential handoff.
+- **Trading connected:** a Binance network, key and secret exist in the OS
+  credential manager. Native status exposes only booleans plus the non-secret
+  network name to React; Axum reads the same keychain entries without a
+  JavaScript or `.env` credential handoff. No network is selected by default,
+  and Mainnet needs an explicit real-funds confirmation.
 - **Optional notifications:** ntfy and Telegram are configured independently
   and never gate chart or trading access.
 
@@ -56,7 +59,21 @@ Lightweight Charts.
 
 - `components/` contains UI surfaces and chart overlays.
 - `hooks/` coordinates chart lifecycle, market streams, positions, orders,
-  drawings, alerts, tabs, and hotkeys.
+  drawings, alerts, tabs, and hotkeys. The drawing overlay is decomposed under
+  `hooks/useDrawingCanvas/` into rendering, canvas primitives, geometry,
+  pending-order layout/hit-testing, and armed pointer interactions.
+- `components/PositionsPanel/` separates panel orchestration from position and
+  open-order row rendering; row-specific styles follow the same boundary.
+- `components/ChartPanel/ChartTransientEditors.tsx` contains the short-lived
+  chart editors and temporary price line, leaving chart orchestration in the
+  panel itself.
+- `hooks/marketDataPersistence.ts` owns validation and storage of per-symbol
+  intervals and chart viewports; `useMarketData` remains responsible for data
+  loading, polling, and backfill.
+- `components/SettingsPanel/SettingsSummaryCards.tsx` owns the desktop
+  connection summary and balance presentation.
+- `components/PositionBracketOverlay/positionBracketModel.ts` owns persisted
+  bracket anchors/zone extents and pure bracket calculations.
 - `trading/api/` is the REST client layer.
 - `trading/` contains trading-domain types and calculations.
 - `utils/` contains chart geometry, persistence helpers, time/session logic, and
@@ -65,9 +82,9 @@ Lightweight Charts.
   symbol registry view.
 
 `App.tsx` is currently the composition root. It wires the chart, panels, trading
-state, settings, and overlays together. Several frontend modules are larger than
-the desired long-term boundary; their planned decomposition is tracked in the
-before-live checklist.
+state, settings, and overlays together. Large interaction modules should expose
+a small orchestration API and keep rendering, geometry, and exchange mutations
+in separate modules.
 
 ### Frontend state
 
@@ -88,8 +105,11 @@ The backend is a Tokio application exposed through Axum.
 
 - `main.rs` loads configuration, initializes stores and exchange reference data,
   starts background workers, and handles graceful shutdown.
-- `api.rs` defines REST/WebSocket routes, authentication, validation, and trading
-  workflows.
+- `runtime_config.rs` separates standalone `.env` development from the bounded
+  stdin bootstrap used by the desktop sidecar.
+- `api.rs` composes REST/WebSocket routes, authentication, validation, and
+  trading workflows. Alert handlers and symbol/icon/market-data handlers live in
+  focused `api/` route modules while preserving the same public URLs.
 - `binance.rs` signs and sends Binance REST requests and caches exchange metadata.
 - `binance_stream/` maintains the Binance user-data stream.
 - `account_state.rs` and `position_risk_state.rs` maintain shared snapshots.
@@ -153,33 +173,45 @@ credential access.
 | UI settings/drawings/tabs | Browser `localStorage` | Frontend |
 | Binance/ntfy/Telegram secrets | OS credential manager | Native Rust |
 
-Runtime data and secrets are ignored by Git. Production deployment must include
-backup and restore procedures for backend-owned data.
+The table shows standalone development defaults. In installed desktop builds,
+backend-owned JSON, SQLite, and icon data live under the operating system's
+application-data directory resolved by Tauri. Runtime data and secrets are
+ignored by Git.
 
 ## Authentication and trust boundaries
 
-Most API routes require `Authorization: Bearer <SERVICE_API_TOKEN>`. WebSocket
-and image requests use a query token because browser WebSocket and `<img>` APIs
-cannot attach the same custom header in the current implementation. `/health`
-is unauthenticated.
+Desktop startup generates a 256-bit per-launch bearer capability and an
+ephemeral loopback port. A one-line JSON bootstrap is written to the sidecar's
+stdin; neither value appears in `VITE_*`, argv, a file, nor application URLs.
+Tauri gives the runtime information to the WebView through an IPC command.
+The desktop frontend build also shadows local `VITE_TRADING_*` variables with
+empty values, preventing an ignored developer `.env` from leaking its browser
+development capability into release assets.
 
-This is suitable only for a trusted single-user/private-network setup. A
-`VITE_*` value is compiled into the public browser bundle and is therefore not a
-secret. Frontend guards make the supported browser UI chart-only, but they are
-not a backend authentication boundary: a caller holding the shared token can
-still invoke Axum directly. The credential-reload endpoint currently accepts a
-secret-free loopback signal without bearer authentication. Before any public or
-multi-user deployment, replace this model with server-side sessions, replace the
-development-only local CORS allowlist, avoid capability values in URLs, and add
-rate limiting and audit logging.
+Most API routes require `Authorization: Bearer <capability>`. WebSocket clients
+exchange that bearer value for a 30-second, one-use ticket; protected icon bytes
+are bearer-fetched and displayed through temporary blob URLs. `/health` is the
+only public route. CORS is restricted to known Vite/Tauri origins and CSP allows
+loopback connections on arbitrary ports because the desktop port is ephemeral.
+
+Standalone browser development retains the configured shared token. Because a
+`VITE_*` value is compiled into JavaScript, that workflow is local-only and the
+browser UI deliberately remains chart-only. Neither mode is a public or
+multi-user authentication design.
 
 ## Safety properties already present
 
-- Testnet is the default.
-- Mainnet requires two explicit environment switches.
-- Exchange and notification credentials never enter the browser, `.env`, argv
-  or backend logs.
-- Service tokens must be at least 16 characters.
+- A desktop install begins with no Binance network or credentials.
+- Mainnet requires explicit network selection and real-funds confirmation.
+- Exchange and notification credentials exist in the WebView only while the
+  user enters them; they are not returned after saving and never enter `.env`,
+  argv, URLs, localStorage, SQLite, or backend logs.
+- Desktop capabilities contain 256 random bits and service tokens must contain
+  at least 32 characters.
+- The backend sidecar is packaged, health-checked, supervised, and stopped by
+  Tauri; only one desktop application instance owns it.
+- Automatic sidecar recovery is bounded to three attempts before a visible
+  retry is required.
 - Exposure-increasing symbol setup enforces isolated margin.
 - Multi-step trade workflows are serialized.
 - The server responds to SIGINT/SIGTERM and stops background tasks.

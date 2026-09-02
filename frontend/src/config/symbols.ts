@@ -7,7 +7,11 @@ import zecIcon from "../assets/symbols/zec.svg";
 import xauIcon from "../assets/symbols/xau.svg";
 import xagIcon from "../assets/symbols/xag.svg";
 import powerIcon from "../assets/symbols/power.jpg";
-import { listIcons, iconImageUrl, type BackendIcon } from "../trading/api/symbols";
+import {
+  fetchIconImageUrl,
+  listIcons,
+  type BackendIcon,
+} from "../trading/api/symbols";
 import { TRADING_API_BASE_URL, TRADING_API_BASE_URL_CHANGED_EVENT } from "./constants";
 
 /**
@@ -72,18 +76,27 @@ function iconMetadataCacheKey(): string {
   return `${ICON_METADATA_CACHE_PREFIX}${TRADING_API_BASE_URL.replace(/\/+$/, "")}`;
 }
 
-function applyIconMetadata(icons: readonly BackendIcon[]): void {
-  for (const icon of icons) {
-    const code = icon.symbol.trim().toUpperCase();
-    if (!code || !Number.isFinite(icon.cached_at_ms)) continue;
-    runtimeAssetMetadata[code] = {
-      ...runtimeAssetMetadata[code],
-      icon: iconImageUrl(code, icon.cached_at_ms),
-    };
-  }
+async function applyIconMetadata(icons: readonly BackendIcon[]): Promise<void> {
+  await Promise.all(
+    icons.map(async (icon) => {
+      const code = icon.symbol.trim().toUpperCase();
+      if (!code || !Number.isFinite(icon.cached_at_ms)) return;
+      try {
+        const previous = runtimeAssetMetadata[code]?.icon;
+        const next = await fetchIconImageUrl(code, icon.cached_at_ms);
+        if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous);
+        runtimeAssetMetadata[code] = {
+          ...runtimeAssetMetadata[code],
+          icon: next,
+        };
+      } catch {
+        // A missing cosmetic icon never blocks symbol/chart loading.
+      }
+    }),
+  );
 }
 
-function hydratePersistedIconMetadata(): void {
+async function hydratePersistedIconMetadata(): Promise<void> {
   if (typeof window === "undefined") return;
 
   try {
@@ -91,15 +104,14 @@ function hydratePersistedIconMetadata(): void {
     if (!raw) return;
 
     const parsed = JSON.parse(raw) as PersistedIconMetadataCache;
-    for (const [symbol, cached] of Object.entries(parsed.icons ?? {})) {
-      const code = symbol.trim().toUpperCase();
-      const cachedAtMs = Number(cached?.cachedAtMs);
-      if (!code || !Number.isFinite(cachedAtMs)) continue;
-      runtimeAssetMetadata[code] = {
-        ...runtimeAssetMetadata[code],
-        icon: iconImageUrl(code, cachedAtMs),
-      };
-    }
+    await applyIconMetadata(
+      Object.entries(parsed.icons ?? {}).map(([symbol, cached]) => ({
+        symbol,
+        cached_at_ms: Number(cached?.cachedAtMs),
+        source_url: "",
+        url: "",
+      })),
+    );
   } catch {
     // Cosmetic cache only: malformed/unavailable localStorage must never block
     // the symbol registry or chart from loading.
@@ -161,7 +173,7 @@ export async function refreshSymbolMetadata(): Promise<void> {
       // and a poor fit for binary/base64 image data). On the next app start the
       // search list can therefore render known icon URLs immediately, while
       // this background refresh still discovers newly-added/repaired icons.
-      applyIconMetadata(icons);
+      await applyIconMetadata(icons);
       persistIconMetadata(icons);
     } catch {
       // Optional cosmetic enrichment only.
@@ -185,10 +197,10 @@ if (typeof window !== "undefined") {
   // FEATURE: populate runtime metadata synchronously from the last successful
   // backend response so opening/searching the symbol list does not briefly show
   // generic placeholders while GET /api/icons is still in flight.
-  hydratePersistedIconMetadata();
-
   window.addEventListener(TRADING_API_BASE_URL_CHANGED_EVENT, () => {
     for (const code of Object.keys(runtimeAssetMetadata)) {
+      const previous = runtimeAssetMetadata[code].icon;
+      if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous);
       delete runtimeAssetMetadata[code].icon;
     }
     iconRefreshPromise = null;
@@ -196,7 +208,7 @@ if (typeof window !== "undefined") {
     // Load the selected backend's own cached metadata first, then reconcile in
     // the background. This preserves instant icons across local/remote switches
     // without ever reusing URLs from the wrong backend.
-    hydratePersistedIconMetadata();
+    void hydratePersistedIconMetadata();
     void refreshSymbolMetadata();
   });
 }

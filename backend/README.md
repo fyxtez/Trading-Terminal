@@ -4,9 +4,9 @@ Rust, Tokio, and Axum service responsible for exchange access, trading safety,
 account state, persistent alerts, symbol metadata, and frontend REST/WebSocket
 APIs.
 
-During the Tauri migration this remains the local execution authority. Desktop
-development starts it automatically; release sidecar packaging and lifecycle
-supervision are proposed in
+This remains the local execution authority. Tauri packages it as a sidecar,
+starts it on an ephemeral loopback port, health-checks it, restarts it at most
+three times after crashes, and stops it with the application. See
 [`ADR 0004`](../docs/adr/0004-backend-packaging-and-lifecycle.md).
 
 ## Setup
@@ -17,8 +17,9 @@ cp .env.example .env
 cargo run
 ```
 
-The service defaults to Binance testnet and `127.0.0.1:8657`. It refuses mainnet
-unless `BINANCE_TESTNET=false` and `ALLOW_MAINNET=true` are both explicitly set.
+This standalone development mode defaults to Binance testnet and
+`127.0.0.1:8657`. It refuses mainnet unless `BINANCE_TESTNET=false` and
+`ALLOW_MAINNET=true` are both explicitly set.
 Binance, ntfy and Telegram credentials are read from the operating-system
 credential manager populated by Settings → Desktop connections. Without a
 Binance connection, the service starts in chart-only mode.
@@ -31,7 +32,8 @@ cargo check --locked
 cargo test --locked
 ```
 
-Automated domain tests are not yet implemented and remain a release blocker.
+The runtime bootstrap has unit coverage. Financially sensitive order-domain
+coverage is still incomplete and remains a release gate.
 
 ## Runtime data
 
@@ -42,13 +44,14 @@ from Git. Back them up before production use.
 ## API security
 
 Most routes require the bearer token from `SERVICE_API_TOKEN`. `/health` is
-public; WebSocket and icon-image routes perform their own query-token checks.
-Bind to localhost or a trusted private network until the authentication and CORS
-items in the release checklist are complete.
+public. The WebSocket upgrade uses a short-lived, one-use ticket issued through
+an authenticated POST; icon bytes use the normal bearer-protected fetch path.
+Bind standalone development to localhost.
 
-The desktop development bridge currently expects `127.0.0.1:8657`. Other ports
-are supported only by the standalone browser/backend workflow until the Tauri
-sidecar selects and distributes a per-launch endpoint.
+Desktop mode ignores project server/token/data-path settings. It reads a bounded
+one-line bootstrap payload from stdin, binds only to `127.0.0.1`, and keeps data
+under Tauri's platform application-data directory. Exchange and notification
+credentials still come directly from the OS credential manager.
 
 See [`.env.example`](.env.example) for all configuration variables and
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for service internals.

@@ -9,7 +9,7 @@ use axum::{
 };
 use serde_json::{Value, json};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -24,12 +24,10 @@ use tower_http::{
 
 use crate::{
     account_state::AccountState,
-    alerts::{
-        AlertListQuery, AlertRuntime, AlertStore, CreatePriceAlert, PriceAlert, UpdatePriceAlert,
-    },
+    alerts::{AlertRuntime, AlertStore},
     binance::{BinanceClient, floor_to_step, normalize_symbol, round_to_tick},
     error::{AppError, AppResult},
-    icons::{IconEntry, IconStore, MAX_ICONS},
+    icons::IconStore,
     models::{
         AutoSizePreview, AutoSizeQuery, ClosePositionRequest, ConditionalOrderRequest,
         FuturesAccountInfo, HealthResponse, IntentOrderType, LimitOrderRequest, MarginSizingConfig,
@@ -38,8 +36,16 @@ use crate::{
     },
     position_risk_state::PositionRiskState,
     sizing_store::SizingStore,
-    symbol_registry::{AddSymbolRequest, MarketDataSource, MarketKind, SymbolRegistry},
+    symbol_registry::SymbolRegistry,
     trading_events::TradingEvent,
+};
+
+mod alert_routes;
+mod catalog_routes;
+
+use alert_routes::{create_alert, delete_alert, list_alerts, update_alert};
+use catalog_routes::{
+    add_symbol, delete_symbol, get_icon_image, list_icons, list_symbols, mexc_klines,
 };
 
 #[derive(Clone)]
@@ -56,6 +62,7 @@ pub struct AppState {
     pub alert_runtime: AlertRuntime,
     pub symbol_registry: SymbolRegistry,
     pub icon_store: IconStore,
+    pub websocket_tickets: Arc<Mutex<HashMap<String, tokio::time::Instant>>>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -109,6 +116,7 @@ pub fn router(state: AppState) -> Router {
             post(chase_limit_order),
         )
         .route("/api/ws/trading", get(trading_websocket))
+        .route("/api/auth/ws-ticket", post(issue_websocket_ticket))
         .route("/api/alerts", get(list_alerts).post(create_alert))
         .route("/api/alerts/{id}", put(update_alert).delete(delete_alert))
         .route(
@@ -146,18 +154,7 @@ async fn authorize(
 ) -> AppResult<Response> {
     let path = request.uri().path();
 
-    if matches!(
-        path,
-        "/health" | "/api/ws/trading" | "/api/desktop/credentials/reload"
-    ) {
-        return Ok(next.run(request).await);
-    }
-
-    // Icon images are loaded via plain `<img src>` elements in the
-    // frontend, which - like the WebSocket upgrade above - cannot attach
-    // a custom Authorization header. This route authenticates via its own
-    // `?token=` query parameter instead; see get_icon_image below.
-    if path.starts_with("/api/icons/") && path.ends_with("/image") {
+    if matches!(path, "/health" | "/api/ws/trading") {
         return Ok(next.run(request).await);
     }
 
@@ -208,7 +205,17 @@ async fn reload_desktop_credentials(State(state): State<AppState>) -> AppResult<
 
 #[derive(Debug, serde::Deserialize)]
 struct TradingSocketQuery {
-    token: String,
+    ticket: String,
+}
+
+async fn issue_websocket_ticket(State(state): State<AppState>) -> Json<Value> {
+    const TICKET_TTL: Duration = Duration::from_secs(30);
+    let now = tokio::time::Instant::now();
+    let ticket = uuid::Uuid::new_v4().simple().to_string();
+    let mut tickets = state.websocket_tickets.lock().await;
+    tickets.retain(|_, expires_at| *expires_at > now);
+    tickets.insert(ticket.clone(), now + TICKET_TTL);
+    Json(json!({ "ticket": ticket, "expires_in_ms": TICKET_TTL.as_millis() }))
 }
 
 async fn trading_websocket(
@@ -216,7 +223,8 @@ async fn trading_websocket(
     Query(query): Query<TradingSocketQuery>,
     upgrade: WebSocketUpgrade,
 ) -> AppResult<Response> {
-    if query.token != state.service_token {
+    let expires_at = state.websocket_tickets.lock().await.remove(&query.ticket);
+    if expires_at.is_none_or(|expires_at| expires_at <= tokio::time::Instant::now()) {
         return Err(AppError::Unauthorized);
     }
 
@@ -253,308 +261,6 @@ async fn stream_trading_events(
             Err(broadcast::error::RecvError::Closed) => break,
         }
     }
-}
-
-async fn list_alerts(
-    State(state): State<AppState>,
-    Query(query): Query<AlertListQuery>,
-) -> AppResult<Json<Vec<PriceAlert>>> {
-    let symbol = query
-        .symbol
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let normalized = symbol.map(|value| value.to_uppercase());
-    Ok(Json(
-        state.alert_store.list_active(normalized.as_deref()).await?,
-    ))
-}
-
-async fn create_alert(
-    State(state): State<AppState>,
-    Json(request): Json<CreatePriceAlert>,
-) -> AppResult<(axum::http::StatusCode, Json<PriceAlert>)> {
-    let alert = state.alert_store.create(request).await?;
-    state.alert_runtime.refresh();
-    Ok((axum::http::StatusCode::CREATED, Json(alert)))
-}
-
-async fn update_alert(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(request): Json<UpdatePriceAlert>,
-) -> AppResult<Json<PriceAlert>> {
-    let id = uuid::Uuid::parse_str(&id)
-        .map_err(|_| AppError::Invalid("alert id must be a valid UUID".into()))?;
-    let alert = state.alert_store.update(id, request).await?;
-    state.alert_runtime.refresh();
-    Ok(Json(alert))
-}
-
-async fn delete_alert(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> AppResult<axum::http::StatusCode> {
-    let id = uuid::Uuid::parse_str(&id)
-        .map_err(|_| AppError::Invalid("alert id must be a valid UUID".into()))?;
-    state.alert_store.delete(id).await?;
-    state.alert_runtime.refresh();
-    Ok(axum::http::StatusCode::NO_CONTENT)
-}
-
-async fn list_symbols(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "symbols": state.symbol_registry.list().await }))
-}
-
-async fn add_symbol(
-    State(state): State<AppState>,
-    Json(request): Json<AddSymbolRequest>,
-) -> AppResult<(axum::http::StatusCode, Json<Value>)> {
-    let (symbol, created) = state.symbol_registry.add(&request.symbol).await?;
-
-    if symbol.data_source == MarketDataSource::Binance {
-        // FIX: startup enforcement only covers symbols already persisted at
-        // boot. A newly registered Binance contract must be switched to
-        // ISOLATED before the add request succeeds; per-order guards below
-        // provide a second fail-closed check. Roll back a fresh registry entry
-        // when Binance refuses the mode change so it never appears tradeable.
-        if let Err(error) = state
-            .binance
-            .ensure_isolated_margin(&symbol.market_symbol)
-            .await
-        {
-            if created {
-                let _ = state.symbol_registry.delete(&symbol.symbol).await;
-            }
-            return Err(error);
-        }
-    }
-
-    // FIX: both Binance and MEXC symbols now use the shared bounded icon cache.
-    // Check capacity before resolving artwork so neither source can silently
-    // exceed MAX_ICONS; roll back only a registry row created by this request.
-    if symbol.market_kind == MarketKind::Crypto {
-        let has_icon_room = match state.icon_store.has_room_for(&symbol.symbol).await {
-            Ok(value) => value,
-            Err(error) => {
-                if created {
-                    let _ = state.symbol_registry.delete(&symbol.symbol).await;
-                }
-                return Err(error);
-            }
-        };
-        if !has_icon_room {
-            if created {
-                let _ = state.symbol_registry.delete(&symbol.symbol).await;
-            }
-            return Err(AppError::Invalid(format!(
-                "maximum of {MAX_ICONS} symbols reached; delete an unused symbol before adding another"
-            )));
-        }
-    }
-
-    // FEATURE: select the venue/asset-specific resolver. MEXC crypto now uses
-    // CoinGecko and the same local cache/API as Binance instead of remaining
-    // permanently icon-less. Lookup failure stays cosmetic, not a symbol error.
-    let icon = {
-        let result = if symbol.market_kind == MarketKind::Traditional {
-            state
-                .icon_store
-                .ensure_cached_from_tradfi(&symbol.symbol)
-                .await
-        } else if symbol.data_source == MarketDataSource::Mexc {
-            state
-                .icon_store
-                .ensure_cached_from_mexc(&symbol.symbol)
-                .await
-        } else {
-            state
-                .icon_store
-                .ensure_cached_from_binance(&symbol.symbol)
-                .await
-        };
-        match result {
-            Ok(icon) => icon,
-            Err(error) => {
-                tracing::warn!(
-                    symbol = %symbol.symbol,
-                    %error,
-                    "Failed to cache icon for newly added symbol"
-                );
-                None
-            }
-        }
-    };
-
-    let status = if created {
-        axum::http::StatusCode::CREATED
-    } else {
-        axum::http::StatusCode::OK
-    };
-
-    Ok((
-        status,
-        Json(json!({
-            "created": created,
-            "symbol": symbol,
-            "icon": icon.map(icon_json),
-        })),
-    ))
-}
-
-async fn delete_symbol(
-    State(state): State<AppState>,
-    Path(symbol): Path<String>,
-) -> AppResult<Json<Value>> {
-    // NOTE: intentionally does NOT touch `state.icon_store`. Deleting a
-    // symbol from the trading registry must not delete its cached icon -
-    // see the module doc-comment on `icons.rs` for why (cheap re-adds,
-    // and a symbol that briefly disappears from the list shouldn't lose
-    // its artwork).
-    let removed = state.symbol_registry.delete(&symbol).await?;
-    Ok(Json(json!({
-        "deleted": true,
-        "symbol": removed
-    })))
-}
-
-fn icon_json(entry: IconEntry) -> Value {
-    json!({
-        "symbol": entry.symbol,
-        "url": format!("/api/icons/{}/image", entry.symbol),
-        "source_url": entry.source_url,
-        "cached_at_ms": entry.cached_at_ms,
-    })
-}
-
-/// Returns the full symbol -> icon map (metadata only, not image bytes) so
-/// the frontend can build its own symbol -> `<img>` lookup in one call.
-async fn list_icons(State(state): State<AppState>) -> Json<Value> {
-    let entries = state.icon_store.list().await;
-
-    Json(json!({
-        "count": entries.len(),
-        "max": MAX_ICONS,
-        "icons": entries.into_iter().map(icon_json).collect::<Vec<_>>(),
-    }))
-}
-
-/// Serves the raw cached image bytes for a symbol, e.g. for direct use as
-/// an `<img src="/api/icons/BTC/image?token=...">` source. 404s if nothing
-/// is cached for that symbol yet - the frontend should treat that as "no
-/// icon", not retry indefinitely.
-///
-/// Authenticated via `?token=` rather than the usual Authorization header
-/// - see the comment on `authorize` above for why: a plain `<img>` element
-///   can't attach custom headers, the same limitation the WebSocket upgrade
-///   already has to work around.
-#[derive(Debug, serde::Deserialize)]
-struct IconImageQuery {
-    token: String,
-}
-
-async fn get_icon_image(
-    State(state): State<AppState>,
-    Path(symbol): Path<String>,
-    Query(query): Query<IconImageQuery>,
-) -> AppResult<Response> {
-    if query.token != state.service_token {
-        return Err(AppError::Unauthorized);
-    }
-
-    let (bytes, content_type) = state
-        .icon_store
-        .read_bytes(&symbol)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("no cached icon for {symbol}")))?;
-
-    Ok(([(header::CONTENT_TYPE, content_type)], bytes).into_response())
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct MexcKlineQuery {
-    symbol: String,
-    interval: String,
-    start: Option<u64>,
-    end: Option<u64>,
-}
-
-/// Server-side MEXC proxy. Browsers cannot call contract.mexc.com directly
-/// because that API does not send CORS headers for localhost/web origins.
-/// Keep this endpoint deliberately narrow so it cannot become an open proxy.
-async fn mexc_klines(
-    State(state): State<AppState>,
-    Query(query): Query<MexcKlineQuery>,
-) -> AppResult<Json<Value>> {
-    const ALLOWED_INTERVALS: &[&str] = &[
-        "Min1", "Min5", "Min15", "Min60", "Hour4", "Day1", "Week1", "Month1",
-    ];
-
-    let requested = state
-        .symbol_registry
-        .get(&query.symbol)
-        .await?
-        .ok_or_else(|| {
-            AppError::Invalid(format!("unsupported market-data symbol: {}", query.symbol))
-        })?;
-
-    if requested.data_source != MarketDataSource::Mexc {
-        return Err(AppError::Invalid(format!(
-            "{} uses {:?} market data, not MEXC",
-            requested.display_symbol, requested.data_source
-        )));
-    }
-
-    let symbol = requested.market_symbol;
-
-    let interval = query.interval.trim();
-    if !ALLOWED_INTERVALS.contains(&interval) {
-        return Err(AppError::Invalid(format!(
-            "unsupported MEXC kline interval: {interval}"
-        )));
-    }
-
-    if let (Some(start), Some(end)) = (query.start, query.end)
-        && start >= end
-    {
-        return Err(AppError::Invalid(
-            "MEXC kline start must be earlier than end".into(),
-        ));
-    }
-
-    let mut request = reqwest::Client::new()
-        .get(format!(
-            "https://api.mexc.com/api/v1/contract/kline/{symbol}"
-        ))
-        .query(&[("interval", interval)]);
-
-    if let Some(start) = query.start {
-        request = request.query(&[("start", start)]);
-    }
-    if let Some(end) = query.end {
-        request = request.query(&[("end", end)]);
-    }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|error| AppError::Config(format!("MEXC request failed: {error}")))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|error| AppError::Config(format!("failed to read MEXC response: {error}")))?;
-
-    if !status.is_success() {
-        return Err(AppError::Config(format!(
-            "MEXC returned HTTP {status}: {body}"
-        )));
-    }
-
-    let payload = serde_json::from_str::<Value>(&body)
-        .map_err(|error| AppError::Config(format!("invalid MEXC JSON response: {error}")))?;
-
-    Ok(Json(payload))
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {

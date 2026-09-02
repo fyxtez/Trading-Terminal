@@ -30,4 +30,5 @@ order polling, execution controls and the private trading stream fail closed.
 ## Follow-up
 
 Credential access is completed by ADR 0005. Sidecar packaging, lifecycle and a
-per-launch service capability remain tracked by ADR 0004.
+per-launch service capability are completed by ADR 0004. Explicit Binance
+network selection is recorded in ADR 0006.

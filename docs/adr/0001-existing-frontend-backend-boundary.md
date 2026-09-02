@@ -17,9 +17,10 @@ Keep the HTTP/WebSocket contract during the first desktop milestones. Tauri host
 
 - Browser development remains available.
 - Existing frontend API modules continue to work.
-- Desktop development temporarily runs a localhost backend.
-- The release bundle is incomplete until the backend is packaged and supervised by Tauri.
+- Desktop development and releases run a Tauri-supervised localhost sidecar.
+- The same API boundary can be validated independently in browser development.
 
 ## Follow-up
 
-Inventory each REST/WebSocket route before deciding whether it remains local HTTP or becomes IPC. Execution behavior must not exist in both paths.
+Keep execution behavior in Axum unless a future ADR deliberately replaces the
+whole contract. Do not implement a second execution path in Tauri commands.

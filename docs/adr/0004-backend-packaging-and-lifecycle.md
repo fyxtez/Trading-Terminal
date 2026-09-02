@@ -1,33 +1,45 @@
 # ADR 0004: Package and supervise the backend as a sidecar
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-02
 
 ## Context
 
-The frontend currently requires Axum on port 8657. During development, `frontend/scripts/desktop-dev-server.sh` starts that service before Vite. An installed desktop application cannot require Cargo, source code or a manually maintained `.env` file.
+Standalone browser development uses Axum on a configured port, historically
+8657. An installed desktop application cannot require Cargo, source code, a
+fixed port, or a manually maintained `.env` file.
 
-## Proposed decision
+## Decision
 
 Build `binance-futures-axum` for every desktop target and include it as a Tauri
-sidecar. Tauri owns its lifecycle: acquire a single-instance lock, select a
-loopback port and one-time service token, start the backend without secrets in
-argv, wait for authenticated readiness, provide the endpoint to the WebView,
-and terminate the child on app exit. As accepted in ADR 0005, both Rust
+sidecar. Tauri owns its lifecycle: enforce a single application instance,
+select an ephemeral loopback port, generate a 256-bit per-launch capability,
+start the backend, wait for readiness, provide the endpoint to the WebView over
+IPC, and terminate the child on app exit. As accepted in ADR 0005, both Rust
 processes read exchange and notification secrets from the same OS credential
 store; Tauri does not hand those secrets to Axum.
 
-The production server binds only to loopback. Its service token is generated per launch and is never a `VITE_*` build variable.
+The bootstrap is bounded JSON written to the child's stdin. It contains only the
+port, capability and Tauri application-data directory. It is not passed through
+`VITE_*`, argv, a URL, or a file. The production server always binds to
+`127.0.0.1`. WebSockets use short-lived, one-use tickets so the bearer
+capability does not appear in a URL.
+
+Unexpected sidecar termination triggers at most three automatic restarts with
+backoff. After that, the application exposes a failed state and requires an
+explicit retry. A second app launch focuses the existing window.
 
 ## Consequences
 
 - Release creation must build a sidecar for each target triple.
-- Crash handling and restart limits become native-shell responsibilities.
+- Crash handling, restart limits, and process shutdown are native-shell
+  responsibilities.
 - Port discovery replaces the fixed production port.
+- Desktop data moves from repository-relative paths to the platform
+  application-data directory.
 
 ## Follow-up
 
-Choose a protected mechanism (for example an inherited pipe or local bootstrap
-socket) for the per-launch endpoint and service capability. Threat-model local
-process inspection and origin confusion before implementation. This ADR must
-become Accepted before `bundle.active` is enabled.
+Complete signed Linux release ownership and a clean-machine install test. Treat
+any future capability transport, multi-window support, or remote API exposure as
+a new security decision.

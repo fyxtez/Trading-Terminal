@@ -19,6 +19,7 @@ import "./DesktopSetupGate.layout.css";
 
 const emptyStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
+  binanceNetwork: null,
   ntfyConfigured: false,
   telegramConfigured: false,
 };
@@ -26,6 +27,8 @@ const emptyStatus: DesktopCredentialStatus = {
 const emptyValues = () => ({
   binanceApiKey: "",
   binanceApiSecret: "",
+  binanceNetwork: "" as "" | "mainnet" | "testnet",
+  confirmMainnet: false,
   ntfyUrl: "",
   telegramBotToken: "",
   telegramChatId: "",
@@ -137,8 +140,12 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     [desktop, openSetup, status],
   );
 
-  const setValue = (name: keyof ReturnType<typeof emptyValues>, value: string) =>
+  function setValue<K extends keyof ReturnType<typeof emptyValues>>(
+    name: K,
+    value: ReturnType<typeof emptyValues>[K],
+  ) {
     setValues((current) => ({ ...current, [name]: value }));
+  }
 
   const finish = () => {
     setSaving(true);
@@ -147,6 +154,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       input: {
         binanceApiKey: values.binanceApiKey.trim() || null,
         binanceApiSecret: values.binanceApiSecret.trim() || null,
+        binanceNetwork: values.binanceNetwork || null,
+        confirmMainnet: values.confirmMainnet,
         ntfyUrl: values.ntfyUrl.trim() || null,
         telegramBotToken: values.telegramBotToken.trim() || null,
         telegramChatId: values.telegramChatId.trim() || null,
@@ -171,6 +180,22 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       Boolean(values.binanceApiKey) !== Boolean(values.binanceApiSecret)
     ) {
       setError("Enter both Binance fields, or skip this step.");
+      return;
+    }
+    if (
+      activeStep?.key === "binance" &&
+      values.binanceApiKey &&
+      !values.binanceNetwork
+    ) {
+      setError("Choose Binance Mainnet or Testnet.");
+      return;
+    }
+    if (
+      activeStep?.key === "binance" &&
+      values.binanceNetwork === "mainnet" &&
+      !values.confirmMainnet
+    ) {
+      setError("Confirm that Mainnet orders use real funds.");
       return;
     }
     if (
@@ -260,6 +285,47 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                   Prefer an IP restriction when practical.
                 </span>
               </aside>
+              <fieldset className="desktop-network-picker">
+                <legend>Binance environment</legend>
+                <div role="radiogroup" aria-label="Binance environment">
+                  <button
+                    type="button"
+                    className={values.binanceNetwork === "mainnet" ? "selected danger" : ""}
+                    aria-pressed={values.binanceNetwork === "mainnet"}
+                    onClick={() => {
+                      setValue("binanceNetwork", "mainnet");
+                      setValue("confirmMainnet", false);
+                    }}
+                  >
+                    <strong>MAINNET</strong>
+                    <span>Real funds and real orders</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={values.binanceNetwork === "testnet" ? "selected" : ""}
+                    aria-pressed={values.binanceNetwork === "testnet"}
+                    onClick={() => {
+                      setValue("binanceNetwork", "testnet");
+                      setValue("confirmMainnet", false);
+                    }}
+                  >
+                    <strong>TESTNET</strong>
+                    <span>Test funds and test orders</span>
+                  </button>
+                </div>
+              </fieldset>
+              {values.binanceNetwork === "mainnet" && (
+                <label className="desktop-mainnet-confirmation">
+                  <input
+                    type="checkbox"
+                    checked={values.confirmMainnet}
+                    onChange={(event) =>
+                      setValue("confirmMainnet", event.target.checked)
+                    }
+                  />
+                  <span>I understand that this connection can use real funds.</span>
+                </label>
+              )}
               <label>
                 Binance API key
                 <input

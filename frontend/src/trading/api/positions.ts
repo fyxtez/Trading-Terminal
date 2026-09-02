@@ -4,12 +4,11 @@ import {
   POSITION_REALIZED_PNL_ENDPOINT,
   POSITION_INTENT_ENDPOINT,
   TRADING_API_BASE_URL,
+  TRADING_API_TOKEN,
 } from "../../config/constants";
 import type { BinanceOrderResponse, TradeOrderType } from "../types";
 import { parseOrderJsonText } from "./safeJson";
 import { canUseTradingAccount } from "../../desktop/credentials";
-
-const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
 export type PositionSide = "LONG" | "SHORT";
 
@@ -85,7 +84,9 @@ function getHeaders(): HeadersInit {
     Accept: "application/json",
     "Content-Type": "application/json",
   };
-  if (API_TOKEN) headers.Authorization = `Bearer ${API_TOKEN}`;
+  if (TRADING_API_TOKEN) {
+    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
+  }
   return headers;
 }
 

@@ -1,13 +1,19 @@
+mod backend_supervisor;
+
+use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
 const SERVICE: &str = "com.fyxtez.terminal";
+const BINANCE_NETWORK: &str = "binance-network";
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CredentialStatus {
     binance_configured: bool,
+    binance_network: Option<String>,
     ntfy_configured: bool,
     telegram_configured: bool,
 }
@@ -17,6 +23,8 @@ struct CredentialStatus {
 struct CredentialInput {
     binance_api_key: Option<String>,
     binance_api_secret: Option<String>,
+    binance_network: Option<String>,
+    confirm_mainnet: Option<bool>,
     ntfy_url: Option<String>,
     telegram_bot_token: Option<String>,
     telegram_chat_id: Option<String>,
@@ -35,9 +43,7 @@ fn entry(name: &str) -> Result<Entry, String> {
 }
 
 fn has_secret(name: &str) -> bool {
-    entry(name)
-        .and_then(|value| value.get_password().map_err(|error| error.to_string()))
-        .is_ok()
+    read_secret(name).is_ok_and(|value| value.is_some())
 }
 
 fn read_secret(name: &str) -> Result<Option<Zeroizing<String>>, String> {
@@ -71,33 +77,26 @@ fn remove(name: &str) {
 
 #[tauri::command]
 fn credential_status() -> CredentialStatus {
+    let binance_network = read_secret(BINANCE_NETWORK)
+        .ok()
+        .flatten()
+        .map(|value| value.to_string())
+        .filter(|value| matches!(value.as_str(), "mainnet" | "testnet"));
     CredentialStatus {
-        binance_configured: has_secret("binance-api-key") && has_secret("binance-api-secret"),
+        binance_configured: binance_network.is_some()
+            && has_secret("binance-api-key")
+            && has_secret("binance-api-secret"),
+        binance_network,
         ntfy_configured: has_secret("ntfy-url"),
         telegram_configured: has_secret("telegram-bot-token") && has_secret("telegram-chat-id"),
     }
 }
 
-async fn notify_backend_credentials_changed() -> Result<(), String> {
-    let response = reqwest::Client::new()
-        .post("http://127.0.0.1:8657/api/desktop/credentials/reload")
-        .send()
-        .await
-        .map_err(|error| format!("credentials were saved, but backend reload failed: {error}"))?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let detail = response.text().await.unwrap_or_default();
-        return Err(format!(
-            "credentials were saved, but backend rejected them ({status}): {detail}"
-        ));
-    }
-
-    Ok(())
-}
-
 #[tauri::command]
-async fn save_credentials(input: CredentialInput) -> Result<CredentialStatus, String> {
+async fn save_credentials(
+    input: CredentialInput,
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<CredentialStatus, String> {
     if let Some(value) = input
         .ntfy_url
         .as_deref()
@@ -109,6 +108,18 @@ async fn save_credentials(input: CredentialInput) -> Result<CredentialStatus, St
 
     match (input.binance_api_key, input.binance_api_secret) {
         (Some(api_key), Some(api_secret)) => {
+            let network = input
+                .binance_network
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "Choose Binance Mainnet or Testnet".to_string())?;
+            if !matches!(network, "mainnet" | "testnet") {
+                return Err("Binance network must be mainnet or testnet".into());
+            }
+            if network == "mainnet" && input.confirm_mainnet != Some(true) {
+                return Err("Confirm that Binance Mainnet uses real funds".into());
+            }
             let api_key = Zeroizing::new(api_key.trim().to_owned());
             let api_secret = Zeroizing::new(api_secret.trim().to_owned());
             if api_key.is_empty() || api_secret.is_empty() {
@@ -116,6 +127,7 @@ async fn save_credentials(input: CredentialInput) -> Result<CredentialStatus, St
             }
             store("binance-api-key", &api_key)?;
             store("binance-api-secret", &api_secret)?;
+            store(BINANCE_NETWORK, network)?;
         }
         (None, None) => {}
         _ => return Err("Enter both the Binance API key and secret".into()),
@@ -129,7 +141,7 @@ async fn save_credentials(input: CredentialInput) -> Result<CredentialStatus, St
     if let Some(value) = input.telegram_chat_id.as_deref() {
         store_optional("telegram-chat-id", Some(value))?;
     }
-    notify_backend_credentials_changed().await?;
+    supervisor.restart().await?;
     Ok(credential_status())
 }
 
@@ -144,18 +156,35 @@ fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn clear_credentials() -> Result<CredentialStatus, String> {
+async fn clear_credentials(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<CredentialStatus, String> {
     for name in [
         "binance-api-key",
         "binance-api-secret",
+        BINANCE_NETWORK,
         "ntfy-url",
         "telegram-bot-token",
         "telegram-chat-id",
     ] {
         remove(name);
     }
-    notify_backend_credentials_changed().await?;
+    supervisor.restart().await?;
     Ok(credential_status())
+}
+
+#[tauri::command]
+async fn desktop_runtime(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<DesktopRuntimeInfo, String> {
+    supervisor.runtime_info().await
+}
+
+#[tauri::command]
+async fn restart_backend(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<DesktopRuntimeInfo, String> {
+    supervisor.restart().await
 }
 
 #[tauri::command]
@@ -242,15 +271,41 @@ async fn send_notification(input: NotificationInput) -> Result<(), String> {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let supervisor = BackendSupervisor::start(app.handle()).map_err(|error| {
+                std::io::Error::other(format!("backend startup failed: {error}"))
+            })?;
+            app.manage(supervisor);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            desktop_runtime,
+            restart_backend,
             credential_status,
             save_credentials,
             clear_credentials,
             send_notification
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Fyxtez Terminal desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Fyxtez Terminal desktop");
+
+    app.run(|app, event| {
+        if matches!(
+            event,
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+        ) {
+            app.state::<BackendSupervisor>().shutdown();
+        }
+    });
 }
 
 #[cfg(test)]

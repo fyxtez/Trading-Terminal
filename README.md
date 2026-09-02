@@ -3,13 +3,14 @@
 Fyxtez Terminal is a personal derivatives-trading terminal with a React charting
 interface and a Rust execution service. It combines live market data, chart
 tools, position management, price alerts, and Binance USD-M Futures execution in
-one browser UI. The project is now migrating to a self-hosted Tauri 2 desktop
-application. Browser development remains available for chart/UI work; the
-official browser UI suppresses account requests and execution controls.
+a self-hosted Tauri 2 desktop application. Browser development remains available
+for chart/UI work; the browser UI suppresses account requests and execution
+controls.
 
-> **Safety notice:** this application can submit real orders. New installations
-> default to Binance testnet. Keep `BINANCE_TESTNET=true` and
-> `ALLOW_MAINNET=false` until all security and deployment checks are complete.
+> **Safety notice:** this application can submit real orders. A new desktop
+> installation has no Binance network or credentials selected and starts in
+> chart-only mode. Connecting Mainnet requires an explicit real-funds
+> confirmation. Testnet and Mainnet credentials are not interchangeable.
 
 ## Features
 
@@ -41,17 +42,31 @@ persistence, and security assumptions.
 ### Desktop development
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-# Put the same random service token in both files, then:
-cd frontend && npm install && cd ..
+cd frontend
+npm install
+cd ..
 ./run.sh
 ```
 
-This starts the local Axum service, waits for readiness, starts Vite and opens
-the Tauri window. Release bundling remains disabled until the backend is a
-supervised sidecar. See the
+Tauri compiles and starts Axum as its managed sidecar, chooses a random loopback
+port and per-launch capability, waits for readiness, starts Vite, and opens the
+desktop window. Desktop mode does not read project `.env` files. Configure
+Binance, ntfy, and Telegram from the first-run wizard or Settings. See the
 [architecture decision records](docs/adr/README.md).
+
+### Linux release bundle
+
+```bash
+cd frontend
+npm ci
+npm run test:run
+npm run desktop:build
+```
+
+This creates Linux x86_64 `.deb` and AppImage packages under
+`frontend/src-tauri/target/release/bundle/`. The `.deb` is the primary first
+release format; AppImage is the portable fallback. See
+[docs/RELEASING.md](docs/RELEASING.md) before publishing an artifact.
 
 ## Prerequisites
 
@@ -69,7 +84,7 @@ rustc --version
 cargo --version
 ```
 
-## Local setup
+## Browser development
 
 ### 1. Configure the backend
 
@@ -82,8 +97,9 @@ Edit `backend/.env` and provide a `SERVICE_API_TOKEN` (use a long random
 value, not the placeholder). Do not put Binance, ntfy or Telegram credentials
 in this file.
 
-Keep testnet enabled for development. The backend deliberately refuses to use
-mainnet unless both `BINANCE_TESTNET=false` and `ALLOW_MAINNET=true` are set.
+`BINANCE_TESTNET` and `ALLOW_MAINNET` select the standalone browser-development
+backend network. They do not configure the desktop build. Desktop users select
+Testnet or Mainnet in the native connection flow.
 
 Start it with:
 
@@ -111,10 +127,10 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`. This browser
-UI is chart-only by design. Use `./run.sh` and Settings → Desktop connections
-to configure trading or notifications. `./run.sh browser` starts the browser
-development stack explicitly.
+Open the URL printed by Vite, normally `http://localhost:5173`. This browser UI
+is chart-only by design. `./run.sh browser` starts the complete standalone
+browser-development stack. Use `./run.sh` for account access, execution, and
+native notifications.
 
 ## Validation
 
@@ -123,15 +139,18 @@ Run these checks before merging or deploying changes:
 ```bash
 cd backend
 cargo fmt --check
-cargo check --locked
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 
 cd ../frontend
 npm ci
+npm run test:run
 npm run build
 
 cd src-tauri
 cargo fmt --check
-cargo check --locked
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 ```
 
 GitHub Actions repeats the frontend build plus backend/Tauri formatting, Clippy
@@ -141,12 +160,15 @@ sufficient validation for trading flows.
 
 ## Configuration
 
-Binance keys, private ntfy URLs and Telegram credentials belong only in the
-operating-system credential manager and are configured through the Tauri UI.
-The local service token remains in ignored development `.env` files until the
-sidecar lifecycle replaces it with a per-launch token. Never commit either.
+Binance keys, the selected Binance network, private ntfy URLs and Telegram
+credentials belong only in the operating-system credential manager and are
+configured through the Tauri UI. Desktop Axum never falls back to `.env`. Tauri
+creates its API endpoint and capability in memory for each launch and passes
+the bootstrap payload to the sidecar over stdin, never through Vite, argv, a
+URL, or a file.
 
-Important runtime data defaults to `backend/data/`:
+Installed desktop runtime data uses the platform application-data directory.
+Standalone backend development defaults to `backend/data/`:
 
 - `sizing.json` — sizing configuration
 - `symbols.json` — dynamic symbol registry
@@ -157,13 +179,11 @@ Paths can be overridden through backend environment variables.
 
 ## Deployment status
 
-There is currently no supported one-command production deployment. Before
-exposing the terminal outside a trusted local/private network, complete the
-required security and deployment checks.
-In particular, the current Vite token model is not safe authentication for a
-public browser application because Vite embeds it in the generated JavaScript.
-The current desktop workflow also assumes the local backend is at
-`127.0.0.1:8657`; dynamic sidecar ports are part of the proposed release design.
+The supported deployment shape is a local, single-user desktop install. Do not
+expose Axum as a public service. Linux bundles are enabled, but the first public
+artifact remains gated on the clean-machine acceptance test and release-signing
+process in [docs/RELEASING.md](docs/RELEASING.md). Windows and macOS are not yet
+verified release targets, and v1 intentionally has no automatic updater.
 
 ## Additional documentation
 
@@ -171,3 +191,5 @@ The current desktop workflow also assumes the local backend is at
 - [Backend guide](backend/README.md)
 - [Architecture](ARCHITECTURE.md)
 - [Security model and operating guidance](SECURITY.md)
+- [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
+- [Linux release procedure](docs/RELEASING.md)

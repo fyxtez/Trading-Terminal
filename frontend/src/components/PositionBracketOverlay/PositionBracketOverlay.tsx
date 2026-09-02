@@ -32,6 +32,26 @@ import {
   TP_SL_CONTROLS_VISIBILITY_EVENT,
 } from "../../trading/tpSlControlsVisibility";
 import { startPacedLoop } from "../../utils/pacedLoop";
+import {
+  BREAK_EVEN_SNAP_THRESHOLD_PX,
+  DEFAULT_ZONE_RIGHT_PAD_PX,
+  ENTRY_MARKER_LOOKBACK_SECONDS,
+  MESSAGE_AUTO_DISMISS_MS,
+  OPTIMISTIC_TAKE_PROFIT_TIMEOUT_MS,
+  STOP_LABEL_COLLISION_THRESHOLD_PX,
+  ZONE_EDGE_HANDLE_WIDTH_PX,
+  clamp,
+  clearPositionAnchor,
+  clearPositionZonePad,
+  formatRMultiple,
+  getDefaultBracketPrices,
+  loadPositionAnchor,
+  loadPositionZonePad,
+  priceBoundaryEpsilon,
+  savePositionAnchor,
+  savePositionZonePad,
+  type ZonePad,
+} from "./positionBracketModel";
 import "./PositionBracketOverlay.css";
 
 type DragKind = "TAKE_PROFIT" | "STOP_LOSS";
@@ -39,15 +59,6 @@ type DragKind = "TAKE_PROFIT" | "STOP_LOSS";
 // exactly to the entry anchor and can no longer be extended backward in
 // time (see the zone-edge-handle section below for why).
 type EdgeDragKind = "ZONE_RIGHT";
-
-type ZonePad = {
-  // FIX: store the zone extent as real elapsed time, not as a count of bars.
-  // A bar count only survives zoom while the timeframe stays the same; when
-  // switching 1m -> 1h, e.g. 40 bars suddenly means 40 HOURS instead of the
-  // original 40 minutes, which made the SL/TP rectangle explode across the
-  // chart. Seconds preserve the same absolute right-edge time on every TF.
-  rightSeconds: number | null;
-};
 
 type PositionBracketOverlayProps = {
   /**
@@ -163,218 +174,6 @@ type PositionBracketOverlayProps = {
    */
   onPositionClosed: (side: TradeSide, symbol: string, price?: number) => void;
 };
-
-// If the saved stop-loss line renders within this many pixels of the entry
-// line, its label/cancel button are flipped to sit below the line instead
-// of above it, so they never collide with the entry row's TP FULL / STOP
-// LOSS buttons that always float above the entry line.
-const STOP_LABEL_COLLISION_THRESHOLD_PX = 34;
-
-// FEATURE: make break-even a deliberate, reachable SL target instead of asking
-// the user to hit the entry price's exact floating-point value with the mouse.
-// Eight pixels is large enough to catch the entry line reliably, but small
-// enough that dragging away immediately releases the snap and restores normal
-// stop-loss movement in either valid direction.
-const BREAK_EVEN_SNAP_THRESHOLD_PX = 8;
-
-// FEATURE: TP/SL boundaries use one visible price increment instead of the
-// old hardcoded 0.1, which was suitable for BTC but far too large for cheap
-// symbols. Exchange-derived display precision gives us the smallest price
-// increment this chart can faithfully place and display.
-function priceBoundaryEpsilon(pricePrecision: number): number {
-  return 10 ** -Math.max(0, pricePrecision);
-}
-
-// Safety net: if the confirmed TP order never shows up in open orders
-// (e.g. the "trading-state-changed" refresh is unusually slow or fails
-// silently), stop showing the optimistic zone as "pending" after this long
-// so it doesn't look stuck forever. It stays visible either way - this
-// only affects the pending/dashed styling.
-const OPTIMISTIC_TAKE_PROFIT_TIMEOUT_MS = 8_000;
-
-// How long a settled status message (a placement/cancel confirmation or
-// error) stays visible before it clears itself. Live validation feedback
-// shown while actively placing a TP/SL is exempt - see the effect below.
-const MESSAGE_AUTO_DISMISS_MS = 4_000;
-
-// FEATURE: Plain positions now open with a visual risk bracket even before any
-// TP/SL order exists. Half a percent above/below entry keeps the initial bracket
-// compact enough to stay useful at normal chart zoom while preserving a symmetric
-// 1R canvas. The real TP/SL is still created only after the user moves and confirms
-// the corresponding draft line.
-const DEFAULT_BRACKET_DISTANCE_PCT = 0.005;
-
-// Default rightward extent of the zone on first render. This is only used to
-// derive an initial logical-bar span from the CURRENT bar spacing; after that
-// the stored extent lives in bar space so X-axis zoom scales it naturally.
-const DEFAULT_ZONE_RIGHT_PAD_PX = 220;
-
-// Width/height of the pixel handles used to resize the zone horizontally.
-const ZONE_EDGE_HANDLE_WIDTH_PX = 6;
-
-// When a position is first detected, only trust a trade marker as "the"
-// entry fill if it landed within this many seconds of right now. Without
-// a bound, a stale marker from an old (already-closed) position sitting
-// in the 3-day marker retention window could otherwise get picked up as
-// if it were this new position's entry.
-const ENTRY_MARKER_LOOKBACK_SECONDS = 120;
-
-const POSITION_ANCHOR_STORAGE_PREFIX = "fyxtez:position-anchor-v2:";
-const POSITION_ZONE_PAD_STORAGE_PREFIX = "fyxtez:position-zone-pad-v1:";
-
-type SavedPositionAnchor = {
-  symbol: string;
-  side: "LONG" | "SHORT";
-  time: number;
-};
-
-type SavedPositionZonePad = {
-  symbol: string;
-  side: "LONG" | "SHORT";
-  anchorTime: number;
-  rightSeconds: number;
-};
-
-function positionAnchorStorageKey(symbol: string): string {
-  return `${POSITION_ANCHOR_STORAGE_PREFIX}${symbol.toUpperCase()}`;
-}
-
-function loadPositionAnchor(
-  symbol: string,
-  side: "LONG" | "SHORT",
-): UTCTimestamp | null {
-  try {
-    const raw = localStorage.getItem(positionAnchorStorageKey(symbol));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<SavedPositionAnchor>;
-    const time = Number(parsed.time);
-
-    if (
-      parsed.symbol !== symbol.toUpperCase() ||
-      parsed.side !== side ||
-      !Number.isFinite(time) ||
-      time <= 0
-    ) {
-      return null;
-    }
-
-    return time as UTCTimestamp;
-  } catch {
-    return null;
-  }
-}
-
-function savePositionAnchor(
-  symbol: string,
-  side: "LONG" | "SHORT",
-  time: UTCTimestamp,
-): void {
-  const value: SavedPositionAnchor = {
-    symbol: symbol.toUpperCase(),
-    side,
-    time: Number(time),
-  };
-
-  localStorage.setItem(positionAnchorStorageKey(symbol), JSON.stringify(value));
-}
-
-function clearPositionAnchor(symbol: string): void {
-  localStorage.removeItem(positionAnchorStorageKey(symbol));
-}
-
-function positionZonePadStorageKey(symbol: string): string {
-  return `${POSITION_ZONE_PAD_STORAGE_PREFIX}${symbol.toUpperCase()}`;
-}
-
-function loadPositionZonePad(
-  symbol: string,
-  side: "LONG" | "SHORT",
-  anchorTime: UTCTimestamp | null,
-): ZonePad | null {
-  if (anchorTime == null) return null;
-
-  try {
-    const raw = localStorage.getItem(positionZonePadStorageKey(symbol));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<SavedPositionZonePad>;
-    const savedAnchorTime = Number(parsed.anchorTime);
-    const rightSeconds = Number(parsed.rightSeconds);
-
-    if (
-      parsed.symbol !== symbol.toUpperCase() ||
-      parsed.side !== side ||
-      savedAnchorTime !== Number(anchorTime) ||
-      !Number.isFinite(rightSeconds) ||
-      rightSeconds < 0
-    ) {
-      return null;
-    }
-
-    return { rightSeconds };
-  } catch {
-    return null;
-  }
-}
-
-function savePositionZonePad(
-  symbol: string,
-  side: "LONG" | "SHORT",
-  anchorTime: UTCTimestamp | null,
-  rightSeconds: number | null,
-): void {
-  if (anchorTime == null || rightSeconds == null || !Number.isFinite(rightSeconds)) {
-    return;
-  }
-
-  const value: SavedPositionZonePad = {
-    symbol: symbol.toUpperCase(),
-    side,
-    anchorTime: Number(anchorTime),
-    rightSeconds,
-  };
-
-  localStorage.setItem(positionZonePadStorageKey(symbol), JSON.stringify(value));
-}
-
-function clearPositionZonePad(symbol: string): void {
-  localStorage.removeItem(positionZonePadStorageKey(symbol));
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function getDefaultBracketPrices(position: OpenPosition): {
-  takeProfit: number;
-  stopLoss: number;
-} {
-  const distance = position.entry_price * DEFAULT_BRACKET_DISTANCE_PCT;
-
-  // FEATURE: The draft bracket is directional: LONG profit lives above entry
-  // and risk below it, while SHORT reverses those sides. Keeping both exactly
-  // 0.5% from entry makes the initial rectangles equal-height in price terms and
-  // therefore starts the visual R:R at 1R : -1R.
-  return position.side === "LONG"
-    ? {
-        takeProfit: position.entry_price + distance,
-        stopLoss: position.entry_price - distance,
-      }
-    : {
-        takeProfit: position.entry_price - distance,
-        stopLoss: position.entry_price + distance,
-      };
-}
-
-function formatRMultiple(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return "—R";
-
-  // FEATURE: Keep R labels compact enough to sit inside the bracket while still
-  // preserving useful precision for ratios such as 2.5R or 2.33R.
-  const rounded = value.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
-  return `${rounded}R`;
-}
 
 export default function PositionBracketOverlay({
   symbol,
