@@ -5,6 +5,7 @@ import {
 } from "../trading/events";
 import type { OrderExecutedEvent } from "../trading/types";
 import { TRADING_API_BASE_URL_CHANGED_EVENT } from "../config/constants";
+import { canUseTradingAccount } from "../desktop/credentials";
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 15_000;
@@ -12,13 +13,16 @@ const MAX_RECONNECT_DELAY_MS = 15_000;
 export type ConnectionState =
   | "connecting"
   | "connected"
-  | "disconnected";
+  | "disconnected"
+  | "disabled";
 
 type UseTradingStreamOptions = {
+  enabled: boolean;
   onOrderExecuted: (event: OrderExecutedEvent) => void;
 };
 
 export function useTradingStream({
+  enabled,
   onOrderExecuted,
 }: UseTradingStreamOptions): ConnectionState {
   const [connectionState, setConnectionState] =
@@ -28,6 +32,11 @@ export function useTradingStream({
   handlerRef.current = onOrderExecuted;
 
   useEffect(() => {
+    if (!enabled || !canUseTradingAccount()) {
+      setConnectionState("disabled");
+      return;
+    }
+
     let disposed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
@@ -189,8 +198,7 @@ export function useTradingStream({
         socket.close(1000, "component unmounted");
       }
     };
-  }, []);
+  }, [enabled]);
 
   return connectionState;
 }
-

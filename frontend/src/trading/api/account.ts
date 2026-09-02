@@ -2,6 +2,7 @@ import {
   AVAILABLE_BALANCE_ENDPOINT,
   TRADING_API_BASE_URL,
 } from "../../config/constants";
+import { canUseTradingAccount } from "../../desktop/credentials";
 
 const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
@@ -71,6 +72,8 @@ function extractAvailableBalance(body: unknown): number | null {
 export async function getAvailableBalance(
   signal?: AbortSignal,
 ): Promise<number> {
+  if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to access account data");
+
   const headers: HeadersInit = {
     Accept: "application/json",
   };

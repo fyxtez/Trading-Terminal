@@ -1,22 +1,17 @@
-/target
+/target/
 .env
+.env.*
+!.env.example
 zip*
 *.zip
-.env.deploy
 deploy.sh
 
 # Runtime logs
 backend.log
 
 # Runtime SQLite databases
-data/*.sqlite3
-data/*.sqlite3-shm
-data/*.sqlite3-wal
-
-
-data/icons
-symbols.json
-
 /data/*.sqlite3
 /data/*.sqlite3-shm
 /data/*.sqlite3-wal
+/data/icons/
+/data/symbols.json

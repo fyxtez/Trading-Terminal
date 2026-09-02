@@ -38,6 +38,8 @@ export let SYMBOL_CONFIGS: readonly SymbolConfig[] = [
   // by the other Binance-backed symbols instead of leaving them MEXC/view-only.
   { symbol: "PLUMEUSDT", source: "binance", sourceSymbol: "PLUMEUSDT", executionEnabled: true, chartDecimals: 5 },
   { symbol: "ZECUSDT", source: "binance", sourceSymbol: "ZECUSDT", executionEnabled: true, chartDecimals: 2 },
+  { symbol: "XAUUSDT", source: "binance", sourceSymbol: "XAUUSDT", executionEnabled: true, chartDecimals: 2, marketKind: "traditional" },
+  { symbol: "XAGUSDT", source: "binance", sourceSymbol: "XAGUSDT", executionEnabled: true, chartDecimals: 2, marketKind: "traditional" },
 ];
 
 // Keep the last known config for symbols that have just been removed from the

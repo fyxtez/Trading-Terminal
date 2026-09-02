@@ -7,13 +7,41 @@ browser owns presentation and interactive chart state. The backend is the trust
 boundary for exchange credentials, order validation, account state, persistent
 alerts, and exchange communication.
 
+The desktop migration adds a Tauri 2 native process around the existing SPA.
+During migration, the React/Axum contract remains intact:
+
+```text
+Tauri native process
+  ├── OS credential-store commands (secrets never returned to WebView)
+  ├── WebView: existing React/Vite terminal
+  └── Local Axum service
+      └── reads the same OS credential-store service directly
+```
+
+Production bundling is deliberately disabled until Tauri supervises the Axum
+sidecar and replaces the development service token with a per-launch
+capability. Decisions and constraints are recorded in
+[`docs/adr`](docs/adr/README.md).
+
+### Desktop connection modes
+
+- **Chart only:** no Binance secret is configured; public market data and local
+  chart tools work, but account state and execution are disabled in both UI and
+  frontend API guards.
+- **Trading connected:** Binance key and secret exist in the OS credential
+  manager. Native status exposes only booleans to React; Axum reads the same
+  keychain entries without a JavaScript or `.env` credential handoff.
+- **Optional notifications:** ntfy and Telegram are configured independently
+  and never gate chart or trading access.
+
 ```text
 Browser (React/Vite)
-  ├── REST + authenticated WebSocket
-  v
+  ├── public Binance/MEXC candles
+  └── REST + authenticated WebSocket
+      v
 Rust API (Axum/Tokio)
   ├── Binance USD-M REST and user-data streams
-  ├── Binance/MEXC public market-data APIs
+  ├── proxied MEXC history and Binance reference data
   ├── SQLite alert store
   ├── JSON symbol and sizing stores
   └── ntfy and external icon providers
@@ -85,7 +113,8 @@ user-stream events. They are aborted during graceful shutdown.
 
 1. The frontend loads the authoritative symbol registry from the backend.
 2. The selected symbol determines Binance or MEXC as the data source.
-3. Historical candles are fetched and live updates are streamed/polled.
+3. The frontend fetches public Binance candles directly; MEXC history may use
+   the local backend proxy. Live candles are polled from the selected venue.
 4. Chart hooks translate market data into Lightweight Charts series and overlays.
 
 ### Order execution
@@ -106,10 +135,12 @@ are financially critical and need automated coverage before live deployment.
 1. The frontend creates an authenticated alert through the API.
 2. The backend stores it in SQLite.
 3. The alert worker observes market/trading events and evaluates triggers.
-4. Triggered alerts may be delivered through ntfy and linked back to the terminal.
+4. Triggered alerts may be delivered through ntfy and Telegram and linked back
+   to the terminal. Destinations are loaded from the OS credential store.
 
-Browser-owned, non-persistent alerts are a separate path and depend on browser
-lifetime.
+Local, non-persistent alerts depend on frontend lifetime. In Tauri they delegate
+delivery to native Rust; plain browser development does not have notification
+credential access.
 
 ## Persistence
 
@@ -120,6 +151,7 @@ lifetime.
 | Persistent alerts | `backend/data/alerts.sqlite3` | Backend |
 | Icon cache | `backend/data/icons/` | Backend |
 | UI settings/drawings/tabs | Browser `localStorage` | Frontend |
+| Binance/ntfy/Telegram secrets | OS credential manager | Native Rust |
 
 Runtime data and secrets are ignored by Git. Production deployment must include
 backup and restore procedures for backend-owned data.
@@ -133,15 +165,20 @@ is unauthenticated.
 
 This is suitable only for a trusted single-user/private-network setup. A
 `VITE_*` value is compiled into the public browser bundle and is therefore not a
-secret. Before public deployment, replace the shared frontend token with a
-server-side authentication/session design, restrict CORS, avoid secrets in URLs,
-and add rate limiting and audit logging before exposing the service publicly.
+secret. Frontend guards make the supported browser UI chart-only, but they are
+not a backend authentication boundary: a caller holding the shared token can
+still invoke Axum directly. The credential-reload endpoint currently accepts a
+secret-free loopback signal without bearer authentication. Before any public or
+multi-user deployment, replace this model with server-side sessions, replace the
+development-only local CORS allowlist, avoid capability values in URLs, and add
+rate limiting and audit logging.
 
 ## Safety properties already present
 
 - Testnet is the default.
 - Mainnet requires two explicit environment switches.
-- Backend exchange credentials never need to enter the browser.
+- Exchange and notification credentials never enter the browser, `.env`, argv
+  or backend logs.
 - Service tokens must be at least 16 characters.
 - Exposure-increasing symbol setup enforces isolated margin.
 - Multi-step trade workflows are serialized.
@@ -149,3 +186,6 @@ and add rate limiting and audit logging before exposing the service publicly.
 
 These controls reduce risk but do not replace tests, authentication, monitoring,
 or deployment hardening.
+
+See [`SECURITY.md`](SECURITY.md) for key permissions, supported exposure and the
+pre-release security checklist.

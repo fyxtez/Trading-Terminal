@@ -1,8 +1,8 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { formatSymbolPair, getSymbolInfo } from "../config/symbols";
 import type { AlertPattern, PriceAlert } from "../types/alert";
 
 const DEFAULT_PUBLIC_TERMINAL_URL = "https://demo.terminal.fyxtez.com";
-const NTFY_URL = import.meta.env.VITE_NTFY_URL?.trim() ?? "";
 
 function alertChartUrl(symbol: string): string {
   // FEATURE: use the same base-ticker route as App/useSymbol (`/BTC`, not
@@ -67,17 +67,9 @@ export function saveAlerts(storageKey: string, alerts: PriceAlert[]) {
  * Fires the actual notification once a price alert's level has been
  * crossed (see usePriceAlerts.ts).
  *
- * There is no backend for this at all - a "backend" here would just be
- * a thin pass-through that receives a request from the browser and
- * immediately forwards it to ntfy.sh with a curl call, so the browser
- * calls ntfy.sh's publish endpoint directly instead:
- *
- *   curl -H "Title: Telegram" -d "Your message here" \
- *     https://ntfy.sh/<topic>
- *
- * ntfy.sh's publish endpoint accepts plain CORS POSTs from a browser
- * (it's designed to be used from web apps), so no server is required
- * to make this work.
+ * Notification destinations are desktop credentials. JavaScript sends only
+ * the rendered message to Tauri; the native command reads ntfy/Telegram
+ * secrets from the OS credential store and performs the outbound requests.
  */
 export async function sendPriceAlertNotification(
   symbol: string,
@@ -86,9 +78,9 @@ export async function sendPriceAlertNotification(
   pattern: AlertPattern,
   additionalInfo: string,
 ): Promise<void> {
-  if (!NTFY_URL) {
+  if (!isTauri()) {
     console.error(
-      "Price alert notification skipped: VITE_NTFY_URL is not configured",
+      "Price alert notification skipped: notifications are available only in the desktop app",
     );
     return;
   }
@@ -115,13 +107,12 @@ export async function sendPriceAlertNotification(
   lines.push(chartUrl);
 
   try {
-    await fetch(NTFY_URL, {
-      method: "POST",
-      headers: {
-        Title: `${displaySymbol} price alert`,
-        Click: chartUrl,
+    await invoke("send_notification", {
+      input: {
+        title: `${displaySymbol} price alert`,
+        body: lines.join("\n"),
+        clickUrl: chartUrl,
       },
-      body: lines.join("\n"),
     });
   } catch (error) {
     // Best-effort - a failed notification shouldn't crash the chart, and

@@ -1,0 +1,26 @@
+/* Navigation layout overrides kept separate from the generated compact theme. */
+.desktop-setup-actions {
+  gap: 24px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.desktop-setup-actions > span {
+  justify-self: center;
+  white-space: nowrap;
+}
+
+.desktop-setup-actions button {
+  width: auto;
+}
+
+.desktop-setup-actions > .secondary {
+  justify-self: start;
+  min-width: 104px;
+}
+
+@media (max-width: 900px) {
+  .desktop-setup-actions {
+    gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}

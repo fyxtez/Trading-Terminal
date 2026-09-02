@@ -131,6 +131,9 @@
   animation: topbar-connection-pulse 850ms ease-in-out infinite alternate;
 }
 
+.topbar-connection-item.disabled { color: var(--text-faint); }
+.topbar-connection-item.disabled .topbar-connection-dot { background: var(--text-faint); box-shadow: none; }
+
 @keyframes topbar-connection-pulse {
   from {
     opacity: 0.35;

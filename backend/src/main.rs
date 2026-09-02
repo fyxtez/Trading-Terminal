@@ -7,6 +7,7 @@ mod error;
 mod icons;
 mod models;
 mod position_risk_state;
+mod secure_store;
 mod sizing_store;
 mod symbol_registry;
 mod trading_events;
@@ -20,7 +21,7 @@ use binance::BinanceClient;
 use dotenvy::dotenv;
 use error::{AppError, AppResult};
 use icons::IconStore;
-use models::MarginSizingConfig;
+use models::{FuturesAccountInfo, MarginSizingConfig};
 use position_risk_state::{
     PositionRiskState, spawn_refresh_worker as spawn_position_risk_refresh_worker,
 };
@@ -43,13 +44,18 @@ async fn main() -> AppResult<()> {
         )
         .init();
 
-    let binance = BinanceClient::from_env()?;
+    let binance = BinanceClient::from_secure_store()?;
 
     info!("Synchronizing Binance server time");
     binance.sync_server_time().await?;
 
-    info!("Loading Binance exchange information and leverage brackets");
-    binance.initialize_reference_data().await?;
+    if binance.is_configured() {
+        info!("Loading Binance exchange information and leverage brackets");
+        binance.initialize_reference_data().await?;
+    } else {
+        info!("Binance credentials are not configured; loading public exchange information");
+        binance.initialize_public_reference_data().await?;
+    }
     let reference_data_task = binance.spawn_reference_data_worker();
 
     let symbol_registry_path =
@@ -79,19 +85,21 @@ async fn main() -> AppResult<()> {
     // registry itself and fail startup if any Binance-backed symbol cannot be
     // made ISOLATED. MEXC entries are market-data-only and are not Binance
     // trading symbols, so they are intentionally excluded.
-    for entry in registered_symbols
-        .iter()
-        .filter(|entry| entry.data_source == MarketDataSource::Binance)
-    {
-        binance
-            .ensure_isolated_margin(&entry.market_symbol)
-            .await
-            .map_err(|error| {
-                AppError::Config(format!(
-                    "cannot enforce ISOLATED margin for existing symbol {}: {error}",
-                    entry.market_symbol
-                ))
-            })?;
+    if binance.is_configured() {
+        for entry in registered_symbols
+            .iter()
+            .filter(|entry| entry.data_source == MarketDataSource::Binance)
+        {
+            binance
+                .ensure_isolated_margin(&entry.market_symbol)
+                .await
+                .map_err(|error| {
+                    AppError::Config(format!(
+                        "cannot enforce ISOLATED margin for existing symbol {}: {error}",
+                        entry.market_symbol
+                    ))
+                })?;
+        }
     }
 
     // FIX: purge token images cached before market_kind existed. Stock tickers
@@ -123,15 +131,12 @@ async fn main() -> AppResult<()> {
     let registered_mexc_symbols: Vec<String> = registered_symbols
         .iter()
         .filter(|entry| {
-            entry.data_source == MarketDataSource::Mexc
-                && entry.market_kind == MarketKind::Crypto
+            entry.data_source == MarketDataSource::Mexc && entry.market_kind == MarketKind::Crypto
         })
         .map(|entry| entry.symbol.clone())
         .collect();
-    let registered_mexc_symbol_refs: Vec<&str> = registered_mexc_symbols
-        .iter()
-        .map(String::as_str)
-        .collect();
+    let registered_mexc_symbol_refs: Vec<&str> =
+        registered_mexc_symbols.iter().map(String::as_str).collect();
     // FEATURE: self-heal MEXC symbols persisted by older builds that skipped
     // artwork entirely; the resolver no-ops cheaply when an icon is cached.
     info!(
@@ -166,14 +171,28 @@ async fn main() -> AppResult<()> {
     let sizing_store = SizingStore::new(sizing_path);
     let sizing = sizing_store.load(sizing_defaults).await?;
 
-    info!("Loading initial Binance account snapshot");
-    let initial_account = account_state::initialize(&binance).await?;
+    let initial_account = if binance.is_configured() {
+        info!("Loading initial Binance account snapshot");
+        account_state::initialize(&binance).await?
+    } else {
+        FuturesAccountInfo {
+            total_wallet_balance: "0".into(),
+            available_balance: "0".into(),
+            assets: Vec::new(),
+            positions: Vec::new(),
+            extra: serde_json::json!({}),
+        }
+    };
     let (account_state, account_refresh_rx) = AccountState::new(initial_account);
     let account_refresh_task =
         spawn_refresh_worker(binance.clone(), account_state.clone(), account_refresh_rx);
 
-    info!("Loading initial Binance position-risk snapshot");
-    let initial_position_risk = position_risk_state::initialize(&binance).await?;
+    let initial_position_risk = if binance.is_configured() {
+        info!("Loading initial Binance position-risk snapshot");
+        position_risk_state::initialize(&binance).await?
+    } else {
+        Vec::new()
+    };
     let (position_risk_state, position_risk_refresh_rx) =
         PositionRiskState::new(initial_position_risk);
     let position_risk_refresh_task = spawn_position_risk_refresh_worker(
@@ -185,9 +204,9 @@ async fn main() -> AppResult<()> {
     let service_token = std::env::var("SERVICE_API_TOKEN")
         .map_err(|_| AppError::Config("SERVICE_API_TOKEN must be set".into()))?;
 
-    if service_token.len() < 16 {
+    if service_token.len() < 16 || service_token.starts_with("replace-with-") {
         return Err(AppError::Config(
-            "SERVICE_API_TOKEN must contain at least 16 characters".into(),
+            "SERVICE_API_TOKEN must be a non-placeholder random value containing at least 16 characters".into(),
         ));
     }
 

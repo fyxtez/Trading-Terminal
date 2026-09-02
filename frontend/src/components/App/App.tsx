@@ -45,6 +45,7 @@ import ContextMenu from "../ContextMenu/ContextMenu";
 import TradeMenu from "../TradeMenu/TradeMenu";
 import PositionsPanel from "../PositionsPanel/PositionsPanel";
 import UnregisteredSymbolBanner from "../UnregisteredSymbolBanner/UnregisteredSymbolBanner";
+import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
 
 import "./App.css";
 
@@ -104,6 +105,7 @@ const ASIA_SESSION_STORAGE_KEY = "fyxtez:asia-session-enabled";
 const LONDON_SESSION_STORAGE_KEY = "fyxtez:london-session-enabled";
 const NEW_YORK_SESSION_STORAGE_KEY = "fyxtez:new-york-session-enabled";
 const NEW_YORK_KILL_ZONE_STORAGE_KEY = "fyxtez:new-york-kill-zone-enabled";
+const DESKTOP_SESSION_DEFAULTS_VERSION_KEY = "fyxtez:desktop-session-defaults-v2";
 
 /**
  * Same idea as SESSION_ZONES_STORAGE_KEY above - purely local display
@@ -159,6 +161,21 @@ function loadBooleanPreference(key: string): boolean {
   }
 }
 
+function loadSessionPreference(key: string, isDesktop: boolean): boolean {
+  try {
+    // Tauri dev uses a persistent localhost WebView origin, which can inherit
+    // old browser values. Hide session overlays exactly once, then honor
+    // every explicit Settings change normally on subsequent launches.
+    if (
+      isDesktop &&
+      localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied"
+    ) {
+      return false;
+    }
+  } catch {}
+  return loadBooleanPreference(key);
+}
+
 function loadFullStopPrice(symbol: string): number | null {
   try {
     const raw = localStorage.getItem(
@@ -185,6 +202,7 @@ function classifyLimitOrder(
 }
 
 function App() {
+  const desktopCredentials = useDesktopCredentials();
   const refs = useChartRefs();
   const coord = useCoordinateMapping(refs);
 
@@ -264,14 +282,32 @@ function App() {
   };
 
   const [showAsiaSession, setShowAsiaSessionState] = useState<boolean>(() =>
-    loadBooleanPreference(ASIA_SESSION_STORAGE_KEY),
+    loadSessionPreference(ASIA_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
   );
   const [showLondonSession, setShowLondonSessionState] = useState<boolean>(() =>
-    loadBooleanPreference(LONDON_SESSION_STORAGE_KEY),
+    loadSessionPreference(LONDON_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
   );
   const [showNewYorkSession, setShowNewYorkSessionState] = useState<boolean>(() =>
-    loadBooleanPreference(NEW_YORK_SESSION_STORAGE_KEY),
+    loadSessionPreference(NEW_YORK_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
   );
+  useEffect(() => {
+    if (!desktopCredentials.isDesktop) return;
+    try {
+      if (
+        localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied"
+      ) {
+        setShowAsiaSessionState(false);
+        setShowLondonSessionState(false);
+        setShowNewYorkSessionState(false);
+        localStorage.setItem(ASIA_SESSION_STORAGE_KEY, "false");
+        localStorage.setItem(LONDON_SESSION_STORAGE_KEY, "false");
+        localStorage.setItem(NEW_YORK_SESSION_STORAGE_KEY, "false");
+        localStorage.setItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY, "applied");
+      }
+    } catch {
+      // Ignore - the defaults will be applied again on the next launch.
+    }
+  }, [desktopCredentials.isDesktop]);
   const [showNewYorkKillZone, setShowNewYorkKillZoneState] = useState<boolean>(
     () => {
       try {
@@ -577,6 +613,9 @@ function App() {
   }, [openOrdersApi.orders, drawingsApi.isHydrated, currentSymbol]);
 
   const websocketConnection = useTradingStream({
+    enabled:
+      desktopCredentials.isDesktop &&
+      desktopCredentials.status.binanceConfigured,
     onOrderExecuted: (event) => {
       const normalizedSymbol = event.symbol.toUpperCase();
       const eventTime = Math.floor(event.event_time / 1000);
@@ -663,7 +702,7 @@ function App() {
       addLocallyConfirmedMarketMarker(fill);
     },
     backendConnection,
-    currentSymbolConfig.executionEnabled,
+    currentSymbolConfig.executionEnabled && desktopCredentials.status.binanceConfigured,
   );
 
   useEffect(() => {

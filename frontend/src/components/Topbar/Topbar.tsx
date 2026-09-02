@@ -187,10 +187,10 @@ export default function Topbar({
 
         <div
           className={`topbar-connection-item ${websocketConnection}`}
-          title={`Trading WebSocket: ${websocketConnection}`}
+          title={websocketConnection === "disabled" ? "Connect Binance in Settings to enable account streaming" : `Trading WebSocket: ${websocketConnection}`}
         >
           <span className="topbar-connection-dot" />
-          <span>STREAM</span>
+          <span>{websocketConnection === "disabled" ? "CHART ONLY" : "STREAM"}</span>
         </div>
       </div>
 

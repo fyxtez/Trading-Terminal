@@ -1,11 +1,14 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Bearer token sent with every order request. Required. */
+  /** Temporary local-development bearer token. Must match backend SERVICE_API_TOKEN. */
   readonly VITE_TRADING_API_TOKEN: string;
-  readonly VITE_NTFY_URL?: string;
-  /** Overrides the default http://127.0.0.1:8657 trading API base URL. */
+  /** Hosted/fallback backend base URL. */
   readonly VITE_TRADING_API_URL?: string;
+  /** Local backend checked first. Defaults to http://127.0.0.1:8657. */
+  readonly VITE_TRADING_LOCAL_API_URL?: string;
+  /** Public chart base used in alert deep links. */
+  readonly VITE_PUBLIC_TERMINAL_URL?: string;
 }
 
 interface ImportMeta {

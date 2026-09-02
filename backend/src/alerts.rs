@@ -360,7 +360,7 @@ async fn run_connected(
                                     // real-time trade event or another alert trigger.
                                     let notification_alert = alert.clone();
                                     tokio::spawn(async move {
-                                        send_ntfy(&notification_alert).await;
+                                        send_notifications(&notification_alert).await;
                                     });
                                 }
                                 Ok(false) => {}
@@ -430,8 +430,34 @@ fn reached(current: f64, target: f64, direction: CrossingDirection) -> bool {
 
 const DEFAULT_PUBLIC_TERMINAL_URL: &str = "https://demo.terminal.fyxtez.com";
 
-async fn send_ntfy(alert: &PriceAlert) {
-    let url = std::env::var("NTFY_URL").unwrap_or_default();
+struct NotificationCredentials {
+    ntfy_url: Option<zeroize::Zeroizing<String>>,
+    telegram: Option<(zeroize::Zeroizing<String>, zeroize::Zeroizing<String>)>,
+}
+
+fn load_notification_credentials() -> Result<NotificationCredentials, String> {
+    Ok(NotificationCredentials {
+        ntfy_url: crate::secure_store::read(crate::secure_store::NTFY_URL)?,
+        telegram: crate::secure_store::read_pair(
+            crate::secure_store::TELEGRAM_BOT_TOKEN,
+            crate::secure_store::TELEGRAM_CHAT_ID,
+        )?,
+    })
+}
+
+async fn send_notifications(alert: &PriceAlert) {
+    let credentials = match tokio::task::spawn_blocking(load_notification_credentials).await {
+        Ok(Ok(credentials)) => credentials,
+        Ok(Err(error)) => {
+            warn!(alert_id = %alert.id, %error, "Could not read notification credentials");
+            return;
+        }
+        Err(error) => {
+            warn!(alert_id = %alert.id, %error, "Notification credential task failed");
+            return;
+        }
+    };
+
     // FEATURE: derive the same base-ticker route used by the frontend so both
     // persistent and browser-owned alerts deep-link to one consistent chart.
     let public_terminal_url = std::env::var("PUBLIC_TERMINAL_URL")
@@ -476,49 +502,71 @@ async fn send_ntfy(alert: &PriceAlert) {
     body.push('\n');
     body.push_str(&chart_url);
 
-    let mut request = client
-        .post(&url)
+    if let Some((bot_token, chat_id)) = credentials.telegram {
+        let telegram_url = format!(
+            "https://api.telegram.org/bot{}/sendMessage",
+            bot_token.as_str()
+        );
+        match client
+            .post(telegram_url)
+            .json(&serde_json::json!({
+                "chat_id": chat_id.as_str(),
+                "text": body.as_str(),
+            }))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                info!(id = %alert.id, "Telegram price-alert notification sent");
+            }
+            Ok(response) => {
+                warn!(
+                    id = %alert.id,
+                    status = %response.status(),
+                    "Telegram rejected price-alert notification"
+                );
+            }
+            Err(_) => {
+                // Do not log reqwest's URL because Telegram embeds the bot token in it.
+                warn!(id = %alert.id, "Failed to send Telegram price-alert notification");
+            }
+        }
+    } else {
+        warn!(
+            alert_id = %alert.id,
+            "Telegram notification skipped because it is not configured"
+        );
+    }
+
+    let Some(url) = credentials.ntfy_url else {
+        warn!(
+            alert_id = %alert.id,
+            "ntfy notification skipped because it is not configured"
+        );
+        return;
+    };
+
+    match client
+        .post(url.as_str())
         .header("Title", title)
         .header("Tags", "chart_with_upwards_trend")
         // FEATURE: ntfy's Click header makes the entire notification actionable
         // instead of requiring the user to tap the visible URL in the body.
         .header("Click", &chart_url)
-        .body(body.clone());
-
-    // TODO: Use tokio::join! to send both Telegram and ntfy notifications concurrently instead of sequentially.
-    if let Err(error) = telegram_notify::send(&body).await {
-        warn!(
-            alert_id = %alert.id,
-            %error,
-            "Failed to send Telegram price-alert notification"
-        );
-    }
-
-    if url.trim().is_empty() {
-        warn!(
-            alert_id = %alert.id,
-            "ntfy notification skipped because NTFY_URL is not configured"
-        );
-        return;
-    }
-
-    if let Ok(token) = std::env::var("NTFY_TOKEN")
-        && !token.trim().is_empty()
+        .body(body)
+        .send()
+        .await
     {
-        request = request.bearer_auth(token.trim());
-    }
-
-    match request.send().await {
         Ok(response) if response.status().is_success() => {
             info!(id = %alert.id, status = %response.status(), "ntfy price-alert notification sent");
         }
         Ok(response) => {
             let status = response.status();
-            let response_body = response.text().await.unwrap_or_default();
-            warn!(id = %alert.id, %status, body = %response_body, "ntfy rejected price-alert notification");
+            warn!(id = %alert.id, %status, "ntfy rejected price-alert notification");
         }
-        Err(error) => {
-            warn!(id = %alert.id, %error, "Failed to send ntfy price-alert notification");
+        Err(_) => {
+            // The topic is part of the private URL, so never include reqwest's URL in logs.
+            warn!(id = %alert.id, "Failed to send ntfy price-alert notification");
         }
     }
 }

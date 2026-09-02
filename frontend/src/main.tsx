@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./components/App/App";
 import "./styles/global.css";
 import { initializeTradingApiBaseUrl } from "./config/constants";
+import DesktopSetupGate from "./components/DesktopSetupGate/DesktopSetupGate";
 
 /**
  * FIX: Chromium/Brave may restore this document from the back-forward cache
@@ -25,10 +26,13 @@ window.addEventListener("pageshow", (event) => {
   }
 });
 
-await initializeTradingApiBaseUrl();
+async function bootstrap() {
+  await initializeTradingApiBaseUrl();
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <DesktopSetupGate><App /></DesktopSetupGate>
+    </React.StrictMode>,
+  );
+}
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+void bootstrap();

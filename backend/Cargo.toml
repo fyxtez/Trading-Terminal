@@ -9,6 +9,7 @@ axum-extra = { version = "0.12.5", features = ["typed-header"] }
 dotenvy = "0.15"
 hex = "0.4"
 hmac = "0.12"
+keyring = { version = "4.2", features = ["v1"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -19,12 +20,12 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
+zeroize = "1"
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"] }
-telegram-notify = "1.0.0"
 
 
 [profile.release]

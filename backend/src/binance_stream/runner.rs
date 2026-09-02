@@ -38,9 +38,24 @@ pub fn spawn_user_stream(
 
     tokio::spawn(async move {
         let mut attempt = 0_u64;
+        let mut waiting_for_credentials = false;
 
         loop {
+            if !binance.is_configured() {
+                if !waiting_for_credentials {
+                    tracing::info!(
+                        target: "api",
+                        "Binance user-data stream is idle until desktop credentials are configured"
+                    );
+                    waiting_for_credentials = true;
+                }
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+
+            waiting_for_credentials = false;
             attempt += 1;
+            let credential_generation = binance.credential_generation();
 
             tracing::info!(
                 target: "api",
@@ -49,7 +64,15 @@ pub fn spawn_user_stream(
                 "Starting Binance user-data stream connection attempt"
             );
 
-            match run_once(&binance, &account_state, &position_risk_state, &events).await {
+            match run_once(
+                &binance,
+                &account_state,
+                &position_risk_state,
+                &events,
+                credential_generation,
+            )
+            .await
+            {
                 Ok(()) => {
                     tracing::warn!(
                         target: "api",
@@ -88,6 +111,7 @@ async fn run_once(
     account_state: &AccountState,
     position_risk_state: &PositionRiskState,
     events: &broadcast::Sender<TradingEvent>,
+    credential_generation: u64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let rest_base = binance.user_stream_rest_base();
     let ws_base = binance.user_stream_ws_base();
@@ -107,7 +131,8 @@ async fn run_once(
         "Creating Binance Futures user-data listen key"
     );
 
-    let listen_key = create_listen_key(&client, rest_base, binance.user_stream_api_key()).await?;
+    let api_key = binance.user_stream_api_key()?;
+    let listen_key = create_listen_key(&client, rest_base, &api_key).await?;
 
     tracing::info!(
         target: "api",
@@ -154,9 +179,18 @@ async fn run_once(
         Duration::from_secs(LISTEN_KEY_KEEPALIVE_SECS),
     );
     keepalive.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    let mut credential_check = tokio::time::interval(Duration::from_secs(1));
+    credential_check.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    credential_check.tick().await;
 
     loop {
         tokio::select! {
+            _ = credential_check.tick() => {
+                if binance.credential_generation() != credential_generation {
+                    return Err("Binance credentials changed; reconnecting user-data stream".into());
+                }
+            }
+
             _ = keepalive.tick() => {
                 tracing::debug!(
                     target: "api",
@@ -167,7 +201,7 @@ async fn run_once(
                 keepalive_listen_key(
                     &client,
                     rest_base,
-                    binance.user_stream_api_key(),
+                    &api_key,
                     &listen_key,
                 ).await?;
 

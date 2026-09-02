@@ -89,6 +89,10 @@ pub fn spawn_refresh_worker(
             sleep(Duration::from_millis(100)).await;
             while refresh_rx.try_recv().is_ok() {}
 
+            if !binance.is_configured() {
+                continue;
+            }
+
             match binance.account_info().await {
                 Ok(snapshot) => account_state.replace(snapshot).await,
                 Err(error) => tracing::error!(

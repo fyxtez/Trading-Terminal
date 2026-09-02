@@ -44,8 +44,7 @@ const MEXC_SPOT_ASSET_URL_PREFIX: &str = "https://www.mexc.com/api/platform/asse
 const DEXSCREENER_SEARCH_URL: &str = "https://api.dexscreener.com/latest/dex/search";
 
 const COINGECKO_MARKETS_URL: &str = "https://api.coingecko.com/api/v3/coins/markets";
-const COINGECKO_PRO_MARKETS_URL: &str =
-    "https://pro-api.coingecko.com/api/v3/coins/markets";
+const COINGECKO_PRO_MARKETS_URL: &str = "https://pro-api.coingecko.com/api/v3/coins/markets";
 const STOCK_LOGO_URL_PREFIX: &str = "https://financialmodelingprep.com/image-stock";
 
 /// Hard cap on the number of distinct symbols this backend will ever cache
@@ -185,10 +184,9 @@ impl IconStore {
         for &symbol in symbols {
             match self.ensure_cached_from_mexc_with_cap(symbol, true).await {
                 Ok(Some(_)) => tracing::info!(symbol, "Seeded MEXC token icon"),
-                Ok(None) => tracing::warn!(
-                    symbol,
-                    "No CoinGecko icon found for registered MEXC symbol"
-                ),
+                Ok(None) => {
+                    tracing::warn!(symbol, "No CoinGecko icon found for registered MEXC symbol")
+                }
                 Err(error) => {
                     tracing::warn!(symbol, %error, "Failed to seed MEXC token icon");
                 }
@@ -373,9 +371,7 @@ impl IconStore {
         let (icon_url, source, matched_id) = match resolved {
             Some(value) => value,
             None => match self.lookup_coingecko_icon_url(&base).await? {
-                Some((icon_url, matched_id)) => {
-                    (icon_url, "coingecko-mexc", matched_id)
-                }
+                Some((icon_url, matched_id)) => (icon_url, "coingecko-mexc", matched_id),
                 None => return Ok(None),
             },
         };
@@ -518,10 +514,7 @@ impl IconStore {
     /// FEATURE: resolve artwork for just-listed MEXC tokens through their DEX
     /// pairs. Exact base-symbol matching prevents quote-token false positives;
     /// highest liquidity makes the canonical pair win when several exist.
-    async fn lookup_dexscreener_icon_url(
-        &self,
-        base: &str,
-    ) -> AppResult<Option<(String, String)>> {
+    async fn lookup_dexscreener_icon_url(&self, base: &str) -> AppResult<Option<(String, String)>> {
         let response = self
             .http
             .get(DEXSCREENER_SEARCH_URL)
@@ -543,7 +536,10 @@ impl IconStore {
                 pair.pointer("/baseToken/symbol")
                     .and_then(Value::as_str)
                     .is_some_and(|symbol| symbol.eq_ignore_ascii_case(base))
-                    && pair.pointer("/info/imageUrl").and_then(Value::as_str).is_some()
+                    && pair
+                        .pointer("/info/imageUrl")
+                        .and_then(Value::as_str)
+                        .is_some()
             })
             .collect();
         matches.sort_by(|left, right| {

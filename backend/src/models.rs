@@ -116,14 +116,7 @@ pub struct ConditionalOrderRequest {
     #[serde(default)]
     pub close_position: bool,
 
-    #[serde(default = "default_working_type")]
-    pub working_type: String,
-
     pub client_algo_id: Option<String>,
-}
-
-fn default_working_type() -> String {
-    "MARK_PRICE".into()
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,7 +170,6 @@ pub struct PositionIntentRequest {
     pub intent: PositionIntent,
     pub order_type: Option<IntentOrderType>,
     pub price: Option<f64>,
-    pub quantity: Option<f64>,
     pub leverage: Option<u32>,
 
     /// Percentage of the current position to reduce, in the range (0, 100].

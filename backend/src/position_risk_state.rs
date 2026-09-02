@@ -33,10 +33,6 @@ impl PositionRiskState {
         )
     }
 
-    pub async fn snapshot(&self) -> Vec<Value> {
-        self.snapshot.read().await.clone()
-    }
-
     pub async fn replace(&self, snapshot: Vec<Value>) {
         *self.snapshot.write().await = snapshot;
     }
@@ -74,6 +70,11 @@ pub fn spawn_refresh_worker(
                     sleep(POSITION_RISK_REFRESH_DEBOUNCE).await;
                     while refresh_rx.try_recv().is_ok() {}
                 }
+            }
+
+            if !binance.is_configured() {
+                periodic.reset();
+                continue;
             }
 
             match binance.position_risk().await {

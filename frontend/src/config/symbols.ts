@@ -4,6 +4,8 @@ import solIcon from "../assets/symbols/sol.svg";
 import xrpIcon from "../assets/symbols/xrp.svg";
 import plumeIcon from "../assets/symbols/plume.svg";
 import zecIcon from "../assets/symbols/zec.svg";
+import xauIcon from "../assets/symbols/xau.svg";
+import xagIcon from "../assets/symbols/xag.svg";
 import powerIcon from "../assets/symbols/power.jpg";
 import { listIcons, iconImageUrl, type BackendIcon } from "../trading/api/symbols";
 import { TRADING_API_BASE_URL, TRADING_API_BASE_URL_CHANGED_EVENT } from "./constants";
@@ -28,6 +30,8 @@ const BASE_ASSET_NAMES: Record<string, string> = {
   XRP: "XRP",
   PLUME: "Plume",
   ZEC: "Zcash",
+  XAU: "Gold",
+  XAG: "Silver",
   ADA: "Cardano",
   DOGE: "Dogecoin",
   POWER: "Power Protocol",
@@ -39,6 +43,8 @@ const BASE_ASSET_ICONS: Record<string, string> = {
   XRP: xrpIcon,
   PLUME: plumeIcon,
   ZEC: zecIcon,
+  XAU: xauIcon,
+  XAG: xagIcon,
   POWER: powerIcon,
 };
 

@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
-        atomic::{AtomicI64, Ordering},
+        Arc, RwLock as StdRwLock,
+        atomic::{AtomicI64, AtomicU64, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -14,6 +14,7 @@ use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::RwLock;
 use url::form_urlencoded;
+use zeroize::Zeroizing;
 
 use crate::{
     error::{AppError, AppResult},
@@ -21,6 +22,7 @@ use crate::{
         AlgoOrderResponse, BinanceOrderResponse, ExchangeInfo, FuturesAccountInfo, LeverageBracket,
         LeverageBracketSymbol, OrderSide, PriceResponse, SymbolFilters,
     },
+    secure_store::{self, BINANCE_API_KEY, BINANCE_API_SECRET},
 };
 
 const TESTNET_BASE: &str = "https://demo-fapi.binance.com";
@@ -43,18 +45,24 @@ struct ReferenceDataCache {
 }
 
 #[derive(Clone)]
+struct BinanceCredentials {
+    api_key: Zeroizing<String>,
+    api_secret: Zeroizing<String>,
+}
+
+#[derive(Clone)]
 pub struct BinanceClient {
     http: reqwest::Client,
     base_url: String,
-    api_key: String,
-    api_secret: String,
+    credentials: Arc<StdRwLock<Option<BinanceCredentials>>>,
+    credential_generation: Arc<AtomicU64>,
     testnet: bool,
     reference_data: Arc<RwLock<ReferenceDataCache>>,
     server_time_offset_ms: Arc<AtomicI64>,
 }
 
 impl BinanceClient {
-    pub fn from_env() -> AppResult<Self> {
+    pub fn from_secure_store() -> AppResult<Self> {
         let testnet = env_bool("BINANCE_TESTNET", true)?;
         if !testnet && !env_bool("ALLOW_MAINNET", false)? {
             return Err(AppError::Config(
@@ -62,20 +70,8 @@ impl BinanceClient {
             ));
         }
 
-        let (key_name, secret_name, base_url) = if testnet {
-            (
-                "BINANCE_API_KEY_TEST",
-                "BINANCE_API_SECRET_TEST",
-                TESTNET_BASE,
-            )
-        } else {
-            ("BINANCE_API_KEY", "BINANCE_API_SECRET", MAINNET_BASE)
-        };
-
-        let api_key = std::env::var(key_name)
-            .map_err(|_| AppError::Config(format!("{key_name} must be set")))?;
-        let api_secret = std::env::var(secret_name)
-            .map_err(|_| AppError::Config(format!("{secret_name} must be set")))?;
+        let base_url = if testnet { TESTNET_BASE } else { MAINNET_BASE };
+        let credentials = load_secure_credentials()?;
 
         let http = reqwest::Client::builder()
             .user_agent("binance-futures-axum/0.1")
@@ -90,8 +86,8 @@ impl BinanceClient {
         Ok(Self {
             http,
             base_url: base_url.into(),
-            api_key,
-            api_secret,
+            credentials: Arc::new(StdRwLock::new(credentials)),
+            credential_generation: Arc::new(AtomicU64::new(0)),
             testnet,
             reference_data: Arc::new(RwLock::new(ReferenceDataCache::default())),
             server_time_offset_ms: Arc::new(AtomicI64::new(0)),
@@ -100,6 +96,41 @@ impl BinanceClient {
 
     pub fn is_testnet(&self) -> bool {
         self.testnet
+    }
+
+    pub fn is_configured(&self) -> bool {
+        self.credentials
+            .read()
+            .map(|credentials| credentials.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn credential_generation(&self) -> u64 {
+        self.credential_generation.load(Ordering::Acquire)
+    }
+
+    pub fn reload_secure_credentials(&self) -> AppResult<bool> {
+        let next = load_secure_credentials()?;
+        let mut current = self
+            .credentials
+            .write()
+            .map_err(|_| AppError::Config("Binance credential lock is poisoned".into()))?;
+
+        let changed = match (current.as_ref(), next.as_ref()) {
+            (Some(current), Some(next)) => {
+                current.api_key.as_str() != next.api_key.as_str()
+                    || current.api_secret.as_str() != next.api_secret.as_str()
+            }
+            (None, None) => false,
+            _ => true,
+        };
+
+        if changed {
+            *current = next;
+            self.credential_generation.fetch_add(1, Ordering::AcqRel);
+        }
+
+        Ok(changed)
     }
 
     pub(crate) fn user_stream_rest_base(&self) -> &str {
@@ -114,8 +145,8 @@ impl BinanceClient {
         }
     }
 
-    pub(crate) fn user_stream_api_key(&self) -> &str {
-        &self.api_key
+    pub(crate) fn user_stream_api_key(&self) -> AppResult<Zeroizing<String>> {
+        Ok(self.credentials()?.api_key)
     }
 
     pub async fn server_time(&self) -> AppResult<Value> {
@@ -227,6 +258,32 @@ impl BinanceClient {
         self.refresh_reference_data().await
     }
 
+    pub async fn initialize_public_reference_data(&self) -> AppResult<()> {
+        let exchange_info = self
+            .public::<ExchangeInfo>(Method::GET, "/fapi/v1/exchangeInfo", Vec::new())
+            .await?;
+        let filters = parse_exchange_filters(exchange_info)?;
+
+        if filters.is_empty() {
+            return Err(AppError::Invalid(
+                "Binance exchangeInfo produced an empty symbol-filter cache".into(),
+            ));
+        }
+
+        let filter_count = filters.len();
+        *self.reference_data.write().await = ReferenceDataCache {
+            symbol_filters: filters,
+            ..ReferenceDataCache::default()
+        };
+
+        tracing::info!(
+            target: "api",
+            filter_count,
+            "Binance public reference-data cache refreshed"
+        );
+        Ok(())
+    }
+
     pub fn spawn_reference_data_worker(&self) -> tokio::task::JoinHandle<()> {
         let client = self.clone();
 
@@ -241,7 +298,13 @@ impl BinanceClient {
             loop {
                 interval.tick().await;
 
-                if let Err(error) = client.refresh_reference_data().await {
+                let result = if client.is_configured() {
+                    client.refresh_reference_data().await
+                } else {
+                    client.initialize_public_reference_data().await
+                };
+
+                if let Err(error) = result {
                     tracing::error!(
                         target: "api",
                         %error,
@@ -441,15 +504,11 @@ impl BinanceClient {
 
         let margin_type = risks
             .iter()
-            .find(|risk| {
-                risk.get("symbol").and_then(Value::as_str) == Some(symbol.as_str())
-            })
+            .find(|risk| risk.get("symbol").and_then(Value::as_str) == Some(symbol.as_str()))
             .and_then(|risk| risk.get("marginType"))
             .and_then(Value::as_str)
             .ok_or_else(|| {
-                AppError::Invalid(format!(
-                    "Binance did not return marginType for {symbol}"
-                ))
+                AppError::Invalid(format!("Binance did not return marginType for {symbol}"))
             })?
             .to_ascii_uppercase();
 
@@ -789,11 +848,12 @@ impl BinanceClient {
         endpoint: &str,
         mut params: Vec<(String, String)>,
     ) -> AppResult<T> {
+        let credentials = self.credentials()?;
         params.push(("recvWindow".into(), RECV_WINDOW.into()));
         params.push(("timestamp".into(), self.signed_timestamp_ms()?.to_string()));
 
         let query = encode(&params);
-        let signature = sign(&query, &self.api_secret)?;
+        let signature = sign(&query, &credentials.api_secret)?;
         let url = format!(
             "{}{}?{}&signature={}",
             self.base_url, endpoint, query, signature
@@ -802,12 +862,35 @@ impl BinanceClient {
         let response = self
             .http
             .request(method, url)
-            .header("X-MBX-APIKEY", &self.api_key)
+            .header("X-MBX-APIKEY", credentials.api_key.as_str())
             .send()
             .await?;
 
         parse_response(response).await
     }
+
+    fn credentials(&self) -> AppResult<BinanceCredentials> {
+        self.credentials
+            .read()
+            .map_err(|_| AppError::Config("Binance credential lock is poisoned".into()))?
+            .clone()
+            .ok_or_else(|| {
+                AppError::Config(
+                    "Binance is not connected. Configure it in desktop Settings.".into(),
+                )
+            })
+    }
+}
+
+fn load_secure_credentials() -> AppResult<Option<BinanceCredentials>> {
+    secure_store::read_pair(BINANCE_API_KEY, BINANCE_API_SECRET)
+        .map(|pair| {
+            pair.map(|(api_key, api_secret)| BinanceCredentials {
+                api_key,
+                api_secret,
+            })
+        })
+        .map_err(AppError::Config)
 }
 
 async fn parse_response<T: DeserializeOwned>(response: reqwest::Response) -> AppResult<T> {
@@ -950,7 +1033,7 @@ pub(crate) fn normalize_symbol(raw: &str) -> AppResult<String> {
     Ok(symbol)
 }
 
-/**
+/*
  * Rejects any symbol outside SUPPORTED_SYMBOLS - the "we only trade these
  * 3 symbols, full stop" guarantee the user asked for.
  *

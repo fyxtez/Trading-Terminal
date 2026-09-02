@@ -22,6 +22,7 @@ import {
   type ListedPriceAlert,
 } from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
+import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
 import "./SettingsPanel.css";
 
 type SettingsPanelProps = {
@@ -222,6 +223,7 @@ export default function SettingsPanel({
   persistentAlertsEnabled,
   onPersistentAlertsEnabledChange,
 }: SettingsPanelProps) {
+  const desktopCredentials = useDesktopCredentials();
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const [balanceRevision, setBalanceRevision] = useState(0);
   const [balanceError, setBalanceError] = useState<string | null>(null);
@@ -560,6 +562,15 @@ export default function SettingsPanel({
   useEffect(() => {
     if (!isOpen) return;
     if (backendConnection !== "connected") return;
+    if (
+      desktopCredentials.isDesktop &&
+      !desktopCredentials.status.binanceConfigured
+    ) {
+      setAvailableBalance(null);
+      setBalanceError(null);
+      setIsLoadingBalance(false);
+      return;
+    }
 
     const controller = new AbortController();
 
@@ -601,7 +612,13 @@ export default function SettingsPanel({
       });
 
     return () => controller.abort();
-  }, [isOpen, backendConnection, balanceRevision]);
+  }, [
+    isOpen,
+    backendConnection,
+    balanceRevision,
+    desktopCredentials.isDesktop,
+    desktopCredentials.status.binanceConfigured,
+  ]);
 
   useEffect(() => {
     let refreshTimer: number | null = null;
@@ -978,7 +995,11 @@ export default function SettingsPanel({
     "Available balance",
     "USDT futures wallet balance",
   );
+  const showDesktopConnections = desktopCredentials.isDesktop && matchesSettingsSearch(
+    "Desktop connections Binance ntfy Telegram credentials API key notifications",
+  );
   const hasAnySettingsSearchResult =
+    showDesktopConnections ||
     showBalanceCard ||
     showMarginSection ||
     showDrawingSetsSection ||
@@ -1053,6 +1074,47 @@ export default function SettingsPanel({
         </div>
 
         <div className={`settings-body ${isFullyOpen ? "scrollable" : ""}`}>
+          {showDesktopConnections && <section className="settings-section settings-desktop-connections">
+            <div className="settings-section-heading"><h3>Desktop connections</h3><p>Credentials stored securely on this computer.</p></div>
+            <div className="settings-connection-statuses">
+              <div className={desktopCredentials.status.binanceConfigured ? "connected" : ""}>
+                <span>Binance</span>
+                <div>
+                  <b>{desktopCredentials.status.binanceConfigured ? "CONNECTED" : "NOT SET"}</b>
+                  <button type="button" onClick={() => desktopCredentials.openSetup("binance")}>
+                    {desktopCredentials.status.binanceConfigured ? "EDIT" : "CONNECT"}
+                  </button>
+                </div>
+              </div>
+              <div className={desktopCredentials.status.ntfyConfigured ? "connected" : ""}>
+                <span>ntfy</span>
+                <div>
+                  <b>{desktopCredentials.status.ntfyConfigured ? "CONNECTED" : "NOT SET"}</b>
+                  <button type="button" onClick={() => desktopCredentials.openSetup("ntfy")}>
+                    {desktopCredentials.status.ntfyConfigured ? "EDIT" : "CONNECT"}
+                  </button>
+                </div>
+              </div>
+              <div className={desktopCredentials.status.telegramConfigured ? "connected" : ""}>
+                <span>Telegram</span>
+                <div>
+                  <b>{desktopCredentials.status.telegramConfigured ? "CONNECTED" : "NOT SET"}</b>
+                  <button type="button" onClick={() => desktopCredentials.openSetup("telegram")}>
+                    {desktopCredentials.status.telegramConfigured ? "EDIT" : "CONNECT"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {(!desktopCredentials.status.binanceConfigured ||
+              !desktopCredentials.status.ntfyConfigured ||
+              !desktopCredentials.status.telegramConfigured) && (
+              <button type="button" className="settings-manage-connections" onClick={() => desktopCredentials.openSetup()}>
+                SET UP MISSING CONNECTIONS
+              </button>
+            )}
+          </section>}
+          {showDesktopConnections && (showBalanceCard || showMarginSection) && <div className="settings-separator" />}
+
           {showBalanceCard && <section
             className="settings-balance-card"
             aria-label="Available balance"

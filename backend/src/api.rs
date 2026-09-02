@@ -2,7 +2,7 @@ use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderMap, header},
+    http::{HeaderMap, HeaderValue, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -18,7 +18,7 @@ use tokio::{
     time::{Duration, sleep},
 };
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{AllowOrigin, Any, CorsLayer},
     trace::TraceLayer,
 };
 
@@ -61,6 +61,10 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route(
+            "/api/desktop/credentials/reload",
+            post(reload_desktop_credentials),
+        )
         .route("/api/binance/time", get(server_time))
         .route("/api/market-data/mexc/klines", get(mexc_klines))
         .route("/api/symbols", get(list_symbols).post(add_symbol))
@@ -120,9 +124,13 @@ pub fn router(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
         .layer(
             CorsLayer::new()
-                // .allow_origin("https://frontend-domain.com".parse::<HeaderValue>().unwrap())
-                // .allow_origin("other-backend.com".parse::<HeaderValue>().unwrap())
-                .allow_origin(Any)
+                .allow_origin(AllowOrigin::list([
+                    HeaderValue::from_static("http://localhost:5173"),
+                    HeaderValue::from_static("http://127.0.0.1:5173"),
+                    HeaderValue::from_static("tauri://localhost"),
+                    HeaderValue::from_static("http://tauri.localhost"),
+                    HeaderValue::from_static("https://tauri.localhost"),
+                ]))
                 .allow_headers(Any)
                 .allow_methods(Any),
         )
@@ -138,7 +146,10 @@ async fn authorize(
 ) -> AppResult<Response> {
     let path = request.uri().path();
 
-    if matches!(path, "/health" | "/api/ws/trading") {
+    if matches!(
+        path,
+        "/health" | "/api/ws/trading" | "/api/desktop/credentials/reload"
+    ) {
         return Ok(next.run(request).await);
     }
 
@@ -161,6 +172,38 @@ async fn authorize(
     }
 
     Ok(next.run(request).await)
+}
+
+async fn reload_desktop_credentials(State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let changed = state.binance.reload_secure_credentials()?;
+    let configured = state.binance.is_configured();
+
+    if configured {
+        state.binance.sync_server_time().await?;
+        state.binance.refresh_reference_data().await?;
+
+        let (account, position_risk) =
+            tokio::try_join!(state.binance.account_info(), state.binance.position_risk(),)?;
+        state.account_state.replace(account).await;
+        state.position_risk_state.replace(position_risk).await;
+    } else {
+        state
+            .account_state
+            .replace(crate::models::FuturesAccountInfo {
+                total_wallet_balance: "0".into(),
+                available_balance: "0".into(),
+                assets: Vec::new(),
+                positions: Vec::new(),
+                extra: json!({}),
+            })
+            .await;
+        state.position_risk_state.replace(Vec::new()).await;
+    }
+
+    Ok(Json(json!({
+        "configured": configured,
+        "changed": changed,
+    })))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -538,10 +581,8 @@ async fn account(State(state): State<AppState>) -> AppResult<Json<Value>> {
     // missed/delayed, even after the frontend explicitly refreshed the panel.
     // Fetch the authoritative account snapshot together with positionRisk on every
     // account refresh, then repair both caches from those same live responses.
-    let (account, position_risk) = tokio::try_join!(
-        state.binance.account_info(),
-        state.binance.position_risk(),
-    )?;
+    let (account, position_risk) =
+        tokio::try_join!(state.binance.account_info(), state.binance.position_risk(),)?;
 
     state.account_state.replace(account.clone()).await;
     state
@@ -656,9 +697,27 @@ fn current_position_realized_pnl(
             .unwrap_or(0.0);
         let side = trade.get("side").and_then(Value::as_str).unwrap_or("");
         let delta = match position_side {
-            "LONG" => if side == "BUY" { quantity } else { -quantity },
-            "SHORT" => if side == "SELL" { quantity } else { -quantity },
-            _ => if side == "BUY" { quantity } else { -quantity },
+            "LONG" => {
+                if side == "BUY" {
+                    quantity
+                } else {
+                    -quantity
+                }
+            }
+            "SHORT" => {
+                if side == "SELL" {
+                    quantity
+                } else {
+                    -quantity
+                }
+            }
+            _ => {
+                if side == "BUY" {
+                    quantity
+                } else {
+                    -quantity
+                }
+            }
         };
         let previous = exposure - delta;
 
@@ -1134,12 +1193,7 @@ async fn limit_order(
         match leverage_to_set {
             Some(leverage) => {
                 projected_limit_liquidation_price(
-                    &state,
-                    &symbol,
-                    req.side,
-                    price,
-                    quantity,
-                    leverage,
+                    &state, &symbol, req.side, price, quantity, leverage,
                 )
                 .await
             }
@@ -1737,14 +1791,7 @@ async fn reprice_reduce_order(
      */
     let replacement = state
         .binance
-        .modify_limit_order(
-            &symbol,
-            actual_order_id,
-            side,
-            orig,
-            price,
-            time_in_force,
-        )
+        .modify_limit_order(&symbol, actual_order_id, side, orig, price, time_in_force)
         .await?;
 
     let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
@@ -2039,12 +2086,13 @@ async fn position_intent(
             state.binance.ensure_isolated_margin(&symbol).await?;
 
             let order_type = req.order_type.unwrap_or(IntentOrderType::Market);
-            let reference_price = match order_type {
-                IntentOrderType::Market => None,
-                IntentOrderType::Limit => Some(req.price.ok_or_else(|| {
-                    AppError::Invalid("price is required for LIMIT ADD".into())
-                })?),
-            };
+            let reference_price =
+                match order_type {
+                    IntentOrderType::Market => None,
+                    IntentOrderType::Limit => Some(req.price.ok_or_else(|| {
+                        AppError::Invalid("price is required for LIMIT ADD".into())
+                    })?),
+                };
 
             // FIX: ADD must allocate the configured portfolio-margin
             // percentage again, not a fixed 50 USDT notional (which adds only

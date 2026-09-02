@@ -7,6 +7,7 @@ import {
 } from "../../config/constants";
 import type { BinanceOrderResponse, TradeOrderType } from "../types";
 import { parseOrderJsonText } from "./safeJson";
+import { canUseTradingAccount } from "../../desktop/credentials";
 
 const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
@@ -58,7 +59,6 @@ export type PositionIntentRequest = {
   intent: "ADD" | "REDUCE" | "REVERSE";
   orderType?: TradeOrderType;
   price?: number;
-  quantity?: number;
   leverage?: number;
   reducePct?: number;
 };
@@ -246,6 +246,8 @@ export async function getPositions(
   signal?: AbortSignal,
   force = false,
 ): Promise<OpenPosition[]> {
+  if (!canUseTradingAccount()) return [];
+
   const now = Date.now();
 
   if (
@@ -316,6 +318,8 @@ export async function executePositionIntent(
   request: PositionIntentRequest,
   signal?: AbortSignal,
 ): Promise<PositionIntentResponse> {
+  if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to trade");
+
   const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_INTENT_ENDPOINT}`, {
     method: "POST",
     headers: getHeaders(),
@@ -324,7 +328,6 @@ export async function executePositionIntent(
       intent: request.intent,
       order_type: request.orderType,
       price: request.price,
-      quantity: request.quantity,
       leverage: request.leverage,
       reduce_pct: request.reducePct,
     }),

@@ -14,6 +14,7 @@ const PROTECTED_BASE_SYMBOLS: &[&str] = &["BTC", "ETH", "SOL", "XRP"];
 // startup promotion to the requested symbols so unrelated user-added MEXC
 // entries do not silently change venue if Binance lists them later.
 const LEGACY_MEXC_SYMBOLS_TO_PROMOTE: &[&str] = &["PLUME", "ZEC"];
+const PRESEEDED_TRADITIONAL_SYMBOLS: &[(&str, &str)] = &[("XAU", "XAUUSDT"), ("XAG", "XAGUSDT")];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -87,6 +88,10 @@ impl SymbolRegistry {
         if fs::metadata(registry.path.as_ref()).await.is_err() {
             registry.persist().await?;
         }
+
+        // FEATURE: defaults must also reach existing installations whose
+        // symbols.json predates Binance's TradFi contracts.
+        registry.seed_traditional_symbols().await?;
 
         // FIX: migrate legacy PLUME/ZEC entries before serving requests.
         // Changing default_symbols() alone would only fix fresh installs
@@ -247,6 +252,36 @@ impl SymbolRegistry {
         Ok(())
     }
 
+    async fn seed_traditional_symbols(&self) -> AppResult<()> {
+        let mut changed = false;
+        {
+            let mut entries = self.symbols.write().await;
+            for (base, market_symbol) in PRESEEDED_TRADITIONAL_SYMBOLS {
+                if entries.contains_key(*base) {
+                    continue;
+                }
+
+                entries.insert(
+                    (*base).to_owned(),
+                    RegisteredSymbol {
+                        symbol: (*base).to_owned(),
+                        display_symbol: format!("{base}/USDT"),
+                        market_symbol: (*market_symbol).to_owned(),
+                        data_source: MarketDataSource::Binance,
+                        market_kind: MarketKind::Traditional,
+                        protected: false,
+                    },
+                );
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.persist().await?;
+        }
+        Ok(())
+    }
+
     async fn refresh_binance_market_kinds(&self) -> AppResult<()> {
         let response = self.http.get(BINANCE_EXCHANGE_INFO_URL).send().await?;
         let status = response.status();
@@ -371,19 +406,21 @@ fn is_protected(base: &str) -> bool {
 
 fn default_symbols() -> BTreeMap<String, RegisteredSymbol> {
     let defaults = [
-        ("BTC", MarketDataSource::Binance),
-        ("ETH", MarketDataSource::Binance),
-        ("SOL", MarketDataSource::Binance),
-        ("XRP", MarketDataSource::Binance),
+        ("BTC", MarketDataSource::Binance, MarketKind::Crypto),
+        ("ETH", MarketDataSource::Binance, MarketKind::Crypto),
+        ("SOL", MarketDataSource::Binance, MarketKind::Crypto),
+        ("XRP", MarketDataSource::Binance, MarketKind::Crypto),
         // FIX: Binance now exposes these USD-M perpetuals directly, so fresh
         // registries should never seed their old MEXC contract identifiers.
-        ("PLUME", MarketDataSource::Binance),
-        ("ZEC", MarketDataSource::Binance),
+        ("PLUME", MarketDataSource::Binance, MarketKind::Crypto),
+        ("ZEC", MarketDataSource::Binance, MarketKind::Crypto),
+        ("XAU", MarketDataSource::Binance, MarketKind::Traditional),
+        ("XAG", MarketDataSource::Binance, MarketKind::Traditional),
     ];
 
     defaults
         .into_iter()
-        .map(|(base, data_source)| {
+        .map(|(base, data_source, market_kind)| {
             let market_symbol = match data_source {
                 MarketDataSource::Binance => format!("{base}USDT"),
                 MarketDataSource::Mexc => format!("{base}_USDT"),
@@ -393,7 +430,7 @@ fn default_symbols() -> BTreeMap<String, RegisteredSymbol> {
                 display_symbol: format!("{base}/USDT"),
                 market_symbol,
                 data_source,
-                market_kind: MarketKind::Crypto,
+                market_kind,
                 protected: is_protected(base),
             };
             (base.to_string(), entry)

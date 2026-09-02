@@ -16,7 +16,7 @@ export function isTradingSymbol(value: string): value is TradingSymbol {
   return getAvailableSymbols().includes(value.toUpperCase());
 }
 
-const BUILT_IN_ORDER = ["BTC", "ETH", "SOL", "XRP", "PLUME", "ZEC"] as const;
+const BUILT_IN_ORDER = ["BTC", "ETH", "SOL", "XRP", "PLUME", "ZEC", "XAU", "XAG"] as const;
 
 function configFromBackend(entry: BackendSymbol): SymbolConfig {
   const symbol = `${entry.symbol.toUpperCase()}USDT`;

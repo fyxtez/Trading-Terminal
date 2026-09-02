@@ -17,6 +17,7 @@ import type {
   PlaceMarketOrderResponse,
 } from "../types";
 import { parseOrderJsonText } from "./safeJson";
+import { canUseTradingAccount } from "../../desktop/credentials";
 
 const API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN;
 
@@ -47,6 +48,8 @@ async function postBinanceOrder<T>(
   endpoint: string,
   payload: unknown,
 ): Promise<T> {
+  if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to trade");
+
   const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
     method: "POST",
     headers: {
@@ -261,6 +264,8 @@ export async function getOpenOrders(
   signal?: AbortSignal,
   force = false,
 ): Promise<OpenOrder[]> {
+  if (!canUseTradingAccount()) return [];
+
   const normalizedSymbol = symbol?.toUpperCase();
   const key = normalizedSymbol ?? "*";
   const cached = openOrdersCache.get(key);
