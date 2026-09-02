@@ -1,0 +1,147 @@
+/*
+ * Sits immediately right of .toolbar-reveal-button (top: 10px, left: 10px,
+ * width: 30px in ChartPanel.css) - 10 + 30 + 10px gap = 50px. Positioned
+ * independently of whether that button happens to be rendered (it only
+ * shows up while the drawing toolbar is collapsed): the toolbar itself
+ * lives in its own column outside the chart pane, so this corner of the
+ * chart is always the same spot regardless of the toolbar's state.
+ */
+.candle-countdown {
+  position: relative;
+  z-index: 210;
+  flex: 0 0 auto;
+}
+
+.candle-countdown-badge {
+  height: 30px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.candle-countdown-badge:hover,
+.candle-countdown-badge.open {
+  border-color: rgba(245, 166, 35, 0.4);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.candle-countdown-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 400;
+  min-width: 178px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.candle-countdown-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  color: var(--text);
+}
+
+.candle-countdown-option.active {
+  border-color: rgba(245, 166, 35, 0.4);
+  background: var(--amber-soft);
+}
+
+.candle-countdown-option-interval {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.candle-countdown-option.active .candle-countdown-option-interval {
+  color: var(--amber);
+}
+
+.candle-countdown-option-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  /*
+   * FIX: the 1w row's value ("3d 09:47:42") has a space in it, which
+   * without this wrapped onto its own line below "1w" the moment the row
+   * got the least bit tight - looked like the row had broken layout.
+   * This keeps the whole value glued together on one line no matter how
+   * narrow the menu gets.
+   */
+  white-space: nowrap;
+}
+
+/*
+ * FEATURE: the compact move control explicitly unlocks timer placement.
+ * Keeping it separate from the countdown button preserves the existing
+ * timeframe dropdown interaction during normal chart use.
+ */
+.candle-countdown-move-button {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.62;
+  transition: opacity 100ms ease, background 100ms ease, color 100ms ease,
+    border-color 100ms ease;
+}
+
+.candle-countdown:hover .candle-countdown-move-button,
+.candle-countdown-move-button:focus-visible,
+.candle-countdown-move-button.active {
+  opacity: 1;
+}
+
+.candle-countdown-move-button.active {
+  border-color: rgba(245, 166, 35, 0.55);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+/* FEATURE: cursor feedback makes the click → move → click placement state
+ * obvious without changing the timer's compact visual footprint. */
+.candle-countdown.move-armed .candle-countdown-badge {
+  cursor: grab;
+  border-color: rgba(245, 166, 35, 0.55);
+}
+
+.candle-countdown.moving .candle-countdown-badge {
+  cursor: crosshair;
+  color: var(--amber);
+  background: var(--amber-soft);
+}

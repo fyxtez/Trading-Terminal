@@ -1,0 +1,704 @@
+.position-bracket-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 155;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.position-entry-line,
+.position-stop-line {
+  position: absolute;
+  height: 0;
+  border-top: 1px dashed rgba(148, 163, 184, 0.82);
+  pointer-events: none;
+}
+
+/*
+ * FEATURE: liquidation is a non-draggable danger boundary, so it spans the
+ * entire chart instead of inheriting the user-resizable TP/SL zone width.
+ * The saturated two-pixel red line plus glow separates it from the thinner
+ * movable stop line; pointer-events stays disabled so it cannot intercept
+ * chart gestures. React removes it together with the closed position.
+ */
+.position-liquidation-line {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 2px solid #ff1744;
+  box-shadow:
+    0 0 5px rgba(255, 23, 68, 0.95),
+    0 0 12px rgba(255, 23, 68, 0.58);
+  color: #ff1744;
+  pointer-events: none;
+  z-index: 158;
+}
+
+.position-liquidation-line > span {
+  position: absolute;
+  right: 10px;
+  /* FIX: center the 22px badge directly on the liquidation line. The old
+     -25px offset floated it above the line and made it look attached to the
+     neighbouring native price marker instead of to its own risk boundary. */
+  top: -11px;
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #ff1744;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  box-shadow: 0 0 8px rgba(255, 23, 68, 0.42);
+  color: #ff4569;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+}
+
+/*
+ * FIX: this is position:absolute inside .position-entry-line, whose own
+ * width is now entryLineWidth (see PositionBracketOverlay.tsx) - the gap
+ * from the entry candle to the LATEST candle, which can be only a few
+ * pixels wide right after a position first opens. With only `left: 0`
+ * set (no `right`), an absolutely positioned box with an auto width
+ * shrink-to-fits *within the available space of its containing box* -
+ * so a narrow entry-line container was squeezing this button group down
+ * to a few pixels too, wrapping "TP FULL" onto two lines and making the
+ * whole control visually spill outside the (separately, always
+ * reasonably wide) TP/SL zone rectangles. `width: max-content` makes it
+ * size off its own content instead, regardless of how narrow the entry
+ * line it's anchored to currently is.
+ */
+.position-entry-controls {
+  position: absolute;
+  left: 0;
+  top: -11px;
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+/* FEATURE: A compact move arrow now travels with the complete entry action
+ * row. Its interaction mirrors the candle-close timer arrow: one click picks
+ * the row up immediately, pointer movement repositions it, and the next click
+ * drops it. */
+.position-entry-controls-move-button {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--text-faint);
+  cursor: move;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.position-entry-controls-move-button:hover:not(:disabled),
+.position-entry-controls-move-button.active {
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text);
+}
+
+.position-entry-controls-move-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* FEATURE: While picked up, make the row clearly feel movable without
+ * changing the styling of the actual trading actions. */
+.position-entry-controls.moving {
+  cursor: move;
+}
+
+.position-entry-label {
+  position: static;
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 94%);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+}
+
+.position-bracket-handles {
+  display: flex;
+  gap: 4px;
+}
+
+.position-bracket-handle {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  /* FIX: belt-and-suspenders alongside width: max-content above - keeps
+     the button's own label from ever wrapping even if something else
+     upstream constrains available width again in the future. */
+  white-space: nowrap;
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.position-bracket-handle.take-profit {
+  border: 1px solid rgba(52, 211, 153, 0.6);
+  color: var(--green);
+}
+
+.position-bracket-handle.take-profit:hover:not(:disabled) {
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.position-bracket-handle.stop-loss {
+  border: 1px solid rgba(240, 69, 98, 0.62);
+  color: var(--red);
+}
+
+.position-bracket-handle.stop-loss:hover:not(:disabled) {
+  background: rgba(240, 69, 98, 0.12);
+}
+
+.position-bracket-handle:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.position-bracket-close {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid rgba(240, 69, 98, 0.62);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--red);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.position-bracket-close:hover:not(:disabled) {
+  background: rgba(240, 69, 98, 0.16);
+}
+
+.position-bracket-close:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+/* FEATURE: Replace the destructive quick-close X with an inline YES / NO
+ * decision after the first click. Matching the existing 22px controls keeps
+ * confirmation beside the trade and avoids a modal obscuring the chart. */
+.position-bracket-close-confirmation {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.position-bracket-close-choice {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.position-bracket-close-choice.confirm {
+  border: 1px solid rgba(240, 69, 98, 0.62);
+  color: var(--red);
+}
+
+.position-bracket-close-choice.confirm:hover:not(:disabled) {
+  background: rgba(240, 69, 98, 0.16);
+}
+
+.position-bracket-close-choice.cancel {
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+.position-bracket-close-choice.cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+}
+
+.position-bracket-close-choice:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.position-bracket-zone {
+  position: absolute;
+  border-top: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  pointer-events: none;
+}
+
+.position-bracket-zone.profit {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--green);
+}
+
+.position-bracket-zone.loss {
+  background: rgba(240, 69, 98, 0.12);
+  color: var(--red);
+}
+
+/* FEATURE: once a stop crosses entry and locks in profit, use an amber
+ * red/green midpoint instead of danger-red. It is still an SL mechanically,
+ * but the rectangle now communicates that the stop would close profitably. */
+.position-bracket-zone.loss.profit-protected {
+  background: rgba(245, 166, 35, 0.12);
+  color: #f5a623;
+}
+
+/*
+ * The persistent zone is the actual placed TP/SL range (confirmed or
+ * optimistic), always visible - as opposed to the plain (non-persistent)
+ * .position-bracket-zone above, which is only the live drag preview shown
+ * while dragging a new placement. Slightly more transparent so an active
+ * drag preview drawn on top of it is still easy to distinguish.
+ */
+.position-bracket-zone.persistent {
+  background-color: rgba(52, 211, 153, 0.07);
+}
+
+.position-bracket-zone.loss.persistent {
+  background-color: rgba(240, 69, 98, 0.07);
+}
+
+/* FEATURE: keep the locked-profit SL distinction on the quieter persistent
+ * rectangle too; this rule follows the loss.persistent rule so it can override it. */
+.position-bracket-zone.loss.persistent.profit-protected {
+  background-color: rgba(245, 166, 35, 0.08);
+}
+
+/* Optimistic placement: submitted, not yet confirmed by the backend. */
+.position-bracket-zone.pending {
+  border-top-style: dashed;
+  border-bottom-style: dashed;
+  opacity: 0.8;
+}
+
+/* FEATURE: R labels sit inside both the persistent bracket and the live move
+ * preview. They intentionally have no pill/background so they read as part of
+ * the risk area rather than as another executable chart control. */
+.position-bracket-r-multiple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.35px;
+  line-height: 1;
+  opacity: 0.9;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+}
+
+.position-bracket-zone > span {
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 92%);
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  width: max-content;
+}
+
+.position-stop-line {
+  border-top-color: rgba(240, 69, 98, 0.9);
+  pointer-events: none;
+}
+
+/* FEATURE: Before a real reduce LIMIT exists, TP is a green planning line at
+ * +1R/-1R's profit boundary. It has the same generous invisible grab strip as
+ * SL; the first confirmed move submits the real order, at which point this
+ * draft line disappears and the existing yellow open-order drawing takes over. */
+.position-take-profit-line {
+  position: absolute;
+  height: 0;
+  border-top: 1px solid rgba(52, 211, 153, 0.92);
+  pointer-events: none;
+  z-index: 157;
+}
+
+.position-take-profit-grab {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -5px;
+  height: 10px;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.position-take-profit-line > span {
+  position: absolute;
+  right: 10px;
+  top: -11px;
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  border: 1px solid rgba(52, 211, 153, 0.62);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--green);
+  cursor: ns-resize;
+  font-size: 11.5px;
+  font-weight: 800;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.position-take-profit-line > span:hover {
+  /* FIX: keep an opaque dark base under the hover tint. A translucent-only
+   * hover background let the TP boundary line show through the middle of the
+   * badge, making the control look visually sliced when hovered. */
+  background:
+    linear-gradient(rgba(52, 211, 153, 0.14), rgba(52, 211, 153, 0.14)),
+    rgb(13 16 23);
+  border-color: rgba(52, 211, 153, 0.9);
+}
+
+/*
+ * Invisible grab strip spanning the full width of the stop-loss line, a
+ * few pixels above/below it, so the line itself can be dragged to a new
+ * price the same way the TP limit-order line already can be. Only
+ * rendered once the stop loss is confirmed (has a real algoId to
+ * cancel-then-replace) - see the `savedStop &&` guard in the component.
+ */
+.position-stop-grab {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -5px;
+  height: 10px;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.position-stop-line.draggable:hover {
+  border-top-color: rgba(240, 69, 98, 1);
+}
+
+/*
+ * FIX: bumped from 9.5px per request ("id like this text a little
+ * bigger") - this is the "SL FULL · <price>" label on the stop-loss
+ * line. Height/padding grown to match so the larger text doesn't
+ * overflow the pill vertically.
+ */
+.position-stop-line > span {
+  position: absolute;
+  right: 34px;
+  top: -11px;
+  height: 22px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  /*
+   * Absolutely-positioned flex elements with only `right` set (no
+   * explicit width) don't reliably shrink-to-content across browsers -
+   * some end up wrapping the text onto a second line instead, which then
+   * overflowed past this box's fixed height. white-space + width force
+   * single-line, shrink-to-content sizing regardless.
+   */
+  white-space: nowrap;
+  width: max-content;
+  border: 1px solid rgba(240, 69, 98, 0.62);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--red);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+/* FEATURE: advertise and enable the visible SL FULL badge as a proper move
+ * handle. The thin line grab-strip still works for experienced users, while
+ * the bordered badge now provides the obvious clickable target it visually
+ * appears to be. */
+.position-stop-line > span.move-handle {
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.position-stop-line > span.move-handle:hover {
+  /* FIX: SL uses the same opaque-backed hover treatment as TP so the red
+   * boundary line cannot bleed through the draggable label on hover. */
+  background:
+    linear-gradient(rgba(240, 69, 98, 0.14), rgba(240, 69, 98, 0.14)),
+    rgb(13 16 23);
+  border-color: rgba(240, 69, 98, 0.9);
+}
+
+.position-stop-line > button {
+  position: absolute;
+  right: 10px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(240, 69, 98, 0.62);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.position-stop-line > button:hover:not(:disabled) {
+  background: rgba(240, 69, 98, 0.14);
+}
+
+.position-stop-line > button:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+/*
+ * FIX: when SL is close to entry, move its badge/X AWAY from the entry row.
+ * The previous rule always moved the SL controls below the stop line. That
+ * worked for a stop below entry, but a profitable LONG stop is above entry,
+ * so moving it down placed `SL FULL · price` directly over HIDE / TP FULL / X
+ * at certain Y-axis zoom levels. Directional classes now keep both rows apart.
+ */
+.position-stop-line.controls-above > span,
+.position-stop-line.controls-above > button {
+  top: -35px;
+}
+
+.position-stop-line.controls-below > span,
+.position-stop-line.controls-below > button {
+  top: 13px;
+}
+
+.position-stop-line.controls-above .position-stop-grab,
+.position-stop-line.controls-below .position-stop-grab {
+  top: -5px;
+}
+
+/*
+ * Optimistic stop-loss: submitted, not yet confirmed (no algoId / cancel
+ * button yet). There's no button in this state, so the label can use the
+ * full width up to the edge instead of leaving a gap for one.
+ */
+.position-stop-line.pending > span {
+  right: 10px;
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+/* FEATURE: A draft SL has no cancel-X because no exchange order exists yet, so
+ * let its badge use the space that is otherwise reserved for that button. */
+.position-stop-line.draft > span {
+  right: 10px;
+}
+
+.position-bracket-message {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 40px));
+  padding: 6px 9px;
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  color: var(--green);
+  font-size: 10.5px;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.position-bracket-message.error {
+  border-color: rgba(240, 69, 98, 0.45);
+  color: var(--red);
+}
+
+/*
+ * Triggered when the stop-loss row in PositionsPanel's Open Orders tab is
+ * clicked (see coordinates.isStopHighlighted in PositionBracketOverlay.tsx,
+ * driven by the same highlightedOrderIdRef/highlightedOrderUntilRef refs
+ * that chart drawings already use for their own click-to-blink). Runs for
+ * as long as that ref window is active, then stops on its own once the
+ * "highlighted" class is removed - no fixed iteration count to keep in
+ * sync with a duration elsewhere.
+ */
+@keyframes bracket-zone-highlight-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.position-bracket-zone.highlighted {
+  animation: bracket-zone-highlight-pulse 300ms ease-in-out infinite;
+}
+
+/*
+ * Color the pulse to match each zone's own theme (green for the profit/TP
+ * zone, red for the loss/SL zone) rather than a single hardcoded color -
+ * a red glow flashing over the green TP zone read as a danger signal on
+ * what's actually a take-profit.
+ */
+.position-bracket-zone.loss.highlighted {
+  box-shadow: 0 0 20px rgba(240, 69, 98, 0.6);
+}
+
+/* FEATURE: highlighting a profit-protecting SL must preserve its amber meaning
+ * instead of temporarily turning the rectangle back into a red danger zone. */
+.position-bracket-zone.loss.profit-protected.highlighted {
+  box-shadow: 0 0 20px rgba(245, 166, 35, 0.6);
+}
+
+.position-bracket-zone.profit.highlighted {
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.6);
+}
+
+@keyframes stop-line-highlight-pulse {
+  0%,
+  100% {
+    border-top-color: rgba(240, 69, 98, 0.9);
+  }
+
+  50% {
+    border-top-color: #fff3b0;
+  }
+}
+
+.position-stop-line.highlighted {
+  animation: stop-line-highlight-pulse 300ms ease-in-out infinite;
+}
+
+/*
+ * Same idea as stop-line-highlight-pulse above, but for the plain (white
+ * dashed) entry line, which never had a "highlighted" state before -
+ * triggered when a row in the Positions tab is clicked (see
+ * isPositionHighlighted in PositionBracketOverlay.tsx).
+ */
+@keyframes entry-line-highlight-pulse {
+  0%,
+  100% {
+    border-top-color: rgba(148, 163, 184, 0.82);
+  }
+
+  50% {
+    border-top-color: #fff3b0;
+  }
+}
+
+.position-entry-line.highlighted {
+  animation: entry-line-highlight-pulse 300ms ease-in-out infinite;
+}
+
+/*
+ * Draggable strip along the right edge of the persistent TP/SL zone,
+ * used to widen or narrow the zone horizontally (see beginEdgeDrag /
+ * ZONE_RIGHT in PositionBracketOverlay.tsx). Purely a width control -
+ * dragging this never changes entryY, stopY, or takeProfitY, only
+ * paneLeft/paneWidth, so the TP/SL price lines themselves never move
+ * vertically because of this interaction.
+ *
+ * FIX: this used to have `top: 0; bottom: 0`, stretching the clickable
+ * strip across the ENTIRE chart height regardless of where the TP/SL
+ * zones actually sit - so clicking anywhere along that vertical line, far
+ * above or below the actual red/green rectangles, would arm the resize.
+ * `top` and `height` are now set inline per-render (see
+ * edgeHandleBounds in PositionBracketOverlay.tsx) to exactly the
+ * vertical span the combined zones occupy, so the handle only lives
+ * where the rectangles are actually visible.
+ */
+.position-bracket-edge-handle {
+  position: absolute;
+  width: 6px;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+  background: transparent;
+  border-radius: 3px;
+  transition: background 100ms ease;
+  z-index: 156;
+}
+
+.position-bracket-edge-handle:hover,
+.position-bracket-edge-handle.active {
+  background: rgba(245, 166, 35, 0.3);
+}
+
+/* FEATURE: Compact control immediately left of TP FULL. When the user hides
+ * long-term position controls it becomes the only remaining entry-row button,
+ * so TP FULL / STOP LOSS / quick-close stay out of the way without making the
+ * action irreversible from the chart. */
+.position-bracket-visibility-toggle {
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--text-faint);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.position-bracket-visibility-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+}
+
+.position-bracket-visibility-toggle:disabled {
+  cursor: pointer;
+  opacity: 0.5;
+}

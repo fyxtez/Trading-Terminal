@@ -1,0 +1,117 @@
+.drawing-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 205;
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 5px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  transition:
+    width 180ms ease,
+    padding 180ms ease,
+    border-right-width 180ms ease,
+    opacity 140ms ease;
+}
+
+/*
+ * The toolbar floats ABOVE the chart (position: absolute, taken out of
+ * the workspace flex flow - see .workspace in App.css) rather than
+ * sitting beside it as a flex sibling. That's deliberate: a flex sibling
+ * whose width changes - even animated - still forces the chart-wrap
+ * next to it to resize on every toggle, which is what caused the chart
+ * to visibly shift. As an overlay, showing/hiding the toolbar never
+ * changes the chart's box size at all; it only slides on top of it.
+ */
+
+/*
+ * The toolbar stays mounted at all times (see isCollapsed in
+ * DrawingToolbar.tsx) - only its width/padding animate down to 0 here.
+ * Mounting/unmounting the whole component made its 44px width
+ * appear/disappear in a single instant layout pass, which the chart's
+ * ResizeObserver picked up as one abrupt jump instead of a smooth
+ * resize. Animating the width on an always-mounted element instead
+ * means ResizeObserver fires continuously across the transition, so the
+ * chart glides to its new size in step with the toolbar collapsing.
+ */
+.drawing-panel.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tool-button {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 19.5px;
+  line-height: 1;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+.tool-button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tool-button.active {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.35);
+}
+
+.tool-separator {
+  width: 22px;
+  flex-shrink: 0;
+  height: 1px;
+  margin: 3px 0;
+  background: var(--border);
+}
+
+.tool-spacer {
+  flex: 1;
+}
+.hotkeys-button {
+  flex-shrink: 0;
+  font-size: 17.5px;
+  font-weight: 700;
+}
+
+
+.ruler-tool {
+  font-size: 17px;
+  gap: 1px;
+}
+
+.ruler-percent {
+  font-size: 10px;
+  font-weight: 800;
+  transform: translateY(-4px);
+}
+
+/* FEATURE: custom dashed rectangle icon for the Alt+G marquee tool. Using CSS
+ * rather than a text glyph keeps the icon visually consistent across OS fonts. */
+.group-select-tool > span {
+  width: 19px;
+  height: 14px;
+  border: 1.5px dashed currentColor;
+  border-radius: 2px;
+}

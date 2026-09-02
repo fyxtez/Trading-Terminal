@@ -1,0 +1,58 @@
+/*
+ * Positioned immediately to the right of the toolbar reveal button.
+ */
+.chart-indicators {
+  position: absolute;
+  top: 8px;
+  left: 48px;
+
+  z-index: 210;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  pointer-events: none;
+  user-select: none;
+}
+
+.indicator-chip {
+  pointer-events: auto;
+
+  min-width: 96px;
+  height: 30px;
+
+  padding: 0 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+
+  background: rgb(13 16 23 / 92%);
+  font-family: var(--font-mono);
+
+  white-space: nowrap;
+
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.indicator-chip:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgb(17 21 30 / 96%);
+}
+
+.indicator-chip-value {
+  color: var(--text);
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  line-height: 1;
+
+  text-align: center;
+}

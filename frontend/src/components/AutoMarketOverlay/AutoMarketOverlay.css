@@ -1,0 +1,388 @@
+.auto-market-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 218;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  user-select: none;
+}
+
+.auto-market-risk-zone {
+  position: absolute;
+  min-height: 2px;
+  border-top: 1px solid rgba(240, 69, 98, 0.82);
+  border-bottom: 1px solid rgba(240, 69, 98, 0.82);
+  background: rgba(240, 69, 98, 0.12);
+  color: var(--red);
+  pointer-events: none;
+}
+
+.auto-market-risk-zone.invalid {
+  border-color: rgba(245, 166, 35, 0.9);
+  background: rgba(245, 166, 35, 0.1);
+  color: var(--amber);
+}
+
+.auto-market-risk-zone > span {
+  position: absolute;
+  left: 8px;
+  right: auto;
+  top: 9px;
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 94%);
+  /* FIX: bumped from 11.5px per request ("font size should be little higher"). */
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  /* FEATURE: AUTO LONG/SHORT describes the draft; it is not clickable.
+   * Lower visual weight keeps attention on the enlarged SL handle and the
+   * EXECUTE/CANCEL actions in both compact and full-height layouts. */
+  opacity: 0.62;
+}
+
+.auto-market-entry-line,
+.auto-market-stop-line {
+  position: absolute;
+  height: 0;
+}
+
+.auto-market-entry-line {
+  border-top: 1px dashed rgba(226, 232, 240, 0.82);
+  color: rgb(226 232 240);
+}
+
+.auto-market-entry-line > span,
+.auto-market-stop-line > span {
+  position: absolute;
+  right: 6px;
+  top: -10px;
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 96%);
+  /* FIX: bumped from 11.5px per request ("font size should be little higher"). */
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* FEATURE: the initial Auto Market SL badge is the control that arms SL
+ * placement, so give it a larger red-tinted click target than the passive
+ * MARKET label. This improves discoverability without making the price zone
+ * itself taller and therefore visually misrepresenting the actual risk. */
+.auto-market-stop-line > span {
+  top: -14px;
+  min-height: 28px;
+  padding-inline: 10px;
+  background: rgba(47, 16, 25, 0.98);
+  box-shadow: 0 0 0 1px rgba(240, 69, 98, 0.12);
+  cursor: ns-resize;
+}
+
+.auto-market-stop-line:hover > span,
+.auto-market-stop-line.armed > span {
+  background: rgba(77, 20, 34, 0.98);
+  box-shadow: 0 0 8px rgba(240, 69, 98, 0.24);
+}
+
+.auto-market-stop-line {
+  z-index: 3;
+  border-top: 2px solid var(--red);
+  color: var(--red);
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/*
+ * Shown for the duration of a click-move-click stop-loss placement (see
+ * isPlacingStop in AutoMarketOverlay.tsx) - the click that arms it has
+ * already happened and the line is now tracking the mouse with nothing
+ * held down, waiting for the confirming click. The brighter glow is the
+ * same visual language the TP/SL zone's edge-resize handle already uses
+ * for its own "armed" state (.position-bracket-edge-handle.active).
+ */
+.auto-market-stop-line.armed {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.auto-market-stop-grab {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* FEATURE: match the larger visible SL badge with a forgiving 28px-high
+   * line target, so the user does not need pixel-perfect pointer placement. */
+  top: -14px;
+  height: 28px;
+  cursor: ns-resize;
+}
+
+.auto-market-controls {
+  position: absolute;
+  z-index: 5;
+  width: 96px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.auto-market-controls button {
+  height: 29px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  /* FIX: bumped from 10.5px per request ("font size should be little higher"). */
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auto-market-confirm {
+  border: 1px solid rgba(52, 211, 153, 0.58);
+  background: rgb(13 16 23 / 96%);
+  color: var(--green);
+}
+
+.auto-market-confirm:hover:not(:disabled) {
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.auto-market-cancel {
+  border: 1px solid rgba(240, 69, 98, 0.52);
+  background: rgb(13 16 23 / 96%);
+  color: var(--red);
+}
+
+.auto-market-cancel:hover:not(:disabled) {
+  background: rgba(240, 69, 98, 0.12);
+}
+
+.auto-market-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.auto-market-error {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  /* FIX: bumped from 6px 9px / 10.5px per request ("make sure that this is larger"). */
+  padding: 8px 12px;
+  border: 1px solid rgba(245, 166, 35, 0.45);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/*
+ * When the chart is zoomed far out, a 0.2% stop can occupy only a few
+ * vertical pixels. In that state there is no honest way to fit every label
+ * and both buttons inside the zone. The compact layout keeps the two price
+ * labels on opposite horizontal edges and moves the action row directly
+ * beside the trade, preserving readability without covering candles.
+ */
+.auto-market-risk-zone.compact {
+  background: rgba(240, 69, 98, 0.09);
+}
+
+.auto-market-entry-line.compact > span {
+  right: 5px;
+}
+
+.auto-market-stop-line.compact > span {
+  left: 5px;
+  right: auto;
+}
+
+.auto-market-controls.compact {
+  height: 28px;
+  transform: translateY(-50%);
+  display: grid;
+  /*
+   * FIX: was `minmax(0, 1fr) 58px 50px`. Even after widening the overall
+   * zone (see AUTO_MARKET_ZONE_WIDTH_PX in the .tsx), the summary chip's
+   * "%" was still occasionally the first thing ellipsized whenever the
+   * button font size grew alongside it (see .auto-market-controls button
+   * above). Narrowing the two button columns slightly further (58/50 ->
+   * 54/46) hands that width straight to the summary column via
+   * minmax(0, 1fr), on top of the wider zone - between the two, the full
+   * "AUTO LONG/SHORT X.XX%" string now has comfortable room at the
+   * larger font size instead of just barely fitting.
+   */
+  grid-template-columns: minmax(0, 1fr) 54px 46px;
+  align-items: stretch;
+  gap: 3px;
+  pointer-events: auto;
+}
+
+.auto-market-controls.compact button {
+  height: 28px;
+  min-width: 0;
+  padding: 0 5px;
+  /* FIX: bumped from 9.5px per request ("font size should be little higher"). */
+  font-size: 10.5px;
+  /*
+   * FIX: "EXECUTE" fits this 54px-wide grid column fine, but its own
+   * submitting-state label ("EXECUTING…") is longer and, with nothing
+   * clipping overflow, just visibly spilled out past the button's right
+   * edge into the CANCEL button sitting right next to it. Clipping with
+   * an ellipsis here is a backstop for any future label change; the
+   * label itself is also shortened specifically for this compact layout
+   * (see the .tsx) so it isn't relying on the ellipsis to do all the work.
+   */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-market-compact-summary {
+  min-width: 0;
+  height: 28px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(240, 69, 98, 0.58);
+  border-radius: 4px;
+  background: rgb(13 16 23 / 96%);
+  color: var(--red);
+  /* FIX: bumped from 9.5px per request ("font size should be little higher"). */
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* FEATURE: AUTO LONG/SHORT is descriptive state, not an action. Dimming it
+   * makes the adjacent SL/EXECUTE/CANCEL controls read as the interactive
+   * elements instead of presenting every red box with equal visual weight. */
+  opacity: 0.62;
+}
+
+.auto-market-risk-zone.invalid + .auto-market-entry-line + .auto-market-stop-line + .auto-market-controls.compact .auto-market-compact-summary {
+  border-color: rgba(245, 166, 35, 0.58);
+  color: var(--amber);
+}
+
+/*
+ * FIX (round 2): in non-compact mode the EXECUTE/CANCEL controls live in
+ * the RIGHT half of the zone (see the .auto-market-controls left offset,
+ * computed as coordinates.width - 88 in the .tsx). Anchoring this label
+ * to the right (as the first-pass centering fix did) puts it in exactly
+ * the same space as those controls - the controls render later in the
+ * DOM/paint order, so they visibly cut through the label text, which is
+ * the "AUTO LONG 0.20%" chopped up behind the buttons you saw.
+ *
+ * Anchoring the label to the LEFT instead keeps it in the half of the
+ * zone the controls never occupy, so the two can never collide
+ * regardless of zoom level, timeframe, or window size. The max-width
+ * caps it a bit before the controls' left edge (roughly
+ * 100% - (width - 88), with a small safety margin) so a long label
+ * (double-digit %) ellipsizes instead of ever reaching under a button.
+ */
+.auto-market-risk-zone:not(.compact) > span {
+  top: 50%;
+  left: 8px;
+  right: auto;
+  max-width: calc(100% - 102px);
+  transform: translateY(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auto-market-controls:not(.compact) {
+  /*
+   * "EXECUTE"/"CANCEL" only need modest width at this font-size, so
+   * this stays narrow to leave the label on the other side of the zone
+   * (see .auto-market-risk-zone:not(.compact) > span above) as much room
+   * as possible before it needs to ellipsize.
+   */
+  width: 80px;
+}
+
+/* FIX: `stable` replaces the former zoom-dependent compact/full switch.
+ * Summary and actions always occupy the same horizontal row with explicit
+ * columns, so button text cannot crop and zooming cannot rearrange the UI. */
+.auto-market-controls.stable {
+  height: 30px;
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 64px;
+  align-items: stretch;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.auto-market-controls.stable button {
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  overflow: hidden;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-market-controls.stable .auto-market-compact-summary {
+  height: 30px;
+  padding-inline: 8px;
+}
+
+/* FIX: keep the two price badges on opposite horizontal edges in the single
+ * stable layout. Their vertical separation from the action row is calculated
+ * in AutoMarketOverlay.tsx, so SL and AUTO LONG/SHORT never overlap. */
+.auto-market-entry-line.stable > span {
+  right: 5px;
+}
+
+.auto-market-stop-line.stable > span {
+  left: 5px;
+  right: auto;
+}
+
+.auto-market-risk-zone.stable {
+  background: rgba(240, 69, 98, 0.09);
+}
+
+
+/*
+ * FIX: this used to be its own one-off pill (rgba(13,16,23,96%) background,
+ * border-radius: var(--radius-s), amber border all the way around) that
+ * didn't match the shared toast look used everywhere else in the app (see
+ * .trade-toast) - same amber-on-dark family, but a visibly different
+ * container. Now uses the same chrome as .trade-toast (opaque
+ * --bg-surface, --border-strong outline, --radius-m, --shadow-pop,
+ * font-mono) with just a left accent border for the amber "heads up"
+ * meaning, instead of a whole separate visual language.
+ */
+.auto-market-instruction {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 10px 16px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.25px;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -1,0 +1,62 @@
+/*
+ * Sits above the raw candlestick chart (which has no z-index of its own,
+ * so any positioned sibling renders above it regardless of z-index
+ * value) but below the drawing canvas (z-index: 100) and every
+ * trade-related overlay, so user drawings and TP/SL brackets always
+ * stay visually on top of these session lines.
+ */
+.session-zones-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--font-mono);
+}
+
+.session-line {
+  position: absolute;
+  top: 0;
+  width: 0;
+  border-left-width: 1px;
+  border-left-style: dashed;
+  pointer-events: none;
+}
+
+.session-line-label {
+  position: absolute;
+  top: 6px;
+  left: 5px;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 82%);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+/* FEATURE: shaded chart-time 13:00-16:00 New York kill-zone window. */
+.session-kill-zone {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  border-left: 1px dashed;
+  border-right: 1px dashed;
+  pointer-events: none;
+}
+
+.session-kill-zone > span {
+  position: absolute;
+  top: 30px;
+  left: 6px;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 82%);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}

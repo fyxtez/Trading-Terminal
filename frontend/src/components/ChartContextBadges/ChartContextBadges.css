@@ -1,0 +1,126 @@
+.chart-context-badges {
+  z-index: 209;
+  min-width: 0;
+  max-width: calc(100vw - 150px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.current-day-badge,
+.active-drawing-set-badge {
+  height: 30px;
+  max-width: 180px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex: 0 1 auto;
+  border: 1px solid rgba(245, 166, 35, 0.34);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-set-badge-wrap {
+  position: relative;
+  flex: 0 1 auto;
+}
+
+/* FEATURE: only the unsaved badge is interactive; saved-set badges remain the
+ * same passive status label while the quick-save state is visually explicit.
+ */
+.active-drawing-set-badge-action {
+  max-width: 240px;
+  cursor: pointer;
+}
+
+.active-drawing-set-badge-action:hover,
+.active-drawing-set-badge-action:focus-visible {
+  border-color: rgba(245, 166, 35, 0.7);
+  background: var(--amber-soft);
+  outline: none;
+}
+
+.drawing-set-quick-save {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 220;
+  width: 280px;
+  padding: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 98%);
+  box-shadow: var(--shadow-pop);
+}
+
+.drawing-set-quick-save input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.drawing-set-quick-save input:focus {
+  border-color: rgba(245, 166, 35, 0.6);
+}
+
+.drawing-set-quick-save button {
+  height: 30px;
+  border: 1px solid rgba(245, 166, 35, 0.45);
+  border-radius: var(--radius-s);
+  background: var(--amber-soft);
+  color: var(--amber);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.drawing-set-quick-save button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.drawing-set-quick-save > span {
+  grid-column: 1 / -1;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+
+.current-day-badge {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 720px) {
+  .chart-context-badges {
+    max-width: calc(100vw - 140px);
+  }
+
+  .current-day-badge,
+.active-drawing-set-badge {
+    max-width: 110px;
+  }
+}

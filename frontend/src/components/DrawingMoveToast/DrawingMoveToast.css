@@ -1,0 +1,200 @@
+/*
+ * FIX: keep drawing notifications inside the actual candle plotting area.
+ * Lightweight Charts renders the right price scale and bottom time scale
+ * inside .chart-wrap, so anchoring at 16px covered both axes. These insets
+ * deliberately reserve room for those scales while keeping the stack pinned
+ * to the chart's lower-right candle area.
+ */
+.drawing-move-toast-stack {
+  position: absolute;
+  right: 82px;
+  bottom: 38px;
+  z-index: 260;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  width: min(340px, calc(100% - 112px));
+  pointer-events: none;
+}
+
+.drawing-move-toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 10px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  pointer-events: auto;
+}
+
+/*
+ * FEATURE: compact glyphs identify drawing moves and triggered alerts while
+ * using almost no horizontal space, allowing the shared popup to stay short.
+ */
+.drawing-move-toast-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+}
+
+/*
+ * FEATURE: triggered alerts use the same toast chrome as drawing moves, but
+ * slightly emphasize the icon so navigation-worthy events scan immediately.
+ */
+.drawing-move-toast.alert-triggered .drawing-move-toast-icon {
+  color: var(--amber);
+  font-weight: 800;
+}
+
+/*
+ * FIX: price-alert navigation belongs to the full popup rather than a small
+ * action button. Pointer/focus treatment makes that larger hit target obvious
+ * while preserving keyboard access for the same action.
+ */
+.drawing-move-toast.alert-triggered {
+  grid-template-columns: 26px minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.drawing-move-toast.alert-triggered:hover {
+  border-color: rgba(245, 166, 35, 0.42);
+  background: color-mix(in srgb, var(--bg-panel) 92%, var(--amber) 8%);
+}
+
+.drawing-move-toast.alert-triggered:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.drawing-move-toast-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.drawing-move-toast-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-move-toast-copy span {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-move-toast button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: rgba(245, 166, 35, 0.1);
+  color: var(--amber);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.drawing-move-toast button:hover {
+  background: rgba(245, 166, 35, 0.18);
+}
+
+/*
+ * FEATURE: the muted track makes the remaining lifetime readable at a glance,
+ * while the amber fill drains right-to-left for each independent 3s timer.
+ */
+.drawing-move-toast-progress-track {
+  position: absolute;
+  right: 8px;
+  bottom: 3px;
+  left: 8px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.drawing-move-toast-progress {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--amber);
+  transform-origin: right center;
+  animation: drawing-move-toast-countdown 3s linear forwards;
+}
+
+/*
+ * FIX: price alerts intentionally stay on screen for 10 seconds so a user
+ * watching another symbol has more time to notice the alert and open its chart.
+ * FIX: match the new 10-second alert lifetime so the progress bar remains an
+ * accurate visual countdown instead of disappearing halfway through the toast.
+ */
+.drawing-move-toast-progress.alert-progress {
+  animation-duration: 10s;
+}
+
+@keyframes drawing-move-toast-countdown {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * FIX: on very narrow chart panes there may not be enough room to reserve the
+ * full desktop price-scale inset. Keep the toast usable without letting it
+ * overflow the chart or cover most of the candle area.
+ */
+@media (max-width: 700px) {
+  .drawing-move-toast-stack {
+    right: 64px;
+    bottom: 34px;
+    width: min(310px, calc(100% - 80px));
+  }
+
+  .drawing-move-toast {
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    column-gap: 8px;
+    padding-inline: 8px;
+  }
+
+  /* FIX: keep the full-toast alert hit target layout on narrow chart panes too. */
+  .drawing-move-toast.alert-triggered {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .drawing-move-toast-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 17px;
+  }
+}

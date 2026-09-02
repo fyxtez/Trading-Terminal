@@ -1,0 +1,113 @@
+.app {
+  --settings-panel-width: 440px;
+  --positions-panel-height: 280px;
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.app-main {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  /*
+   * Column 2 is the settings panel's own column (0 when closed, its full
+   * width when open - see .app-main.settings-open below), spanning BOTH
+   * rows via .settings-panel's own grid-row (see SettingsPanel.css). This
+   * replaces the old setup where the settings panel only lived inside
+   * .workspace's row and .bottom-dock separately reserved a matching but
+   * empty "corner" column for its own row - which visually looked like
+   * one continuous panel but left the corner's height completely unused
+   * dead space instead of being available to the settings panel's own
+   * scrollable content.
+   */
+  grid-template-columns: minmax(0, 1fr) 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  transition: grid-template-columns 200ms ease;
+}
+
+.app-main.settings-open {
+  grid-template-columns: minmax(0, 1fr) var(--settings-panel-width);
+}
+
+.workspace {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  min-height: 0;
+  display: flex;
+}
+
+.bottom-dock {
+  grid-column: 1;
+  grid-row: 2;
+  height: 0;
+  min-height: 0;
+  /*
+   * Grid, not flex: a flex row item doesn't stretch to fill remaining
+   * width on its own (that's a cross-axis-only default), so
+   * PositionsPanel - which sets no explicit width of its own, relying on
+   * the parent to hand it one - was left sized to its content instead of
+   * spanning the full row. A single-column grid track gives it that
+   * width for free via the default grid stretch, the same way it always
+   * worked before this row had a second (now-removed) corner column.
+   */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--bg-panel);
+  border-top: 0 solid var(--border);
+  transition:
+    height 180ms ease,
+    border-top-width 180ms ease;
+}
+
+.bottom-dock.open {
+  height: var(--positions-panel-height);
+  border-top-width: 1px;
+}
+
+/* Pointer-resizing should track the mouse exactly, not trail behind the
+ * 180ms open/close animation. :has() is supported by the Chromium runtime
+ * this frontend targets (Brave/Tauri WebView). */
+.bottom-dock:has(.positions-panel.resizing) {
+  transition: none;
+}
+
+@media (max-width: 720px) {
+  .app {
+    --settings-panel-width: min(390px, 88vw);
+  }
+
+  /*
+   * On mobile the orders/positions dock needs all the width it can get -
+   * there's no room to also carve out a side column for settings. Give
+   * it noticeably more vertical space than desktop (closer to a bottom
+   * sheet) instead.
+   */
+  .bottom-dock.open {
+    height: min(62vh, 480px);
+  }
+
+  /*
+   * SettingsPanel becomes a fixed, full-height overlay on mobile (see
+   * SettingsPanel.css) instead of a real grid column, so reserving
+   * var(--settings-panel-width) here would just waste horizontal space
+   * on the content behind it for nothing. Keep the single full-width
+   * column regardless of whether settings happens to be open.
+   */
+  .app-main.settings-open {
+    grid-template-columns: minmax(0, 1fr) 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .bottom-dock.open {
+    height: min(72vh, 560px);
+  }
+}

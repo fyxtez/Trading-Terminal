@@ -1,0 +1,229 @@
+.context-menu {
+  z-index: 10000;
+  width: 204px;
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-menu-drawing {
+  width: 228px;
+}
+
+.context-menu button {
+  cursor: pointer;
+}
+
+.context-delete,
+.context-action {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.context-delete:hover,
+.context-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-left-color: var(--amber);
+  color: var(--amber);
+}
+
+.context-danger {
+  color: var(--red);
+}
+
+.context-danger:hover:not(:disabled) {
+  border-left-color: var(--red);
+  color: var(--red);
+}
+
+.context-delete:disabled,
+.context-action:disabled {
+  cursor: pointer;
+  opacity: 0.4;
+}
+
+.context-separator {
+  width: calc(100% - 8px);
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border);
+}
+
+.context-label {
+  padding: 2px 10px 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.color-row {
+  display: grid;
+  grid-template-columns: repeat(7, 18px);
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 5px;
+}
+
+.color-button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.color-button:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 3px var(--border-strong);
+}
+
+.context-tf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 3px 4px 5px;
+}
+
+.context-align-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 3px 4px 5px;
+}
+
+.context-align-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.context-align-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.context-align-active {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.context-align-active:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.context-tf-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.context-tf-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.context-tf-count {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.context-tf-button:hover:not(:disabled) .context-tf-count {
+  color: inherit;
+}
+
+.context-tf-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.context-tf-button:disabled {
+  cursor: pointer;
+  opacity: 0.35;
+}
+
+.context-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 6px 6px;
+}
+
+.context-confirm-label {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.context-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.context-confirm-yes,
+.context-confirm-no {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+
+.context-confirm-yes {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.context-confirm-yes:hover {
+  background: var(--bg-hover);
+}
+
+.context-confirm-no {
+  color: var(--text);
+}
+
+.context-confirm-no:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}

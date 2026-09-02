@@ -1,0 +1,50 @@
+.trade-toast {
+  /* FIX: unified with the canvas-centered notifications (AutoMarketOverlay's
+   * .auto-market-error / .auto-market-instruction) instead of living as a
+   * separate viewport-fixed toast pinned to the app's bottom-right corner -
+   * having both meant two different notification systems could be visible
+   * at once. This now renders inside .chart-wrap (position: relative), so
+   * it's centered under the canvas rather than the whole window. */
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 240;
+  max-width: 420px;
+  padding: 13px 18px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-family: var(--font-mono);
+  /* FIX: bumped from 13.5px per request ("make font bigger size"). */
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  /*
+   * FIX: this used to be `nowrap`, which was fine for the app's own
+   * short, predictable success/pending messages ("Stop loss set @ X")
+   * but broke the moment a longer message showed up - a raw passed-
+   * through Binance error string (e.g. "Binance API error -2022:
+   * ReduceOnly Order is rejected.") is wider than max-width: 420px, and
+   * with nowrap there's nothing clipping or wrapping it, so it just
+   * visibly spilled out past the box's right border instead of staying
+   * contained. Wrapping keeps every message - short or long - inside
+   * the box's actual visual bounds.
+   */
+  white-space: normal;
+  text-align: center;
+}
+.trade-toast.success {
+  border-left-color: var(--green);
+}
+.trade-toast.pending {
+  border-left-color: var(--green);
+  color: var(--green);
+}
+.trade-toast.error {
+  border-left-color: var(--red);
+  color: #ffc9d3;
+}

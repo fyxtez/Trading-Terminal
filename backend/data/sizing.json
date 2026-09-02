@@ -1,0 +1,5 @@
+{
+  "margin_pct": 0.02,
+  "leverage_safety": 1.0,
+  "max_leverage": 120
+}

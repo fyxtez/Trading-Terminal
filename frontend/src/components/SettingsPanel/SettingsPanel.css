@@ -1,0 +1,1161 @@
+.settings-panel {
+  /*
+   * Spans BOTH app-main grid rows (workspace + bottom-dock) instead of
+   * only living inside .workspace's own row - see the big comment on
+   * .app-main in App.css for why. The actual open/closed width now
+   * comes entirely from .app-main's own grid-template-columns
+   * transition, so this just fills whatever width that column currently
+   * has (0 while closed, clipping everything via overflow: hidden).
+   */
+  grid-column: 2;
+  grid-row: 1 / 3;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  /*
+   * Lets descendants (see the "Daily time marker" row's @container rule
+   * further down) respond to the PANEL's own rendered width instead of
+   * the window's - --settings-panel-width is a vw-based clamp() (see
+   * App.css), so a fixed window-width media query would be guessing at
+   * a relationship that's really about this element's own box.
+   */
+  container-type: inline-size;
+  container-name: settings-panel;
+}
+
+.settings-resize-handle {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.settings-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition:
+    width 120ms ease,
+    background 120ms ease;
+}
+
+.settings-resize-handle:hover::after,
+.settings-panel.resizing .settings-resize-handle::after {
+  width: 2px;
+  background: var(--amber);
+}
+
+.settings-panel.resizing,
+.settings-panel.resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.settings-header {
+  height: 58px;
+  flex-shrink: 0;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-title {
+  color: var(--text);
+  font-size: 18.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.settings-close {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+/* FEATURE: keep Settings search outside the scrolling body so filtering a
+ * large panel never makes the search control itself disappear off-screen. */
+.settings-search-row {
+  flex-shrink: 0;
+  padding: 12px 18px 0;
+}
+
+.settings-search-box {
+  min-width: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: rgba(255, 255, 255, 0.018);
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.settings-search-box:focus-within {
+  border-color: rgba(245, 166, 35, 0.55);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.settings-search-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+}
+
+.settings-search-box input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.settings-search-box input::placeholder {
+  color: var(--text-muted);
+}
+
+.settings-search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.settings-search-clear {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.settings-search-clear:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.settings-search-empty {
+  padding: 18px 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  /*
+   * FIX: this used to be a plain `overflow-y: auto` all the time, which
+   * meant a scrollbar could flash on for a split second while the panel
+   * was still growing open (see .app-main's 200ms grid-template-columns
+   * transition in App.css). At the narrower in-between widths partway
+   * through that animation, the same text wraps onto more lines than it
+   * needs at full width, so the content is briefly taller than the
+   * panel - just for that split second - which is exactly what a
+   * visible-then-gone scrollbar looked like. Stays hidden until
+   * SettingsPanel.tsx adds the .scrollable class - a real ~200ms timer,
+   * not a CSS transition on overflow-y itself (that's a "discrete"
+   * property; several browsers don't reliably honor a transition-delay
+   * on it at all), so the timing is actually guaranteed rather than
+   * browser-dependent.
+   */
+  overflow-y: hidden;
+  overflow-x: hidden;
+  /*
+   * FIX: collapsing/expanding a section (Margin configuration, Drawing
+   * sets, Chart display) changes this element's content height, which
+   * flips the vertical scrollbar on or off. A scrollbar takes its width
+   * out of the content box, so without reserving space for it up front
+   * every field would visibly shift left the instant a scrollbar
+   * appeared (and back right when it went away). `stable` always
+   * reserves that gutter - scrollbar shown or not - so the content
+   * column stays put regardless of which sections are expanded.
+   */
+  scrollbar-gutter: stable;
+  padding: 18px;
+}
+
+.settings-body.scrollable {
+  overflow-y: auto;
+}
+
+.settings-balance-card {
+  min-width: 320px;
+  min-height: 78px;
+  padding: 15px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.025),
+    rgba(255, 255, 255, 0.012)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+}
+
+.settings-balance-copy {
+  min-width: 0;
+}
+
+.settings-balance-label {
+  display: block;
+  color: var(--text);
+  font-size: 16.5px;
+  font-weight: 700;
+}
+
+.settings-balance-copy small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-faint);
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+
+.settings-balance-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.settings-balance-value strong {
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 21.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+
+.settings-balance-value strong.error {
+  color: var(--red);
+  font-size: 16.5px;
+}
+
+.settings-balance-unit {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.settings-separator {
+  height: 1px;
+  margin: 18px 0;
+  background: var(--border);
+}
+
+.settings-section {
+  min-width: 320px;
+}
+
+.settings-section-heading {
+  margin-bottom: 14px;
+}
+
+.settings-section-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 17.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.settings-section-heading p {
+  max-width: 360px;
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-field {
+  min-height: 88px;
+  padding: 14px 15px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface-raised);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease,
+    transform 80ms ease;
+}
+
+.settings-field:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.settings-field:active {
+  transform: translateY(1px);
+}
+
+.settings-field.active {
+  border-color: rgba(245, 166, 35, 0.5);
+  background: var(--amber-soft);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+/*
+ * Applied whenever the backend is disconnected (or the sizing hasn't
+ * loaded yet). Distinct from :hover/:active - this state should never
+ * look "clickable", since clicking it does nothing while it's up.
+ */
+.settings-field.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.settings-field.disabled:hover {
+  border-color: var(--border);
+  background: var(--bg-surface-raised);
+  transform: none;
+}
+
+.settings-field-copy {
+  min-width: 0;
+}
+
+.settings-field-copy span {
+  display: block;
+  color: var(--text);
+  font-size: 16.5px;
+  font-weight: 700;
+}
+
+.settings-field-copy small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-faint);
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+
+.settings-field-value {
+  position: relative;
+  min-width: 0;
+  text-align: right;
+}
+
+.settings-field-value input {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 18.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  cursor: pointer;
+}
+
+.settings-field.active input {
+  border-color: var(--border-strong);
+  background: var(--bg-app);
+  color: var(--amber);
+  cursor: text;
+}
+
+.settings-field-value input:focus {
+  border-color: rgba(245, 166, 35, 0.55);
+}
+
+.settings-field-value input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.percent-field input {
+  padding-right: 28px;
+}
+
+.percent-field::after {
+  content: "%";
+  position: absolute;
+  top: 20px;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 18.5px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.settings-field.active .percent-field::after {
+  color: var(--amber);
+}
+
+.settings-field-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.settings-field.active .settings-field-status {
+  color: var(--amber);
+}
+
+.settings-field.disabled .settings-field-status {
+  color: var(--red);
+}
+
+.settings-error {
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid rgba(240, 69, 98, 0.35);
+  border-radius: var(--radius-s);
+  background: var(--red-soft);
+  color: #ffc9d3;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+/* Shown above the field list instead of below it - see the .settings-error
+   usage in SettingsPanel.tsx for the sizing-save-failure variant. */
+.settings-backend-warning {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.settings-field input::-webkit-outer-spin-button,
+.settings-field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/*
+ * "Chart display" section's toggle row (session zones on/off). Reuses
+ * .settings-field-copy for the label/description column so the two
+ * sections stay visually consistent, but isn't a .settings-field itself
+ * - there's no "click to edit, blur to save" flow here, just a plain
+ * checkbox, so the click/active/disabled machinery that class carries
+ * doesn't apply.
+ */
+.settings-toggle-field {
+  min-height: 64px;
+  padding: 12px 15px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface-raised);
+  cursor: pointer;
+}
+
+/*
+ * Chart display now stacks three of these (session zones, PNL, total
+ * PNL) instead of just one - space them the same way .settings-fields
+ * spaces its own cards (10px gap) since .settings-toggle-field has no
+ * shared flex/grid parent giving it a `gap` for free.
+ */
+.settings-toggle-field + .settings-toggle-field {
+  margin-top: 10px;
+}
+
+/* FEATURE: keep the optional kill-zone checkbox visibly nested inside the New
+ * York session card while preserving normal checkbox/label accessibility.
+ */
+.settings-toggle-field-grouped {
+  display: block;
+  padding: 0;
+}
+
+.settings-toggle-group-primary,
+.settings-toggle-suboption {
+  min-height: 62px;
+  padding: 12px 15px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.settings-toggle-suboption {
+  min-height: 54px;
+  margin: 0 10px 10px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+  background: rgb(255 255 255 / 1.5%);
+}
+
+.settings-toggle-suboption.disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.settings-toggle-input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+/* FEATURE: account-wide alerts live in a bounded inner scroller so hundreds of
+ * rows remain usable without making the entire Settings panel excessively tall. */
+.settings-alert-list-block {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface-raised);
+}
+
+.settings-alert-list-title {
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.settings-alert-list-title small {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.settings-alert-list-scroll {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  scrollbar-width: thin;
+  scrollbar-color: var(--amber) var(--bg-app);
+}
+
+.settings-alert-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.settings-alert-list-table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  padding: 8px;
+  background: var(--bg-app);
+  color: var(--text-faint);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.settings-alert-list-table th:nth-child(1) { width: 25%; }
+.settings-alert-list-table th:nth-child(2) { width: 24%; }
+.settings-alert-list-table th:nth-child(3) { width: 18%; }
+.settings-alert-list-table th:nth-child(4) { width: 33%; }
+
+.settings-alert-list-table td {
+  padding: 8px;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-alert-list-table td:nth-child(1),
+.settings-alert-list-table td:nth-child(2) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-alert-side {
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.settings-alert-side.long { color: var(--green); }
+.settings-alert-side.short { color: var(--red); }
+
+.settings-alert-list-message {
+  padding: 10px 8px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.settings-alert-list-message.error {
+  color: var(--red);
+}
+
+/*
+ * "Daily time marker" row - a plain <div> rather than a <label> since it
+ * holds two separate controls (the time input and the checkbox) instead
+ * of just one. The row's own onClick (in SettingsPanel.tsx) handles the
+ * "click anywhere toggles" behavior the other rows get for free from
+ * their <label> wrapper; the time input and checkbox each stop that
+ * click from bubbling so interacting with them doesn't also flip the
+ * toggle a second time.
+ */
+.settings-toggle-field-with-time {
+  cursor: pointer;
+}
+
+.settings-toggle-field-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.settings-time-marker-input {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-app);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.settings-time-marker-input:focus {
+  border-color: rgba(245, 166, 35, 0.55);
+}
+
+.settings-time-marker-input:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.settings-time-marker-input:disabled::-webkit-calendar-picker-indicator {
+  pointer-events: none;
+}
+
+/* Chrome/Edge's built-in clock icon inside <input type="time"> - recolor
+   to match the amber accent instead of the default dark-on-dark glyph
+   that's nearly invisible against this panel's background. */
+.settings-time-marker-input::-webkit-calendar-picker-indicator {
+  filter: invert(70%) sepia(56%) saturate(1000%) hue-rotate(1deg)
+    brightness(103%) contrast(101%);
+  cursor: pointer;
+}
+
+/*
+ * Below ~400px of actual panel width (roughly window widths in the
+ * 1050-1300px range, where --settings-panel-width's 30vw sits in that
+ * zone - see App.css), the copy column and the time+checkbox controls
+ * no longer both fit on one line: "Daily time marker" wraps to two lines
+ * and the controls get squeezed against the right edge. Past this point,
+ * drop the controls to their own full-width row instead of fighting for
+ * horizontal space.
+ */
+@container settings-panel (max-width: 400px) {
+  .settings-toggle-field-with-time {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
+  }
+
+  .settings-toggle-field-with-time .settings-toggle-field-controls {
+    justify-content: space-between;
+  }
+}
+
+/*
+ * Dimmed, click-to-close backdrop shown behind the settings drawer.
+ * Invisible and non-interactive on desktop (settings lives inline in the
+ * flex layout there and never needs a backdrop); only activated on
+ * mobile, where the panel becomes a fixed overlay - see below.
+ */
+.settings-backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .settings-resize-handle {
+    display: none;
+  }
+
+  .settings-panel {
+    position: fixed;
+    top: 46px; /* topbar height */
+    right: 0;
+    bottom: 0;
+    z-index: 500;
+    width: min(390px, 88vw);
+    min-width: 0;
+    max-width: 100vw;
+    border-left: 1px solid var(--border-strong);
+    box-shadow: -10px 0 28px rgba(0, 0, 0, 0.45);
+    transform: translateX(100%);
+    transition: transform 220ms ease;
+  }
+
+  .settings-panel.open {
+    width: min(390px, 88vw);
+    min-width: 0;
+    transform: translateX(0);
+  }
+
+  .settings-body {
+    padding: 14px;
+  }
+
+  .settings-balance-card,
+  .settings-section {
+    min-width: 0;
+  }
+
+  .settings-field {
+    grid-template-columns: minmax(0, 1fr) 104px;
+  }
+
+  .settings-field-copy span {
+    font-size: 16px;
+  }
+
+  .settings-field-copy small,
+  .settings-section-heading p {
+    font-size: 14px;
+  }
+
+  .settings-backdrop {
+    display: block;
+    position: fixed;
+    top: 46px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 490;
+    background: rgba(4, 6, 10, 0.5);
+    animation: settings-backdrop-fade 160ms ease;
+  }
+}
+
+@media (max-width: 420px) {
+  .settings-panel,
+  .settings-panel.open {
+    width: min(340px, 92vw);
+  }
+}
+
+@keyframes settings-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Named drawing-set storage controls. */
+.drawing-set-save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.drawing-set-name-input {
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.drawing-set-name-input:focus {
+  border-color: rgba(245, 166, 35, 0.55);
+}
+
+.drawing-set-primary-button,
+.drawing-set-new-button,
+.drawing-set-actions button {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drawing-set-main-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.drawing-set-primary-button,
+.drawing-set-new-button {
+  min-height: 40px;
+  padding: 0 13px;
+}
+
+.drawing-set-primary-button {
+  border-color: rgba(245, 166, 35, 0.45);
+  color: var(--amber);
+}
+
+.drawing-set-new-button {
+  color: #ffc9d3;
+}
+
+
+.drawing-set-new-confirmation {
+  margin-top: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.drawing-set-new-confirmation-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.drawing-set-new-confirmation button {
+  padding: 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.drawing-set-new-confirmation .drawing-set-confirm-new-button {
+  border-color: rgba(240, 69, 98, 0.5);
+  color: #ffc9d3;
+}
+
+.drawing-set-current-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.drawing-set-message,
+.drawing-set-empty {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.drawing-set-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.drawing-set-item {
+  padding: 10px 11px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface-raised);
+}
+
+.drawing-set-item-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.drawing-set-item-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-set-item-copy small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.drawing-set-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.drawing-set-actions button {
+  padding: 6px 9px;
+}
+
+.drawing-set-actions .drawing-set-delete-button {
+  color: #ffc9d3;
+}
+
+.drawing-set-primary-button:disabled,
+.drawing-set-new-button:disabled,
+.drawing-set-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 520px) {
+  .drawing-set-save-row {
+    grid-template-columns: 1fr;
+  }
+
+  .drawing-set-main-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.drawing-set-current-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-set-item.is-active {
+  border-color: rgba(245, 166, 35, 0.45);
+}
+
+.drawing-set-name-button {
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: text;
+  text-align: left;
+}
+
+.drawing-set-name-button strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-set-active-badge {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid rgba(245, 166, 35, 0.4);
+  border-radius: 4px;
+  color: var(--amber);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.drawing-set-inline-name-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(245, 166, 35, 0.55);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+}
+
+.drawing-set-actions .drawing-set-confirm-delete-button {
+  border-color: rgba(240, 69, 98, 0.5);
+  color: #ffc9d3;
+}
+
+.settings-section-heading-with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-section-heading-with-action > div {
+  min-width: 0;
+}
+
+.settings-section-visibility-button {
+  min-width: 58px;
+  height: 31px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.45px;
+}
+
+.settings-section-visibility-button:hover {
+  border-color: rgba(245, 166, 35, 0.5);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+
+/* Custom scrollbar — .settings-body is the element that owns scrolling. */
+.settings-body {
+  scrollbar-width: thin;
+  scrollbar-color: #f5a623 #121722;
+}
+
+.settings-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.settings-body::-webkit-scrollbar-track {
+  background: #121722;
+}
+
+.settings-body::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  background: #e49a23;
+  border: 2px solid #121722;
+  border-radius: 999px;
+}
+
+.settings-body::-webkit-scrollbar-thumb:hover {
+  background: #ffbf47;
+}
+
+.settings-body::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+
+.settings-lookback-field {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0 8px 14px;
+}
+
+.settings-lookback-control {
+  width: min(190px, 48%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-lookback-control input[type="range"] {
+  min-width: 0;
+  width: 100%;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  accent-color: #e49a23;
+  cursor: pointer;
+}
+
+.settings-lookback-control input[type="range"]:focus-visible {
+  outline: 1px solid rgba(245, 166, 35, 0.75);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+.settings-lookback-control output {
+  min-width: 24px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: right;
+}

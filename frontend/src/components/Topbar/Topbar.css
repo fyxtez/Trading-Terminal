@@ -1,0 +1,323 @@
+.topbar {
+  height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.symbol {
+  font-family: var(--font-mono);
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  color: var(--text);
+}
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.buttons button {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.buttons button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.buttons button.active {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.35);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 0 4px;
+  background: var(--border-strong);
+}
+
+/*
+ * Always-visible connection status pills. Previously this lived only
+ * inside DrawingToolbar's connection-status-stack, which is tucked behind
+ * the "show toolbar" button when the drawing toolbar is collapsed (its
+ * default state) - easy to miss and required opening the toolbar to
+ * check. Moved into the topbar, which is never collapsed, so backend/
+ * websocket health is visible at a glance at all times.
+ */
+.topbar-connection-group {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: rgba(13, 16, 23, 0.6);
+}
+
+.topbar-connection-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.3px;
+}
+
+.topbar-connection-item + .topbar-connection-item {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.topbar-connection-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 1px rgba(84, 93, 110, 0.25);
+}
+
+.topbar-connection-item.connected {
+  color: var(--green);
+}
+
+.topbar-connection-item.connected .topbar-connection-dot {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+
+.topbar-connection-item.disconnected {
+  color: var(--red);
+}
+
+.topbar-connection-item.disconnected .topbar-connection-dot {
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red-glow);
+}
+
+.topbar-connection-item.connecting {
+  color: var(--amber);
+}
+
+.topbar-connection-item.connecting .topbar-connection-dot {
+  background: var(--amber);
+  animation: topbar-connection-pulse 850ms ease-in-out infinite alternate;
+}
+
+@keyframes topbar-connection-pulse {
+  from {
+    opacity: 0.35;
+    box-shadow: 0 0 0 rgba(245, 166, 35, 0);
+  }
+
+  to {
+    opacity: 1;
+    box-shadow: 0 0 7px var(--amber-glow);
+  }
+}
+
+.orders-button,
+.options-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.orders-button:hover,
+.options-button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.orders-button.active,
+.options-button.active {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.35);
+}
+.orders-icon,
+.options-icon {
+  font-size: 14.5px;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    gap: 8px;
+    padding: 0 8px;
+  }
+  .symbol {
+    font-size: 13.5px;
+  }
+  .buttons {
+    overflow-x: auto;
+  }
+
+  /*
+   * Not enough horizontal room for the full "BACKEND"/"STREAM" labels
+   * alongside the interval buttons and Orders/Options - collapse to just
+   * the colored dots, still always visible (never hidden behind the
+   * toolbar), just more compact.
+   */
+  .topbar-connection-group {
+    gap: 8px;
+    padding: 5px 7px;
+  }
+
+  .topbar-connection-item span:last-child {
+    display: none;
+  }
+
+  .topbar-connection-item + .topbar-connection-item {
+    padding-left: 8px;
+  }
+
+  .orders-button,
+.options-button {
+    padding: 6px 8px;
+  }
+  .orders-button .orders-icon {
+    font-size: 14.5px;
+  }
+  .options-button .options-icon + * {
+    display: none;
+  }
+}
+
+/* Mobile-only compact timeframe picker. Desktop keeps the original row. */
+.mobile-timeframe-control {
+  display: none;
+  position: relative;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .desktop-timeframe-buttons {
+    display: none;
+  }
+
+  .mobile-timeframe-control {
+    display: block;
+  }
+
+  .mobile-timeframe-trigger {
+    height: 30px;
+    min-width: 50px;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid rgba(245, 166, 35, 0.35);
+    border-radius: var(--radius-s);
+    background: var(--amber-soft);
+    color: var(--amber);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .mobile-timeframe-caret {
+    font-size: 9px;
+    transition: transform 120ms ease;
+  }
+
+  .mobile-timeframe-trigger.open .mobile-timeframe-caret {
+    transform: rotate(180deg);
+  }
+
+  .mobile-timeframe-menu {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 0;
+    z-index: 500;
+    width: min(270px, calc(100vw - 16px));
+    padding: 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-m);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-pop);
+  }
+
+  .mobile-timeframe-group + .mobile-timeframe-group {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .mobile-timeframe-group-label {
+    margin-bottom: 7px;
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+  }
+
+  .mobile-timeframe-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .mobile-timeframe-grid button {
+    min-height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    background: var(--bg-surface-raised);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .mobile-timeframe-grid button.active {
+    border-color: rgba(245, 166, 35, 0.45);
+    background: var(--amber-soft);
+    color: var(--amber);
+  }
+
+  .orders-button {
+    font-size: 12.5px;
+    gap: 5px;
+  }
+}

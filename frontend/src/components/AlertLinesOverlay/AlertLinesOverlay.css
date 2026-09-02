@@ -1,0 +1,322 @@
+/*
+ * Sits above the candles (which have no z-index of their own) but below
+ * the drawing canvas (z-index: 100) - same layering reasoning as
+ * SessionZonesOverlay - so real user drawings and trade brackets always
+ * stay on top of these. Non-clickable everywhere except the label's
+ * buttons and the (invisible, thicker) reposition hit-area on each
+ * line, so alert lines never intercept chart panning/zooming or the
+ * right-click menu anywhere else.
+ */
+.alert-lines-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--font-mono);
+}
+
+.alert-line {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed rgb(148 163 184 / 55%);
+  pointer-events: none;
+}
+
+.alert-line.repositioning {
+  border-top-color: rgb(96 165 250 / 85%);
+}
+
+.alert-line-hidden {
+  opacity: 0.25;
+}
+
+.alert-line-locked .alert-line-hit-area {
+  pointer-events: none;
+}
+
+/*
+ * An invisible, thicker strip centered on the line itself - a bare 0px
+ * -tall border isn't grabbable with a mouse/finger, so this widens the
+ * actual hit target to a comfortable band (same idea as the `threshold`
+ * used for hit-testing regular drawings in useCoordinateMapping.ts's
+ * findDrawingAt) without changing how the line looks. Click-move-click,
+ * not press-and-hold - see AlertLinesOverlay.tsx.
+ */
+.alert-line-hit-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.alert-line-label {
+  position: absolute;
+  top: -13px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid rgb(148 163 184 / 45%);
+  border-radius: 3px;
+  background: rgb(30 34 45 / 55%);
+  color: rgb(203 213 225 / 92%);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  backdrop-filter: blur(1px);
+}
+
+.alert-line-control {
+  height: 19px;
+  padding: 0 6px;
+  border: 1px solid rgb(148 163 184 / 35%);
+  border-radius: 3px;
+  background: transparent;
+  color: rgb(148 163 184 / 78%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  pointer-events: auto;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.alert-line-control:hover,
+.alert-line-control.active {
+  border-color: rgba(245, 166, 35, 0.55);
+  background: rgba(245, 166, 35, 0.12);
+  color: var(--amber, #f5a623);
+}
+
+/* FIX: DIM and RESTORE share a fixed width so toggling opacity cannot resize
+ * the button or shift the rest of the alert-line label horizontally.
+ */
+.alert-line-opacity-control {
+  width: 62px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-line-control:disabled,
+.alert-line-side:disabled,
+.alert-line-pattern:disabled,
+.alert-line-info:disabled,
+.alert-line-remove:disabled {
+  cursor: default;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* FEATURE: the INFO control opens a compact textbox directly on its alert
+   line, keeping optional notification context attached to the price level. */
+.alert-line-info-wrap {
+  position: relative;
+  pointer-events: auto;
+}
+
+.alert-line-info {
+  position: relative;
+  height: 19px;
+  padding: 0 6px;
+  border: 1px solid rgb(148 163 184 / 35%);
+  border-radius: 3px;
+  background: transparent;
+  color: rgb(148 163 184 / 75%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.alert-line-info:hover,
+.alert-line-info-set {
+  border-color: rgba(96, 165, 250, 0.55);
+  color: rgb(147 197 253);
+}
+
+/* FEATURE: show a tiny persistent dot whenever INFO contains saved text, so
+ * optional alert context is visible at a glance without opening the editor. */
+.alert-line-info-set::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f5a623;
+  box-shadow: 0 0 0 1px rgb(10 10 10 / 90%);
+}
+
+.alert-line-info-input {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 2;
+  width: 220px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(96, 165, 250, 0.6);
+  border-radius: 4px;
+  outline: none;
+  background: rgb(13 16 23 / 98%);
+  color: rgb(226 232 240);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.alert-line-info-input::placeholder {
+  color: rgb(148 163 184 / 65%);
+}
+
+.alert-line-side {
+  height: 19px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  pointer-events: auto;
+  transition: background 100ms ease;
+}
+
+.alert-line-side-long {
+  border-color: rgba(52, 211, 153, 0.4);
+  color: rgba(52, 211, 153, 0.75);
+}
+
+.alert-line-side-long:hover {
+  background: rgba(52, 211, 153, 0.15);
+}
+
+.alert-line-side-short {
+  border-color: rgba(240, 69, 98, 0.42);
+  color: rgba(240, 69, 98, 0.78);
+}
+
+.alert-line-side-short:hover {
+  background: rgba(240, 69, 98, 0.15);
+}
+
+/*
+ * Wraps the pattern button + its popover so the popover can anchor to
+ * it with `position: absolute` regardless of where this label sits on
+ * the line. pointer-events: auto so clicks inside (including empty
+ * padding, not just the buttons) are treated as "inside" for the
+ * outside-click-closes-the-popover listener in AlertLinesOverlay.tsx.
+ */
+.alert-line-pattern-wrap {
+  position: relative;
+  pointer-events: auto;
+}
+
+.alert-line-pattern {
+  height: 19px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(148 163 184 / 35%);
+  border-radius: 3px;
+  background: transparent;
+  color: rgb(148 163 184 / 75%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-align: center;
+  white-space: nowrap;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.alert-line-pattern:hover {
+  background: rgb(148 163 184 / 12%);
+}
+
+.alert-line-pattern-set {
+  border-color: rgba(245, 166, 35, 0.55);
+  color: var(--amber, #f5a623);
+}
+
+.alert-line-pattern-set:hover {
+  background: rgba(245, 166, 35, 0.15);
+}
+
+.alert-line-pattern-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-strong, rgb(148 163 184 / 45%));
+  border-radius: 4px;
+  background: rgb(13 16 23 / 97%);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+}
+
+.alert-line-pattern-option {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgb(203 213 225 / 92%);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.alert-line-pattern-option:hover {
+  background: rgb(148 163 184 / 12%);
+}
+
+.alert-line-pattern-option.active {
+  color: var(--amber, #f5a623);
+}
+
+.alert-line-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgb(203 213 225 / 85%);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.alert-line-remove:hover {
+  background: rgb(240 69 98 / 25%);
+  color: var(--red, #f04562);
+}

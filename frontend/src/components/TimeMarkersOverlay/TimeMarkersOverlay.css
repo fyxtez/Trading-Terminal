@@ -1,0 +1,22 @@
+/*
+ * Same stacking spot as .session-zones-overlay (see the comment there) -
+ * above the raw candlestick chart, below the drawing canvas (z-index:
+ * 100) and every trade-related overlay, so user drawings and TP/SL
+ * brackets always stay visually on top of these marker lines.
+ */
+.time-markers-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.time-marker-line {
+  position: absolute;
+  top: 0;
+  width: 0;
+  border-left: 1px dashed var(--amber, #f5a623);
+  opacity: 0.55;
+  pointer-events: none;
+}

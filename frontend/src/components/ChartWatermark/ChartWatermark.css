@@ -1,0 +1,47 @@
+.chart-watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  transform: translate(-50%, -50%);
+  color: rgba(98, 103, 109, 0.34);
+  pointer-events: none;
+  user-select: none;
+}
+
+.watermark-mark {
+  width: 58px;
+  height: 70px;
+  flex: 0 0 58px;
+  background-color: rgb(148 163 184 / 35%);
+  -webkit-mask-image: url("/fyxtez-f-mark-alpha.png");
+  mask-image: url("/fyxtez-f-mark-alpha.png");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.watermark-text {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 720px) {
+  .watermark-text {
+    font-size: 28px;
+  }
+
+  .watermark-mark {
+    width: 43px;
+    height: 52px;
+    flex-basis: 43px;
+  }
+}

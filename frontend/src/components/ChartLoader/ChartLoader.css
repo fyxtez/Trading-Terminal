@@ -1,0 +1,29 @@
+.chart-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 180;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--bg-app);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+.chart-loader-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

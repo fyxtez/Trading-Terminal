@@ -1,0 +1,45 @@
+/*
+ * Anchored to the mouse position it's given (see useDrawingCanvas.ts's
+ * hoveredDrawingInfo) and pushed up-and-left of it via the transform
+ * below, so the card sits "top-left, slightly offset" of the cursor
+ * instead of covering it. z-index sits above .pending-order-tooltip
+ * (230) since both could plausibly be visible near the same drawing.
+ */
+.drawing-info-tooltip {
+  position: absolute;
+  z-index: 240;
+  transform: translate(calc(-100% - 10px), calc(-100% - 10px));
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.drawing-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawing-info-row + .drawing-info-row {
+  margin-top: 4px;
+}
+
+.drawing-info-label {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.drawing-info-value {
+  color: var(--amber);
+  font-size: 12.5px;
+  font-weight: 700;
+}

@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+.env.local
+TODO.md
+zip-folder.sh
+*.zip
+SEGMENTED_ORDERS_DESIGN.md
+todo.png

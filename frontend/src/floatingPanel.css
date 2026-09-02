@@ -1,0 +1,93 @@
+/* ============================================================
+   Shared floating-panel shell — context menu, hotkeys popup,
+   trade menu. Every one gets the same body, the same thin
+   amber "power" bar across the top, and the same faint
+   scanline texture. This trio is the signature move: it's
+   what makes the three menus read as one instrument instead
+   of three different apps stapled together.
+
+   Imported by: ContextMenu.css, HotkeysPopup.css, TradeMenu.css
+   (via each component importing this file directly).
+   ============================================================ */
+
+.context-menu,
+.hotkeys-popup,
+.trade-menu {
+  position: fixed;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+.context-menu::before,
+.hotkeys-popup::before,
+.trade-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0px,
+    rgba(255, 255, 255, 0.012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.context-menu::after,
+.hotkeys-popup::after,
+.trade-menu::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--amber) 20%,
+    var(--amber) 80%,
+    transparent
+  );
+  opacity: 0.75;
+}
+
+.context-menu > *,
+.hotkeys-popup > *,
+.trade-menu > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Shared close-button look (settings / hotkeys / trade menu) */
+.settings-close,
+.hotkeys-close,
+.trade-menu-close {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 21.5px;
+  line-height: 1;
+  transition: background 100ms ease, color 100ms ease;
+}
+.settings-close:hover,
+.hotkeys-close:hover,
+.trade-menu-close:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.trade-menu-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

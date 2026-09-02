@@ -1,0 +1,349 @@
+.chart-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.chart {
+  width: 100%;
+  height: 100%;
+  transition: opacity 120ms ease;
+}
+
+.drawing-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.drawing-canvas.drawings-hidden {
+  visibility: hidden;
+}
+
+.chart-wrap.tool-pen,
+.chart-wrap.tool-text,
+.chart-wrap.tool-trend,
+.chart-wrap.tool-box,
+.chart-wrap.tool-group-select,
+.chart-wrap.tool-vertical,
+.chart-wrap.tool-horizontal,
+.chart-wrap.tool-ruler {
+  cursor: crosshair;
+}
+.chart-wrap.tool-cursor.hovering-drawing {
+  cursor: pointer;
+}
+
+/*
+ * Horizontal (price) lines - order lines (limit/reduce/TP) and plain
+ * horizontal drawings - only ever move vertically when dragged, exactly
+ * like the stop-loss line (a separate DOM element in
+ * PositionBracketOverlay that already hardcodes cursor: ns-resize on its
+ * own grab strip). This rule is declared after .hovering-drawing above so
+ * it wins the tie on specificity, giving these the same ns-resize cursor
+ * instead of the generic pointer other drawing types (trend/box/pen/
+ * vertical) keep.
+ */
+.chart-wrap.tool-cursor.hovering-horizontal-drawing {
+  cursor: ns-resize;
+}
+
+/*
+ * FEATURE: a lightweight active-tool hint follows the pointer while a drawing
+ * tool is armed. JavaScript updates only transform/opacity through a ref (see
+ * ChartPanel.tsx), keeping pointer moves out of React's render path.
+ */
+.tool-cursor-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 240;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(245 166 35 / 55%);
+  border-radius: 6px;
+  background: rgb(13 16 23 / 88%);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 45%);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+
+.tool-cursor-indicator--ruler {
+  font-size: 10px;
+}
+
+.tool-cursor-indicator--group-select {
+  border-style: dashed;
+  font-size: 15px;
+}
+
+.chart-loading {
+  opacity: 0;
+}
+.chart-ready {
+  opacity: 1;
+}
+
+.pending-order-tooltip {
+  position: absolute;
+  z-index: 230;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * Shown in the canvas's top-left corner when the drawing toolbar has
+ * been collapsed (see DrawingToolbar's "«" button / App.tsx's
+ * isToolbarCollapsed state). Brings the toolbar back.
+ */
+.toolbar-reveal-button {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 210;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15.5px;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.toolbar-reveal-button:hover {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.4);
+}
+
+.temporary-trade-price-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 215;
+  height: 0;
+  border-top: 2px dashed rgb(184 192 207 / 90%);
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 70%));
+}
+
+.temporary-trade-price-label {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  min-width: 82px;
+  padding: 3px 9px;
+  border: 1px solid rgb(184 192 207 / 58%);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 96%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 40%);
+  color: rgb(226 232 240);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+}
+/*
+ * FEATURE: the candle countdown now follows the latest candle, so this
+ * absolute wrapper owns its chart-relative position while the badge keeps
+ * its existing dropdown/hover behavior unchanged.
+ */
+.candle-countdown-anchor {
+  position: absolute;
+  z-index: 210;
+  pointer-events: auto;
+}
+
+/* Chart context badges stay in the top-left after the candle timer moved
+ * beside the latest candle, preserving their stable non-price-dependent UI. */
+.chart-top-context-row {
+  position: absolute;
+  top: 10px;
+  left: 50px;
+  z-index: 210;
+  max-width: calc(100% - 60px);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.chart-top-context-row > * {
+  pointer-events: auto;
+}
+
+
+.chart-text-editor {
+  position: absolute;
+  z-index: 240;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 1px solid var(--amber);
+  outline: none;
+  background: rgb(11 14 20 / 72%);
+  box-shadow: 0 0 0 1px rgb(245 166 35 / 18%);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  line-height: 1;
+  text-align: left;
+}
+
+/*
+ * FEATURE: existing reduce-only TP lines can be resized from a dedicated EDIT
+ * button. The popover remains attached to the TP line while the chart moves.
+ * UX: sizing uses one clean slider plus a live percentage readout so this stays
+ * a lightweight chart control instead of looking like a full order form.
+ */
+.chart-reduce-order-editor {
+  position: absolute;
+  z-index: 245;
+  width: 220px;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid rgb(245 166 35 / 36%);
+  border-radius: 7px;
+  background: rgb(12 15 21 / 98%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 42%);
+  color: var(--text);
+  font-family: var(--font-ui);
+  user-select: none;
+}
+
+.chart-reduce-order-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.chart-reduce-order-editor-title {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.chart-reduce-order-editor button {
+  border: 1px solid var(--border-strong);
+  outline: none;
+  background: rgb(20 24 32 / 96%);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chart-reduce-order-editor-close {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--text-muted) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 14px !important;
+  line-height: 1;
+}
+
+.chart-reduce-order-editor-close:hover:not(:disabled) {
+  border-color: rgb(245 166 35 / 48%);
+  color: var(--amber) !important;
+}
+
+.chart-reduce-order-editor-slider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* UX: custom range styling keeps the control visually quiet while preserving
+ * native keyboard/drag behavior and the full 1-100% sizing range. */
+.chart-reduce-order-editor-slider {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.chart-reduce-order-editor-value {
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.chart-reduce-order-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.chart-reduce-order-editor-actions button {
+  height: 29px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.chart-reduce-order-editor-actions .secondary:hover:not(:disabled) {
+  border-color: rgb(184 192 207 / 40%);
+  background: rgb(184 192 207 / 7%);
+}
+
+.chart-reduce-order-editor-actions .primary {
+  border-color: rgb(245 166 35 / 58%);
+  background: rgb(245 166 35 / 10%);
+  color: var(--amber);
+}
+
+.chart-reduce-order-editor-actions .primary:hover:not(:disabled) {
+  border-color: var(--amber);
+  background: rgb(245 166 35 / 16%);
+}
+
+.chart-reduce-order-editor button:disabled,
+.chart-reduce-order-editor-slider:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+

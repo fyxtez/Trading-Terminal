@@ -1,0 +1,105 @@
+.hotkeys-popup {
+  left: 62px;
+  bottom: 18px;
+  z-index: 11000;
+  /* FIX: group-selection shortcuts include mouse gestures as well as keys;
+   * the old 320px panel forced their descriptions into cramped line breaks. */
+  width: 390px;
+  padding: 14px;
+}
+.hotkeys-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.hotkeys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hotkeys-list > div {
+  display: grid;
+  /*
+   * auto (not a fixed px) for every kbd column: each row here is its OWN
+   * independent grid (this selector applies `display: grid` per-row, not
+   * to one shared parent grid), so there's no cross-row alignment being
+   * lost by doing this - but a fixed px width previously meant any label
+   * wider than that number (e.g. "Wheel", "Drag") just overflowed its
+   * column's box instead of the column growing to fit it.
+   */
+  grid-template-columns: auto 12px auto 1fr;
+  align-items: center;
+  min-height: 26px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+/* FEATURE: the close-tab shortcut has three keys, so it needs two extra
+ * grid tracks while retaining the same alignment as the two-key rows.
+ */
+.hotkeys-list > div.hotkeys-triple {
+  grid-template-columns: auto 12px auto 12px auto 1fr;
+}
+
+/* FEATURE: keep the new group-selection block visually consistent with the
+ * ordinary two-key rows while giving its concise descriptions enough room. */
+.hotkeys-list > div.hotkeys-group-row {
+  grid-template-columns: auto 12px auto minmax(130px, 1fr);
+}
+
+.hotkeys-list > div.hotkeys-gesture-row {
+  /* FIX: 154px plus the keycap's horizontal padding was not enough for the
+   * full gesture, so the final Click wrapped onto a second line. Reserve the
+   * actual rendered width and keep the description in its own flexible track. */
+  grid-template-columns: 174px minmax(0, 1fr);
+  column-gap: 10px;
+}
+
+.hotkeys-list > div.hotkeys-gesture-row kbd {
+  box-sizing: border-box;
+  width: 174px;
+  padding-inline: 8px;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.hotkeys-list > div.hotkeys-gesture-row span {
+  margin-left: 0;
+}
+.hotkeys-list > div:nth-last-child(-n + 2) {
+  grid-template-columns: auto 1fr;
+}
+.hotkeys-list span {
+  margin-left: 8px;
+  color: var(--text);
+  /*
+   * Grid items default to a min-width of "auto" (their content's natural,
+   * unwrapped width), which overrides the 1fr track and lets long text
+   * push the whole row - and the fixed-width popup - wider than intended
+   * instead of wrapping. min-width: 0 lets the column actually shrink to
+   * its 1fr share and wrap normally within it.
+   */
+  min-width: 0;
+}
+.hotkeys-list kbd {
+  display: inline-flex;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}

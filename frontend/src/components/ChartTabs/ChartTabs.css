@@ -1,0 +1,436 @@
+.chart-tabs-bar {
+  position: relative;
+  /* Keep the tabs (and especially the + menu) above chart overlays.
+   * Chart overlays top out around z-index 240, while topbar popovers use
+   * z-index 400+, so 260 puts this layer in the correct middle ground. */
+  z-index: 260;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px 8px 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-tabs-scroll {
+  min-width: 0;
+  width: max-content;
+  max-width: calc(100% - 36px);
+  flex: 0 1 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 166, 35, 0.5) rgba(255, 255, 255, 0.035);
+}
+
+.chart-tabs-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.chart-tabs-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.chart-tabs-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(245, 166, 35, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.12);
+}
+
+.chart-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 166, 35, 0.78);
+}
+
+.chart-tab {
+  /* Enough room for an icon + at least seven ticker characters + close.
+   * Longer symbols can still ellipsize, and the tab strip scrolls instead
+   * of crushing labels as more markets are opened. */
+  min-width: 124px;
+  max-width: 168px;
+  height: 29px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.chart-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.chart-tab[draggable="true"] {
+  cursor: grab;
+}
+
+.chart-tab[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.chart-tab.dragging {
+  opacity: 0.52;
+  border-color: var(--accent);
+}
+
+.chart-tab.dragging .chart-tab-select,
+.chart-tab.dragging .chart-tab-close {
+  cursor: grabbing;
+}
+
+.chart-tab.active {
+  border-color: var(--border-strong);
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.chart-tab-select {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 0 9px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.chart-tab-select > span:last-child {
+  min-width: 7ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-tab-symbol-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: block;
+  object-fit: contain;
+}
+
+.chart-tab-source {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: var(--text-faint);
+}
+
+.chart-tab-source.binance {
+  background: #f0b90b;
+}
+
+.chart-tab-source.mexc {
+  border-radius: 50%;
+  transform: none;
+  background: #1463ff;
+}
+
+.chart-tab-close {
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.chart-tab-close:hover:not(:disabled) {
+  background: rgba(224, 82, 82, 0.14);
+  color: var(--red);
+}
+
+.chart-tab-close:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+.chart-tab-add-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.chart-tab-add {
+  width: 29px;
+  height: 29px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.chart-tab-add:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.chart-tab-add:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.chart-tab-add-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  width: 252px;
+  max-height: min(380px, 60vh);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--bg-panel);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+
+  /* Matches .symbol-switcher-list / .settings-body's scrollbar styling. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 166, 35, 0.5) rgba(255, 255, 255, 0.035);
+}
+
+.chart-tab-add-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chart-tab-add-menu::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.chart-tab-add-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(245, 166, 35, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.12);
+}
+
+.chart-tab-add-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 166, 35, 0.78);
+}
+
+/* FEATURE: keep symbol search visible while the categorized list scrolls so a
+ * large registry never forces the user to hunt manually through every group. */
+.chart-tab-add-search-wrap {
+  position: sticky;
+  z-index: 2;
+  top: -5px;
+  padding: 7px 5px 8px;
+  background: var(--bg-panel);
+}
+
+.chart-tab-add-search {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.chart-tab-add-search::placeholder {
+  color: var(--text-faint);
+}
+
+.chart-tab-add-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(245, 166, 35, 0.16);
+}
+
+.chart-tab-add-empty {
+  padding: 18px 10px 20px;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* FEATURE: category separators match the primary symbol switcher so the tab
+ * picker stays scannable even after many dynamic markets have been registered. */
+.chart-tab-add-category + .chart-tab-add-category {
+  margin-top: 5px;
+}
+
+.chart-tab-add-category-heading {
+  height: 25px;
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.75px;
+  text-transform: uppercase;
+}
+
+.chart-tab-add-category-heading > span:last-child {
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+
+.chart-tab-add-menu button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px 78px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chart-tab-add-menu button:hover {
+  background: var(--bg-hover);
+}
+
+/* FEATURE: arrow-key navigation needs a persistent visual target while the
+ * search input keeps focus, so keyboard selection is as clear as mouse hover. */
+.chart-tab-add-menu button.keyboard-highlighted {
+  outline: 1px solid rgba(245, 166, 35, 0.55);
+  outline-offset: -1px;
+  background: var(--bg-hover);
+}
+
+.chart-tab-add-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+}
+
+.chart-tab-add-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.chart-tab-add-name {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .chart-tabs-bar {
+    padding-inline: 5px;
+  }
+
+  .chart-tab {
+    min-width: 116px;
+  }
+}
+
+/* FEATURE: keep the tab context menu visually inside the chart-tab design
+ * system instead of looking like a separate browser/native popup. Reusing the
+ * same surface, border, text and hover tokens makes it match active tabs. */
+.chart-tab-context-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 112px;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-app);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+}
+
+.chart-tab-context-menu button {
+  width: 100%;
+  height: 27px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* UX: use the exact tab hover treatment so context actions feel like part of
+ * the same control family; the dangerous action stays red only as text. */
+.chart-tab-context-menu button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.chart-tab-context-menu button.danger {
+  color: #ff6b6b;
+}
+
+.chart-tab-context-menu button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+
+/* FEATURE: destructive tab deletion is confirmed inline so an accidental
+ * right-click action cannot stop backend tracking without a deliberate Yes. */
+.chart-tab-delete-confirm {
+  padding: 4px 4px 3px;
+  border-top: 1px solid var(--border);
+}
+
+.chart-tab-delete-confirm-label {
+  padding: 3px 4px 6px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.chart-tab-delete-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.chart-tab-delete-confirm-actions button {
+  text-align: center;
+}
+
+.chart-tab-context-error {
+  max-width: 220px;
+  padding: 5px 8px 3px;
+  color: #ff8f8f;
+  font-size: 10.5px;
+  line-height: 1.35;
+}

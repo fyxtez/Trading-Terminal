@@ -1,0 +1,79 @@
+.chart-position-pnl-stack {
+  position: absolute;
+  top: 14px;
+  right: calc(var(--pane-inset-right, 0px) + 14px);
+  z-index: 225;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.chart-position-pnl {
+  position: relative;
+  min-width: 104px;
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: rgb(13 16 23 / 92%);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+
+.chart-position-pnl > span {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+}
+
+.chart-position-pnl > strong {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.chart-position-pnl.positive {
+  border-color: rgb(52 211 153 / 42%);
+  box-shadow: inset 2px 0 0 var(--green);
+}
+
+.chart-position-pnl.positive > strong {
+  color: var(--green);
+}
+
+.chart-position-pnl.negative {
+  border-color: rgb(240 69 98 / 42%);
+  box-shadow: inset 2px 0 0 var(--red);
+}
+
+.chart-position-pnl.negative > strong {
+  color: var(--red);
+}
+
+.chart-position-pnl.neutral > strong {
+  color: var(--text-dim);
+}
+
+@media (max-width: 720px) {
+  .chart-position-pnl-stack {
+    top: 10px;
+    right: calc(var(--pane-inset-right, 0px) + 10px);
+    gap: 6px;
+  }
+
+  .chart-position-pnl {
+    min-width: 94px;
+    height: 28px;
+    padding: 0 8px;
+  }
+}
