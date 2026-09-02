@@ -1,0 +1,128 @@
+.loading-indicator {
+  --loading-accent: var(--amber, #f5a623);
+  --loading-track: var(--border, #27303d);
+  --loading-text: var(--text-dim, #9aa7b8);
+  align-items: center;
+  color: var(--loading-text);
+  display: inline-flex;
+  gap: 11px;
+}
+
+.loading-indicator__spinner {
+  animation: loading-indicator-spin 800ms linear infinite;
+  border: 2px solid var(--loading-track);
+  border-radius: 50%;
+  border-top-color: var(--loading-accent);
+  flex: 0 0 auto;
+  height: 20px;
+  width: 20px;
+}
+
+.loading-indicator__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.loading-indicator__label {
+  color: var(--text, #edf0f6);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.loading-indicator__detail {
+  color: var(--loading-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.loading-indicator__track {
+  display: none;
+}
+
+.loading-indicator--panel {
+  display: grid;
+  gap: 6px 14px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  margin-top: 28px;
+  width: 100%;
+}
+
+.loading-indicator--panel .loading-indicator__spinner {
+  height: 24px;
+  width: 24px;
+}
+
+.loading-indicator--panel .loading-indicator__track {
+  background: var(--loading-track);
+  display: block;
+  grid-column: 1 / -1;
+  height: 2px;
+  margin-top: 14px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.loading-indicator--panel .loading-indicator__track > span {
+  animation: loading-indicator-progress 1.45s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--loading-accent),
+    transparent
+  );
+  height: 100%;
+  left: -42%;
+  position: absolute;
+  top: 0;
+  width: 42%;
+}
+
+.loading-indicator--compact .loading-indicator__spinner {
+  height: 18px;
+  width: 18px;
+}
+
+.loading-indicator--inline {
+  gap: 7px;
+}
+
+.loading-indicator--inline .loading-indicator__spinner {
+  border-width: 1.5px;
+  height: 14px;
+  width: 14px;
+}
+
+.loading-indicator--inline .loading-indicator__label {
+  color: var(--loading-text);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+@keyframes loading-indicator-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-indicator-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-indicator__spinner,
+  .loading-indicator--panel .loading-indicator__track > span {
+    animation-duration: 2.5s;
+  }
+}

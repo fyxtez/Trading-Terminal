@@ -88,7 +88,7 @@ impl BinanceClient {
         let base_url = if testnet { TESTNET_BASE } else { MAINNET_BASE };
 
         let http = reqwest::Client::builder()
-            .user_agent("binance-futures-axum/0.1")
+            .user_agent("fyxtez-backend/0.1")
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(20))
             .pool_idle_timeout(Duration::from_secs(30))

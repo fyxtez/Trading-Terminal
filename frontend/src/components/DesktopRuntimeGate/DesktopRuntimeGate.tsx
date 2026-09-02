@@ -3,6 +3,7 @@ import {
   initializeTradingApiBaseUrl,
   restartDesktopBackend,
 } from "../../config/constants";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./DesktopRuntimeGate.css";
 
 type RuntimeState =
@@ -45,12 +46,19 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       <section>
         <img src="/fyxtez-f-mark-alpha.png" alt="" />
         <small>FYXTEZ TERMINAL</small>
-        <h1>{state.kind === "starting" ? "Starting local engine" : "Local engine unavailable"}</h1>
-        <p>
-          {state.kind === "starting"
-            ? "Preparing the private backend bundled with this desktop app…"
-            : state.message}
-        </p>
+        <h1>{state.kind === "starting" ? "Starting local backend" : "Local backend unavailable"}</h1>
+        {state.kind === "starting" ? (
+          <>
+            <p>Preparing the private services bundled with this desktop app.</p>
+            <LoadingIndicator
+              variant="panel"
+              label="Loading backend data"
+              detail="Preparing local storage, market definitions and connection state. First launch can take a few seconds."
+            />
+          </>
+        ) : (
+          <p>{state.message}</p>
+        )}
         {state.kind === "failed" && (
           <button type="button" onClick={retry}>RETRY BACKEND</button>
         )}

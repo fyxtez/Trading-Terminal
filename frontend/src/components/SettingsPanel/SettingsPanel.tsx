@@ -12,6 +12,7 @@ import {
   type SizingConfig,
 } from "../../trading/api/sizing";
 import type { ConnectionState } from "../../hooks/useTradingStream";
+import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import type { PriceAlert } from "../../types/alert";
 import type { SavedDrawingSet } from "../../types/drawing";
 import { priceAlertsStorageKey } from "../../config/constants";
@@ -27,6 +28,8 @@ import {
   AvailableBalanceCard,
   DesktopConnectionsSection,
 } from "./SettingsSummaryCards";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import DiagnosticsSection from "./DiagnosticsSection";
 import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
 
@@ -48,6 +51,7 @@ type SettingsPanelProps = {
    *     reopened.
    */
   backendConnection: ConnectionState;
+  diagnostics: OperationalDiagnostics;
   currentSymbol: string;
   /** FEATURE: all registered symbols plus the live active-symbol list let the
    * settings panel aggregate browser-owned alerts even when persistence is off. */
@@ -163,6 +167,10 @@ const DRAWINGS_DISPLAY_SECTION_VISIBLE_KEY =
   "fyxtez.settings.drawingsDisplaySectionVisible";
 const PNL_SECTION_VISIBLE_KEY = "fyxtez.settings.pnlSectionVisible";
 const ALERTS_SECTION_VISIBLE_KEY = "fyxtez.settings.alertsSectionVisible";
+const THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY =
+  "fyxtez.settings.thirdPartyConnectionsSectionVisible";
+const DIAGNOSTICS_SECTION_VISIBLE_KEY =
+  "fyxtez.settings.diagnosticsSectionVisible";
 
 function readStoredSectionVisibility(key: string): boolean {
   try {
@@ -183,6 +191,7 @@ export default function SettingsPanel({
   width,
   onWidthChange,
   backendConnection,
+  diagnostics,
   currentSymbol,
   availableSymbols,
   activePriceAlerts,
@@ -274,6 +283,13 @@ export default function SettingsPanel({
   );
   const [isAlertsSectionVisible, setIsAlertsSectionVisible] = useState(() =>
     readStoredSectionVisibility(ALERTS_SECTION_VISIBLE_KEY),
+  );
+  const [isThirdPartyConnectionsSectionVisible, setIsThirdPartyConnectionsSectionVisible] =
+    useState(() =>
+      readStoredSectionVisibility(THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY),
+    );
+  const [isDiagnosticsSectionVisible, setIsDiagnosticsSectionVisible] = useState(() =>
+    readStoredSectionVisibility(DIAGNOSTICS_SECTION_VISIBLE_KEY),
   );
   // FEATURE: Settings search keeps a large configuration panel usable without
   // changing the user's persisted HIDE/SHOW preferences for each section.
@@ -473,6 +489,28 @@ export default function SettingsPanel({
       // Keep the preference in memory when localStorage is unavailable.
     }
   }, [isAlertsSectionVisible]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY,
+        String(isThirdPartyConnectionsSectionVisible),
+      );
+    } catch {
+      // Keep the preference in memory when localStorage is unavailable.
+    }
+  }, [isThirdPartyConnectionsSectionVisible]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        DIAGNOSTICS_SECTION_VISIBLE_KEY,
+        String(isDiagnosticsSectionVisible),
+      );
+    } catch {
+      // Keep the preference in memory when localStorage is unavailable.
+    }
+  }, [isDiagnosticsSectionVisible]);
 
   useEffect(() => {
     setDrawingSetName("");
@@ -996,10 +1034,14 @@ export default function SettingsPanel({
     "USDT futures wallet balance",
   );
   const showDesktopConnections = desktopCredentials.isDesktop && matchesSettingsSearch(
-    "Desktop connections Binance ntfy Telegram credentials API key notifications",
+    "Third-Party Connections Binance ntfy Telegram credentials API key notifications",
+  );
+  const showDiagnostics = matchesSettingsSearch(
+    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests notification failures health",
   );
   const hasAnySettingsSearchResult =
     showDesktopConnections ||
+    showDiagnostics ||
     showBalanceCard ||
     showMarginSection ||
     showDrawingSetsSection ||
@@ -1075,9 +1117,26 @@ export default function SettingsPanel({
 
         <div className={`settings-body ${isFullyOpen ? "scrollable" : ""}`}>
           {showDesktopConnections && (
-            <DesktopConnectionsSection credentials={desktopCredentials} />
+            <DesktopConnectionsSection
+              credentials={desktopCredentials}
+              isExpanded={isThirdPartyConnectionsSectionVisible}
+              forceExpanded={isSearchingSettings}
+              onToggle={() =>
+                setIsThirdPartyConnectionsSectionVisible((visible) => !visible)
+              }
+            />
           )}
-          {showDesktopConnections && (showBalanceCard || showMarginSection) && <div className="settings-separator" />}
+          {showDesktopConnections && showDiagnostics && <div className="settings-separator" />}
+
+          {showDiagnostics && (
+            <DiagnosticsSection
+              diagnostics={diagnostics}
+              isExpanded={isDiagnosticsSectionVisible}
+              forceExpanded={isSearchingSettings}
+              onToggle={() => setIsDiagnosticsSectionVisible((visible) => !visible)}
+            />
+          )}
+          {showDiagnostics && (showBalanceCard || showMarginSection) && <div className="settings-separator" />}
 
           {showBalanceCard && (
             <AvailableBalanceCard
@@ -1669,7 +1728,13 @@ export default function SettingsPanel({
             {(!isSearchingSettings || alertsSectionTitleMatches || alertOptionMatches.active) && <div className="settings-alert-list-block">
               <div className="settings-alert-list-title">
                 <span>Active alerts</span>
-                <small>{isLoadingAlerts ? "Loading…" : sortedListedPriceAlerts.length}</small>
+                <small>
+                  {isLoadingAlerts ? (
+                    <LoadingIndicator variant="inline" label="Loading" />
+                  ) : (
+                    sortedListedPriceAlerts.length
+                  )}
+                </small>
               </div>
               {alertsListError && (
                 <div className="settings-alert-list-message error">{alertsListError}</div>

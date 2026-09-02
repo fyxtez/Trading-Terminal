@@ -14,6 +14,7 @@ import {
   type DesktopCredentialStatus,
 } from "../../desktop/credentials";
 import { DesktopCredentialsContext } from "./DesktopCredentialsContext";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./DesktopSetupGate.css";
 import "./DesktopSetupGate.layout.css";
 
@@ -466,7 +467,11 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     return (
       <main className="desktop-setup">
         <div className="desktop-setup-loading">
-          Opening secure credential store…
+          <LoadingIndicator
+            variant="panel"
+            label="Opening credential store"
+            detail="Reading connection status securely from this computer."
+          />
         </div>
       </main>
     );

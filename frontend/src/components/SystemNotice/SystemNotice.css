@@ -1,0 +1,47 @@
+.system-notice {
+  position: fixed;
+  z-index: 1200;
+  top: 58px;
+  right: 16px;
+  width: min(430px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid rgba(245, 166, 35, 0.52);
+  border-radius: var(--radius-m);
+  background: rgba(28, 24, 17, 0.98);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.42);
+  color: var(--text-primary);
+}
+
+.system-notice.error {
+  border-color: rgba(240, 69, 98, 0.55);
+  background: rgba(31, 18, 22, 0.98);
+}
+
+.system-notice strong {
+  display: block;
+  color: var(--amber);
+  font-size: 13px;
+}
+
+.system-notice.error strong { color: var(--red); }
+
+.system-notice p {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.system-notice button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}

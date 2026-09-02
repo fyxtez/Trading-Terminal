@@ -33,6 +33,12 @@ pub enum AppError {
     Config(String),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ErrorClassification {
+    pub duplicate_request: bool,
+    pub exchange_unavailable: bool,
+}
+
 #[derive(Serialize)]
 struct ErrorBody {
     error: String,
@@ -40,6 +46,14 @@ struct ErrorBody {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        let classification = ErrorClassification {
+            duplicate_request: matches!(
+                &self,
+                Self::Binance { message, .. }
+                    if message.to_ascii_lowercase().contains("duplicate")
+            ),
+            exchange_unavailable: matches!(&self, Self::Http(_) | Self::Json(_)),
+        };
         let status = match self {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Invalid(_) => StatusCode::BAD_REQUEST,
@@ -66,13 +80,15 @@ impl IntoResponse for AppError {
             Self::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        (
+        let mut response = (
             status,
             Json(ErrorBody {
                 error: self.to_string(),
             }),
         )
-            .into_response()
+            .into_response();
+        response.extensions_mut().insert(classification);
+        response
     }
 }
 

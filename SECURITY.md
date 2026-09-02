@@ -67,3 +67,8 @@ Rust `target` directories are ignored. Commit `.env.example` templates only.
 Run the validation commands documented in the root README. Test notification
 delivery separately for each configured provider because notification failure
 must never be treated as proof that a trading action failed.
+
+For unexpected orders, uncertain request results, stale account state, or a
+suspected credential compromise, follow the
+[emergency trading procedure](docs/EMERGENCY-PROCEDURE.md). Binance is the
+authoritative state during recovery.

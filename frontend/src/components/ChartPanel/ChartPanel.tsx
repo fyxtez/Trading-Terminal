@@ -217,6 +217,8 @@ type ChartPanelProps = {
    */
   isHoveringHorizontalDrawing: boolean;
   isChartLoading: boolean;
+  marketDataError: string | null;
+  onRetryMarketData: () => void;
   interval: Interval;
   chartTimeZoneLabel: string;
   cancelTooltip: ScreenPoint | null;
@@ -314,6 +316,8 @@ export default function ChartPanel({
   isHoveringDrawing,
   isHoveringHorizontalDrawing,
   isChartLoading,
+  marketDataError,
+  onRetryMarketData,
   interval,
   chartTimeZoneLabel,
   cancelTooltip,
@@ -945,6 +949,15 @@ export default function ChartPanel({
       <DrawingMoveToast onOpenAlertSymbol={onOpenAlertSymbol} />
 
       {isChartLoading && <ChartLoader interval={interval} />}
+      {!isChartLoading && marketDataError && (
+        <div className="chart-market-degraded" role="alert">
+          <div>
+            <strong>MARKET DATA DEGRADED</strong>
+            <span>{marketDataError}</span>
+          </div>
+          <button type="button" onClick={onRetryMarketData}>RETRY</button>
+        </div>
+      )}
     </div>
   );
 }

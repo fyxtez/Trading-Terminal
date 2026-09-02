@@ -4,6 +4,7 @@ import App from "./components/App/App";
 import "./styles/global.css";
 import DesktopSetupGate from "./components/DesktopSetupGate/DesktopSetupGate";
 import DesktopRuntimeGate from "./components/DesktopRuntimeGate/DesktopRuntimeGate";
+import AppErrorBoundary from "./components/AppErrorBoundary/AppErrorBoundary";
 
 /**
  * FIX: Chromium/Brave may restore this document from the back-forward cache
@@ -28,8 +29,10 @@ window.addEventListener("pageshow", (event) => {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <DesktopRuntimeGate>
-      <DesktopSetupGate><App /></DesktopSetupGate>
-    </DesktopRuntimeGate>
+    <AppErrorBoundary>
+      <DesktopRuntimeGate>
+        <DesktopSetupGate><App /></DesktopSetupGate>
+      </DesktopRuntimeGate>
+    </AppErrorBoundary>
   </React.StrictMode>,
 );

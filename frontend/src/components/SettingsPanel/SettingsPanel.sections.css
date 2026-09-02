@@ -274,6 +274,82 @@
   margin-top: 14px;
 }
 
+.settings-diagnostics-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.settings-diagnostics-toolbar small { color: var(--text-faint); }
+.settings-diagnostics-toolbar button {
+  min-height: 29px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-dim);
+  font: 800 10px/1 var(--font-mono);
+  cursor: pointer;
+}
+
+.settings-diagnostics-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.settings-diagnostics-list > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-app);
+}
+
+.settings-diagnostics-list > div > span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.settings-diagnostics-list > div > div {
+  min-width: 0;
+  text-align: right;
+}
+
+.settings-diagnostics-list b {
+  display: block;
+  color: var(--text-faint);
+  font: 800 10px/1.2 var(--font-mono);
+  letter-spacing: 0.55px;
+}
+
+.settings-diagnostics-list b.healthy { color: var(--green); }
+.settings-diagnostics-list b.warning { color: var(--amber); }
+.settings-diagnostics-list b.error { color: var(--red); }
+
+.settings-diagnostics-list small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-diagnostics-note {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
 .settings-connection-statuses > div {
   min-height: 46px;
   padding: 8px 9px 8px 13px;

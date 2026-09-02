@@ -60,7 +60,7 @@ impl SymbolRegistry {
     pub async fn load(path: impl Into<PathBuf>) -> AppResult<Self> {
         let path = path.into();
         let http = reqwest::Client::builder()
-            .user_agent("binance-futures-axum/0.1")
+            .user_agent("fyxtez-backend/0.1")
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(15))
             .build()?;

@@ -1,0 +1,43 @@
+.app-error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+.app-error-boundary > div {
+  width: min(680px, 100%);
+  padding: 34px;
+  border: 1px solid var(--border-strong);
+  border-top: 2px solid var(--red);
+  border-radius: var(--radius-m);
+  background: var(--bg-panel);
+}
+
+.app-error-boundary span,
+.app-error-boundary code {
+  font-family: var(--font-mono);
+}
+
+.app-error-boundary span {
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.app-error-boundary h1 { margin: 12px 0; font-size: clamp(28px, 5vw, 48px); }
+.app-error-boundary p { color: var(--text-dim); line-height: 1.6; }
+.app-error-boundary code { display: block; margin: 20px 0; color: var(--red); }
+.app-error-boundary button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid rgba(245, 166, 35, 0.55);
+  border-radius: var(--radius-s);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-weight: 800;
+  cursor: pointer;
+}

@@ -2,7 +2,7 @@ use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, header},
+    http::{HeaderMap, HeaderValue, Method, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -26,7 +26,8 @@ use crate::{
     account_state::AccountState,
     alerts::{AlertRuntime, AlertStore},
     binance::{BinanceClient, floor_to_step, normalize_symbol, round_to_tick},
-    error::{AppError, AppResult},
+    diagnostics::{DiagnosticsSnapshot, DiagnosticsState},
+    error::{AppError, AppResult, ErrorClassification},
     icons::IconStore,
     models::{
         AutoSizePreview, AutoSizeQuery, ClosePositionRequest, ConditionalOrderRequest,
@@ -37,6 +38,7 @@ use crate::{
     position_risk_state::PositionRiskState,
     sizing_store::SizingStore,
     symbol_registry::SymbolRegistry,
+    trade_lock::TradeLock,
     trading_events::TradingEvent,
 };
 
@@ -56,18 +58,20 @@ pub struct AppState {
     pub sizing: Arc<RwLock<MarginSizingConfig>>,
     pub sizing_store: SizingStore,
     pub service_token: String,
-    pub trade_lock: Arc<Mutex<()>>,
+    pub trade_lock: TradeLock,
     pub trading_events: broadcast::Sender<TradingEvent>,
     pub alert_store: AlertStore,
     pub alert_runtime: AlertRuntime,
     pub symbol_registry: SymbolRegistry,
     pub icon_store: IconStore,
     pub websocket_tickets: Arc<Mutex<HashMap<String, tokio::time::Instant>>>,
+    pub diagnostics: DiagnosticsState,
 }
 
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/diagnostics", get(diagnostics))
         .route(
             "/api/desktop/credentials/reload",
             post(reload_desktop_credentials),
@@ -130,6 +134,10 @@ pub fn router(state: AppState) -> Router {
                 .delete(cancel_order),
         )
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            record_request_diagnostics,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list([
@@ -144,6 +152,56 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn record_request_diagnostics(
+    State(state): State<AppState>,
+    request: axum::extract::Request,
+    next: Next,
+) -> Response {
+    let is_mutation = matches!(
+        *request.method(),
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    );
+    let path = request.uri().path().to_owned();
+    let response = next.run(request).await;
+    let failed = response.status().is_client_error() || response.status().is_server_error();
+    let classification = response
+        .extensions()
+        .get::<ErrorClassification>()
+        .copied()
+        .unwrap_or(ErrorClassification {
+            duplicate_request: response.status() == axum::http::StatusCode::CONFLICT,
+            exchange_unavailable: false,
+        });
+
+    if is_mutation && failed {
+        state.diagnostics.request_rejected(
+            &path,
+            response.status().as_u16(),
+            classification.duplicate_request,
+        );
+    }
+    if failed && classification.exchange_unavailable {
+        state
+            .diagnostics
+            .exchange_failure("Exchange request failed or returned invalid data");
+    } else if response.status().is_success() && exchange_backed_path(&path) {
+        state.diagnostics.exchange_success();
+    }
+
+    response
+}
+
+fn exchange_backed_path(path: &str) -> bool {
+    path.starts_with("/api/account")
+        || path.starts_with("/api/balance")
+        || path.starts_with("/api/binance/")
+        || path.starts_with("/api/filters/")
+        || path.starts_with("/api/leverage")
+        || path.starts_with("/api/orders")
+        || path.starts_with("/api/positions")
+        || path.starts_with("/api/price/")
 }
 
 async fn authorize(
@@ -172,12 +230,17 @@ async fn authorize(
 }
 
 async fn reload_desktop_credentials(State(state): State<AppState>) -> AppResult<Json<Value>> {
+    // Do not swap the credential/network snapshot while an order workflow is
+    // reading account state or submitting a Binance mutation.
+    let _guard = state.trade_lock.lock().await;
     let changed = state.binance.reload_secure_credentials()?;
     let configured = state.binance.is_configured();
+    state.diagnostics.set_binance_configured(configured);
 
     if configured {
         state.binance.sync_server_time().await?;
         state.binance.refresh_reference_data().await?;
+        state.diagnostics.exchange_success();
 
         let (account, position_risk) =
             tokio::try_join!(state.binance.account_info(), state.binance.position_risk(),)?;
@@ -272,6 +335,10 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
             "mainnet"
         },
     })
+}
+
+async fn diagnostics(State(state): State<AppState>) -> Json<DiagnosticsSnapshot> {
+    Json(state.diagnostics.snapshot())
 }
 
 async fn server_time(State(state): State<AppState>) -> AppResult<Json<Value>> {
@@ -562,6 +629,7 @@ async fn set_leverage(
     Json(req): Json<SetLeverageRequest>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
+    let _guard = state.trade_lock.lock().await;
     let response = state.binance.set_leverage(&symbol, req.leverage).await?;
 
     state.position_risk_state.request_refresh();
@@ -633,6 +701,8 @@ async fn auto_market_order(
         .ensure_binance_trading_symbol(&symbol)
         .await?;
 
+    let _guard = state.trade_lock.lock().await;
+
     // FIX: AUTO MARKET previously ignored Settings -> Margin percentage and
     // forced a private 1% constant, while the UI describes this value as the
     // portfolio margin used per trade. Read the persisted setting here so
@@ -649,8 +719,6 @@ async fn auto_market_order(
         req.allow_margin_bump,
     )
     .await?;
-
-    let _guard = state.trade_lock.lock().await;
 
     // FIX: fail closed immediately before creating exposure. Startup/add-time
     // enforcement is not enough because margin mode can be changed directly
@@ -745,6 +813,8 @@ async fn market_order(
             .await?;
     }
 
+    let _guard = state.trade_lock.lock().await;
+
     let (quantity, leverage_to_set, preview) = resolve_quantity(
         &state,
         &symbol,
@@ -757,10 +827,9 @@ async fn market_order(
     )
     .await?;
 
-    // FIX: serialize the final ISOLATED check with leverage/order submission.
-    // Reduce-only exits deliberately skip this guard so a legacy CROSS
-    // position can always be closed instead of becoming trapped.
-    let _guard = state.trade_lock.lock().await;
+    // Serialize sizing, the final ISOLATED check, and order submission. A
+    // reduce-only exit skips only the ISOLATED validation so a legacy CROSS
+    // position can still be closed; it remains serialized by TradeLock.
     if !req.reduce_only {
         state.binance.ensure_isolated_margin(&symbol).await?;
     }
@@ -863,6 +932,8 @@ async fn limit_order(
             .await?;
     }
 
+    let _guard = state.trade_lock.lock().await;
+
     let filters = state.binance.symbol_filters(&symbol).await?;
     let price = round_to_tick(req.price, filters.tick_size);
 
@@ -880,7 +951,6 @@ async fn limit_order(
 
     // FIX: LIMIT entries can rest and fill later, so they must be created only
     // after the same fail-closed ISOLATED check used by MARKET entries.
-    let _guard = state.trade_lock.lock().await;
     if !req.reduce_only {
         state.binance.ensure_isolated_margin(&symbol).await?;
     }
@@ -1034,6 +1104,7 @@ async fn stop_market(
     }
 
     let symbol = normalize_symbol(&req.symbol)?;
+    let _guard = state.trade_lock.lock().await;
 
     // FIX: was `state.account_state.snapshot()` used directly, with no
     // fallback if the cache didn't have the position yet - see the big
@@ -1064,8 +1135,6 @@ async fn stop_market(
     let liquidation_price = liquidation_price_for_position(&position_risk, &symbol, amount);
     state.position_risk_state.replace(position_risk).await;
     let trigger_price = round_to_tick(req.trigger_price, filters.tick_size);
-
-    let _guard = state.trade_lock.lock().await;
 
     let valid_trigger = if amount > 0.0 {
         trigger_price < current_price
@@ -1162,6 +1231,7 @@ async fn take_profit_market(
     Json(req): Json<ConditionalOrderRequest>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
+    let _guard = state.trade_lock.lock().await;
     let response = state
         .binance
         .conditional_order(
@@ -1188,6 +1258,7 @@ async fn close_position(
     Json(req): Json<ClosePositionRequest>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
+    let _guard = state.trade_lock.lock().await;
 
     // FIX: same fallback as stop_market - a position that only just
     // opened (or is being closed right after another rapid action)
@@ -1380,12 +1451,11 @@ async fn reprice_reduce_order(
     }
 
     let symbol = normalize_symbol(&symbol)?;
+    let _guard = state.trade_lock.lock().await;
     let (filters, open_orders) = tokio::try_join!(
         state.binance.symbol_filters(&symbol),
         state.binance.open_orders(&symbol),
     )?;
-    let _guard = state.trade_lock.lock().await;
-
     let orders = open_orders
         .as_array()
         .ok_or_else(|| AppError::Invalid("invalid open orders response from Binance".into()))?;
@@ -1529,14 +1599,13 @@ async fn update_reduce_order(
     }
 
     let symbol = normalize_symbol(&symbol)?;
+    let _guard = state.trade_lock.lock().await;
 
     let account = state.account_state.snapshot().await;
     let (filters, open_orders) = tokio::try_join!(
         state.binance.symbol_filters(&symbol),
         state.binance.open_orders(&symbol),
     )?;
-
-    let _guard = state.trade_lock.lock().await;
 
     let amount = account
         .positions
@@ -1759,6 +1828,7 @@ async fn position_intent(
     Json(req): Json<PositionIntentRequest>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
+    let _guard = state.trade_lock.lock().await;
     let filters = state.binance.symbol_filters(&symbol).await?;
 
     // FIX: same live-fallback pattern as stop_market/close_position - a
@@ -1784,8 +1854,6 @@ async fn position_intent(
                 .symbol_registry
                 .ensure_binance_trading_symbol(&symbol)
                 .await?;
-
-            let _guard = state.trade_lock.lock().await;
 
             // FIX: ADD increases exposure to an existing position. Refuse it
             // when that position is CROSS; the user can still REDUCE/CLOSE it.
@@ -1884,7 +1952,6 @@ async fn position_intent(
                         )));
                     }
 
-                    let _guard = state.trade_lock.lock().await;
                     let client_order_id = new_client_order_id("fe-reduce-market");
                     let close_order = state
                         .binance
@@ -1979,7 +2046,6 @@ async fn position_intent(
                     let left_label = remaining_position_pct.round().clamp(0.0, 100.0) as u32;
                     let client_order_id =
                         new_client_order_id(&format!("fe-red-{pct_label}-l{left_label}"));
-                    let _guard = state.trade_lock.lock().await;
                     let order = state
                         .binance
                         .limit_order(
@@ -2019,7 +2085,6 @@ async fn position_intent(
                 ));
             }
 
-            let _guard = state.trade_lock.lock().await;
             state.binance.cancel_all_orders(&symbol).await?;
 
             let quantity = amount.abs();
@@ -2098,6 +2163,7 @@ async fn chase_limit_order(
     Path((symbol, order_id)): Path<(String, i64)>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
+    let _guard = state.trade_lock.lock().await;
 
     let (open_orders, filters) = tokio::try_join!(
         state.binance.open_orders(&symbol),
@@ -2189,7 +2255,6 @@ async fn chase_limit_order(
     };
     let chase_client_id = new_client_order_id(chase_prefix);
 
-    let _guard = state.trade_lock.lock().await;
     state.binance.cancel_order(&symbol, order_id).await?;
 
     // FIX: chasing converts a resting entry into immediate market exposure.
@@ -2241,6 +2306,7 @@ async fn modify_limit_order(
     Json(req): Json<ModifyLimitOrderRequest>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
+    let _guard = state.trade_lock.lock().await;
     let filters = state.binance.symbol_filters(&symbol).await?;
     let price = round_to_tick(req.price, filters.tick_size);
     let quantity = floor_to_step(req.quantity, filters.step_size);
@@ -2294,6 +2360,7 @@ async fn cancel_order(
     Path((symbol, order_id)): Path<(String, i64)>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
+    let _guard = state.trade_lock.lock().await;
     Ok(Json(state.binance.cancel_order(&symbol, order_id).await?))
 }
 
@@ -2323,6 +2390,7 @@ async fn cancel_all_orders(
     Query(query): Query<SymbolQuery>,
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&query.symbol)?;
+    let _guard = state.trade_lock.lock().await;
     Ok(Json(state.binance.cancel_all_orders(&symbol).await?))
 }
 

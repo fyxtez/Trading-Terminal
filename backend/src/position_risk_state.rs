@@ -6,6 +6,7 @@ use tokio::time::{Duration, MissedTickBehavior, interval, sleep};
 
 use crate::{
     binance::BinanceClient,
+    diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
 };
 
@@ -37,6 +38,10 @@ impl PositionRiskState {
         *self.snapshot.write().await = snapshot;
     }
 
+    pub async fn snapshot(&self) -> Vec<Value> {
+        self.snapshot.read().await.clone()
+    }
+
     pub fn request_refresh(&self) {
         // Capacity one intentionally coalesces bursts from fills, leverage changes,
         // ACCOUNT_UPDATE events, and frontend-triggered trading actions.
@@ -48,6 +53,7 @@ pub fn spawn_refresh_worker(
     binance: BinanceClient,
     position_risk_state: PositionRiskState,
     mut refresh_rx: mpsc::Receiver<()>,
+    diagnostics: DiagnosticsState,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut periodic = interval(POSITION_RISK_REFRESH_INTERVAL);
@@ -79,17 +85,24 @@ pub fn spawn_refresh_worker(
 
             match binance.position_risk().await {
                 Ok(snapshot) => {
+                    let drifted = position_risk_state.snapshot().await != snapshot;
                     position_risk_state.replace(snapshot).await;
+                    diagnostics.exchange_success();
+                    diagnostics.reconciliation_success("position-risk", drifted);
                     tracing::debug!(
                         target: "api",
                         "Binance position-risk cache refreshed"
                     );
                 }
-                Err(error) => tracing::error!(
-                    target: "api",
-                    %error,
-                    "Failed to refresh Binance position-risk cache"
-                ),
+                Err(error) => {
+                    diagnostics.exchange_failure(error.to_string());
+                    diagnostics.reconciliation_failure("position-risk", error.to_string());
+                    tracing::error!(
+                        target: "api",
+                        %error,
+                        "Failed to refresh Binance position-risk cache"
+                    );
+                }
             }
 
             // An event-triggered refresh can happen just before the periodic tick.

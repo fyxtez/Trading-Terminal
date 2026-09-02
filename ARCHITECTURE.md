@@ -72,6 +72,11 @@ Lightweight Charts.
   loading, polling, and backfill.
 - `components/SettingsPanel/SettingsSummaryCards.tsx` owns the desktop
   connection summary and balance presentation.
+- `hooks/useOperationalDiagnostics.ts` combines protected backend diagnostics
+  with frontend sidecar and market-feed state. Settings renders the snapshot;
+  transient notification failures also produce a dismissible global warning.
+- `components/AppErrorBoundary/` is the fail-closed recovery surface for
+  uncaught React render/lifecycle failures.
 - `components/PositionBracketOverlay/positionBracketModel.ts` owns persisted
   bracket anchors/zone extents and pure bracket calculations.
 - `trading/api/` is the REST client layer.
@@ -114,6 +119,8 @@ The backend is a Tokio application exposed through Axum.
 - `binance_stream/` maintains the Binance user-data stream.
 - `account_state.rs` and `position_risk_state.rs` maintain shared snapshots.
 - `trading_events.rs` broadcasts account/trade changes to connected clients.
+- `diagnostics.rs` maintains redacted, process-lifetime health timestamps and
+  counters exposed through the authenticated diagnostics endpoint.
 - `alerts.rs` stores and evaluates persistent price alerts.
 - `symbol_registry.rs` owns registered symbols and their market-data source.
 - `sizing_store.rs` persists sizing policy.
@@ -122,10 +129,19 @@ The backend is a Tokio application exposed through Axum.
 ### Concurrency model
 
 Shared read-mostly state uses Tokio synchronization primitives. A global
-`trade_lock` serializes sensitive multi-step trading workflows so concurrent UI
-actions cannot interleave their exchange-side state transitions. Background
-tasks refresh exchange reference data, account state, position risk, alerts, and
-user-stream events. They are aborted during graceful shutdown.
+process-local `TradeLock` serializes Binance account mutations. A handler keeps
+its guard across the authoritative reads and writes of its workflow, so another
+request cannot place, cancel, modify, close, chase, or reverse an order in the
+middle of that transition. In particular, `close-everything` holds the guard
+from its fresh account/open-order snapshot through every cancellation and
+reduce-only close. The lock is not distributed; the desktop single-instance
+policy and managed sidecar provide the one-process ownership assumption. A
+contention test verifies that a second workflow cannot enter before the first
+guard is released.
+
+Background tasks refresh exchange reference data, account state, position risk,
+alerts, and user-stream events. They do not submit account mutations through the
+HTTP trading workflows and are aborted during graceful shutdown.
 
 ## Request and event flows
 
@@ -142,7 +158,8 @@ user-stream events. They are aborted during graceful shutdown.
 1. The user creates an intent in the frontend.
 2. The frontend sends an authenticated REST request.
 3. The backend resolves the registered execution symbol and validates the input.
-4. Exposure-increasing flows enforce isolated margin and acquire `trade_lock`.
+4. Account-mutating flows acquire `TradeLock`; exposure-increasing flows also
+   enforce isolated margin.
 5. The backend applies exchange filters/sizing and signs the Binance request.
 6. Binance user-data events update backend snapshots and are broadcast to the UI.
 7. The frontend reconciles optimistic UI state with authoritative events.
@@ -161,6 +178,19 @@ are financially critical and need automated coverage before live deployment.
 Local, non-persistent alerts depend on frontend lifetime. In Tauri they delegate
 delivery to native Rust; plain browser development does not have notification
 credential access.
+
+Notification delivery is best-effort and cannot change the authoritative result
+of a triggered alert or completed exchange action. Delivery failures are shown
+as frontend warnings and retained as process-lifetime diagnostic counters.
+
+### Failure and diagnostics flow
+
+`/health` answers only whether the sidecar API is alive. The authenticated
+`/api/diagnostics` snapshot separately reports exchange connectivity,
+user-stream freshness, reconciliation drift and rejected/duplicate mutation
+requests. React adds its own sidecar and public market-feed states. Failed
+initial candle loads and failed live polling are explicit degraded states with
+a manual retry; uncaught render failures enter the global fail-closed boundary.
 
 ## Persistence
 

@@ -1,11 +1,18 @@
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 
 type DesktopConnectionsSectionProps = {
   credentials: DesktopCredentialsContextValue;
+  isExpanded: boolean;
+  forceExpanded?: boolean;
+  onToggle: () => void;
 };
 
 export function DesktopConnectionsSection({
   credentials,
+  isExpanded,
+  forceExpanded = false,
+  onToggle,
 }: DesktopConnectionsSectionProps) {
   const connections = [
     [
@@ -23,35 +30,46 @@ export function DesktopConnectionsSection({
 
   return (
     <section className="settings-section settings-desktop-connections">
-      <div className="settings-section-heading">
-        <h3>Desktop connections</h3>
-        <p>Credentials stored securely on this computer.</p>
-      </div>
-      <div className="settings-connection-statuses">
-        {connections.map(([label, connection, configured, detail]) => (
-          <div className={configured ? "connected" : ""} key={connection}>
-            <span>{label}</span>
-            <div>
-              <b>
-                {configured
-                  ? `CONNECTED${detail ? ` · ${detail}` : ""}`
-                  : "NOT SET"}
-              </b>
-              <button type="button" onClick={() => credentials.openSetup(connection)}>
-                {configured ? "EDIT" : "CONNECT"}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {hasMissingConnection && (
+      <div className="settings-section-heading settings-section-heading-with-action">
+        <h3>Third-Party Connections</h3>
         <button
           type="button"
-          className="settings-manage-connections"
-          onClick={() => credentials.openSetup()}
+          className="settings-section-visibility-button"
+          aria-expanded={forceExpanded || isExpanded}
+          onClick={onToggle}
         >
-          SET UP MISSING CONNECTIONS
+          {forceExpanded ? "MATCH" : isExpanded ? "HIDE" : "SHOW"}
         </button>
+      </div>
+      {(forceExpanded || isExpanded) && (
+        <>
+          <div className="settings-connection-statuses">
+            {connections.map(([label, connection, configured, detail]) => (
+              <div className={configured ? "connected" : ""} key={connection}>
+                <span>{label}</span>
+                <div>
+                  <b>
+                    {configured
+                      ? `CONNECTED${detail ? ` · ${detail}` : ""}`
+                      : "NOT SET"}
+                  </b>
+                  <button type="button" onClick={() => credentials.openSetup(connection)}>
+                    {configured ? "EDIT" : "CONNECT"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {hasMissingConnection && (
+            <button
+              type="button"
+              className="settings-manage-connections"
+              onClick={() => credentials.openSetup()}
+            >
+              SET UP MISSING CONNECTIONS
+            </button>
+          )}
+        </>
       )}
     </section>
   );
@@ -81,15 +99,17 @@ export function AvailableBalanceCard({
       </div>
 
       <div className="settings-balance-value">
-        <strong className={error ? "error" : ""}>
-          {isLoading
-            ? "Loading…"
-            : error
+        {isLoading ? (
+          <LoadingIndicator variant="inline" label="Loading balance" />
+        ) : (
+          <strong className={error ? "error" : ""}>
+            {error
               ? "Unavailable"
               : availableBalance !== null
                 ? balanceFormatter.format(availableBalance)
                 : "—"}
-        </strong>
+          </strong>
+        )}
 
         {!isLoading && !error && (
           <span className="settings-balance-unit">USDT</span>

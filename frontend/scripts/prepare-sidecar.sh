@@ -27,9 +27,9 @@ fi
 
 if [[ "$TARGET_TRIPLE" != "$HOST_TRIPLE" ]]; then
   CARGO_ARGS+=(--target "$TARGET_TRIPLE")
-  SOURCE_BINARY="$BACKEND_DIR/target/$TARGET_TRIPLE/$PROFILE_DIR/binance-futures-axum"
+  SOURCE_BINARY="$BACKEND_DIR/target/$TARGET_TRIPLE/$PROFILE_DIR/fyxtez-backend"
 else
-  SOURCE_BINARY="$BACKEND_DIR/target/$PROFILE_DIR/binance-futures-axum"
+  SOURCE_BINARY="$BACKEND_DIR/target/$PROFILE_DIR/fyxtez-backend"
 fi
 
 echo "[fyxtez] Building Axum sidecar ($MODE, $TARGET_TRIPLE)..."
@@ -37,6 +37,6 @@ cargo "${CARGO_ARGS[@]}"
 
 mkdir -p "$FRONTEND_DIR/src-tauri/binaries"
 install -m 755 "$SOURCE_BINARY" \
-  "$FRONTEND_DIR/src-tauri/binaries/binance-futures-axum-$TARGET_TRIPLE"
+  "$FRONTEND_DIR/src-tauri/binaries/fyxtez-backend-$TARGET_TRIPLE"
 
 echo "[fyxtez] Sidecar ready for Tauri."

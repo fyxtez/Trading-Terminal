@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { formatSymbolPair, getSymbolInfo } from "../config/symbols";
 import type { AlertPattern, PriceAlert } from "../types/alert";
+import { publishSystemNotice } from "../diagnostics/events";
 
 const DEFAULT_PUBLIC_TERMINAL_URL = "https://demo.terminal.fyxtez.com";
 
@@ -115,8 +116,15 @@ export async function sendPriceAlertNotification(
       },
     });
   } catch (error) {
-    // Best-effort - a failed notification shouldn't crash the chart, and
-    // there's nothing more useful to do here than log it.
+    const message =
+      error instanceof Error ? error.message : "Notification request failed";
+    publishSystemNotice({
+      kind: "warning",
+      title: "Notification delivery failed",
+      message: `${message}. The price alert still triggered successfully.`,
+    });
+    // Delivery is best-effort: the alert crossing remains completed and is
+    // never rolled back merely because ntfy/Telegram could not be reached.
     console.error("Failed to send price alert notification", error);
   }
 }

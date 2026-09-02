@@ -22,6 +22,7 @@ controls.
 - Live account, position, order, PNL, and trading-event updates
 - Drawing tools, drawing sets, trade markers, sessions, hotkeys, and chart alerts
 - Persistent SQLite-backed price alerts with optional ntfy/Telegram notifications
+- Explicit market-data degradation/retry UI and redacted runtime diagnostics
 - Dynamic symbol registry and locally cached symbol icons
 
 ## Repository layout
@@ -193,3 +194,4 @@ verified release targets, and v1 intentionally has no automatic updater.
 - [Security model and operating guidance](SECURITY.md)
 - [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
 - [Linux release procedure](docs/RELEASING.md)
+- [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)

@@ -28,6 +28,7 @@ import {
   isFullTakeProfitOrder,
   isSyntheticStopOrder,
 } from "./PositionRows";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./PositionsPanel.css";
 import "./PositionRows.css";
 
@@ -541,7 +542,9 @@ export default function PositionsPanel({
             )}
 
             {positionsApi.isLoading && positionsApi.positions.length === 0 ? (
-              <div className="positions-empty">Loading open positions…</div>
+              <div className="positions-empty">
+                <LoadingIndicator label="Loading open positions" />
+              </div>
             ) : positionsApi.positions.length === 0 ? (
               <div className="positions-empty">No open positions</div>
             ) : (
@@ -609,7 +612,9 @@ export default function PositionsPanel({
             )}
 
             {openOrdersApi.isLoading && combinedOpenOrders.length === 0 ? (
-              <div className="positions-empty">Loading open orders…</div>
+              <div className="positions-empty">
+                <LoadingIndicator label="Loading open orders" />
+              </div>
             ) : combinedOpenOrders.length === 0 ? (
               <div className="positions-empty">No open orders</div>
             ) : (

@@ -15,6 +15,7 @@ use crate::{
         keys::{create_listen_key, keepalive_listen_key},
         types::UserStreamEnvelope,
     },
+    diagnostics::DiagnosticsState,
     position_risk_state::PositionRiskState,
     trading_events::TradingEvent,
 };
@@ -27,6 +28,7 @@ pub fn spawn_user_stream(
     account_state: AccountState,
     position_risk_state: PositionRiskState,
     events: broadcast::Sender<TradingEvent>,
+    diagnostics: DiagnosticsState,
 ) -> tokio::task::JoinHandle<()> {
     tracing::info!(
         target: "api",
@@ -42,6 +44,7 @@ pub fn spawn_user_stream(
 
         loop {
             if !binance.is_configured() {
+                diagnostics.set_binance_configured(false);
                 if !waiting_for_credentials {
                     tracing::info!(
                         target: "api",
@@ -70,6 +73,7 @@ pub fn spawn_user_stream(
                 &position_risk_state,
                 &events,
                 credential_generation,
+                &diagnostics,
             )
             .await
             {
@@ -81,6 +85,7 @@ pub fn spawn_user_stream(
                     );
                 }
                 Err(error) => {
+                    diagnostics.user_stream_failure(error.to_string());
                     tracing::error!(
                         target: "api",
                         attempt,
@@ -112,6 +117,7 @@ async fn run_once(
     position_risk_state: &PositionRiskState,
     events: &broadcast::Sender<TradingEvent>,
     credential_generation: u64,
+    diagnostics: &DiagnosticsState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let rest_base = binance.user_stream_rest_base();
     let ws_base = binance.user_stream_ws_base();
@@ -159,6 +165,8 @@ async fn run_once(
         ws_base,
         "Binance user-data stream connected"
     );
+    diagnostics.exchange_success();
+    diagnostics.user_stream_connected();
 
     let _ = events.send(TradingEvent::StreamStatus {
         connected: true,
@@ -214,6 +222,7 @@ async fn run_once(
             message = socket.next() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
+                        diagnostics.user_stream_event();
                         if let Err(error) = process_text(
                             text.as_ref(),
                             binance,

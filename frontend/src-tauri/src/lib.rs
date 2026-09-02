@@ -215,7 +215,11 @@ async fn send_notification(input: NotificationInput) -> Result<(), String> {
         return Err("No notification connection is configured".into());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(12))
+        .build()
+        .map_err(|_| "Could not initialize notification delivery".to_string())?;
 
     let mut failures = Vec::new();
 

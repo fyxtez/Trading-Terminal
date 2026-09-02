@@ -53,7 +53,7 @@ native ntfy/Telegram notifications.
 platform assets after changing it with `npx tauri icon src-tauri/app-icon.svg`.
 
 The first-run wizard contains separate Binance, ntfy and Telegram steps. All can
-be skipped and managed later under Settings → Desktop connections. A Binance
+be skipped and managed later under Settings → Third-Party Connections. A Binance
 connection requires an explicit Mainnet or Testnet selection; Mainnet also
 requires confirmation that real funds are involved. Skipping Binance starts
 chart-only mode and suppresses private account/order requests.

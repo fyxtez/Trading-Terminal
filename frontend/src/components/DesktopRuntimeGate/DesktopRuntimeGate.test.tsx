@@ -29,7 +29,8 @@ describe("DesktopRuntimeGate", () => {
 
     render(<DesktopRuntimeGate><div>terminal</div></DesktopRuntimeGate>);
     expect(screen.queryByText("terminal")).not.toBeInTheDocument();
-    expect(screen.getByText("Starting local engine")).toBeInTheDocument();
+    expect(screen.getByText("Starting local backend")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
 
     resolveRuntime("http://127.0.0.1:12345");
     expect(await screen.findByText("terminal")).toBeInTheDocument();

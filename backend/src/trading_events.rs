@@ -19,6 +19,12 @@ pub enum TradingEvent {
         pattern: Option<String>,
         triggered_at: i64,
     },
+    NotificationFailed {
+        channel: String,
+        context: String,
+        message: String,
+        occurred_at: i64,
+    },
     OrderExecuted {
         event_id: String,
         symbol: String,

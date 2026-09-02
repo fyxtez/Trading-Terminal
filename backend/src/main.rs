@@ -3,6 +3,7 @@ mod alerts;
 mod api;
 mod binance;
 mod binance_stream;
+mod diagnostics;
 mod error;
 mod icons;
 mod models;
@@ -11,6 +12,7 @@ mod runtime_config;
 mod secure_store;
 mod sizing_store;
 mod symbol_registry;
+mod trade_lock;
 mod trading_events;
 
 use std::{collections::HashMap, sync::Arc};
@@ -19,6 +21,7 @@ use account_state::{AccountState, spawn_refresh_worker};
 use alerts::{AlertStore, spawn_alert_worker};
 use api::{AppState, router};
 use binance::BinanceClient;
+use diagnostics::DiagnosticsState;
 use error::{AppError, AppResult};
 use icons::IconStore;
 use models::{FuturesAccountInfo, MarginSizingConfig};
@@ -34,10 +37,14 @@ use tokio::{
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use trade_lock::TradeLock;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
     let runtime = RuntimeConfig::load()?;
+    if runtime.desktop_sidecar {
+        runtime_config::spawn_parent_lifetime_guard()?;
+    }
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -46,9 +53,11 @@ async fn main() -> AppResult<()> {
         .init();
 
     let binance = BinanceClient::from_secure_store(runtime.desktop_sidecar)?;
+    let diagnostics = DiagnosticsState::new(binance.is_configured());
 
     info!("Synchronizing Binance server time");
     binance.sync_server_time().await?;
+    diagnostics.exchange_success();
 
     if binance.is_configured() {
         info!("Loading Binance exchange information and leverage brackets");
@@ -180,8 +189,12 @@ async fn main() -> AppResult<()> {
         }
     };
     let (account_state, account_refresh_rx) = AccountState::new(initial_account);
-    let account_refresh_task =
-        spawn_refresh_worker(binance.clone(), account_state.clone(), account_refresh_rx);
+    let account_refresh_task = spawn_refresh_worker(
+        binance.clone(),
+        account_state.clone(),
+        account_refresh_rx,
+        diagnostics.clone(),
+    );
 
     let initial_position_risk = if binance.is_configured() {
         info!("Loading initial Binance position-risk snapshot");
@@ -195,6 +208,7 @@ async fn main() -> AppResult<()> {
         binance.clone(),
         position_risk_state.clone(),
         position_risk_refresh_rx,
+        diagnostics.clone(),
     );
 
     let (trading_events, _) = broadcast::channel(512);
@@ -204,6 +218,7 @@ async fn main() -> AppResult<()> {
         alert_store.clone(),
         binance.user_stream_ws_base().to_string(),
         trading_events.clone(),
+        diagnostics.clone(),
     );
 
     let state = AppState {
@@ -213,13 +228,14 @@ async fn main() -> AppResult<()> {
         sizing: Arc::new(RwLock::new(sizing)),
         sizing_store,
         service_token: runtime.service_token,
-        trade_lock: Arc::new(tokio::sync::Mutex::new(())),
+        trade_lock: TradeLock::new(),
         trading_events: trading_events.clone(),
         alert_store,
         alert_runtime,
         symbol_registry,
         icon_store,
         websocket_tickets: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        diagnostics: diagnostics.clone(),
     };
 
     info!(
@@ -238,6 +254,7 @@ async fn main() -> AppResult<()> {
         account_state,
         position_risk_state,
         trading_events,
+        diagnostics,
     );
 
     let listener = TcpListener::bind(runtime.address).await?;
@@ -249,7 +266,7 @@ async fn main() -> AppResult<()> {
         } else {
             "mainnet"
         },
-        "Binance Futures Axum API started"
+        "Fyxtez backend API started"
     );
 
     let server_result = axum::serve(listener, router(state))

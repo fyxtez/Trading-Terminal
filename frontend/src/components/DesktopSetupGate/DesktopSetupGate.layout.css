@@ -100,6 +100,18 @@
   font-size: 12px;
 }
 
+.desktop-setup-loading {
+  background: #101319;
+  border: 1px solid #2b303a;
+  border-radius: 8px;
+  padding: 34px 38px;
+  width: min(520px, calc(100vw - 48px));
+}
+
+.desktop-setup-loading .loading-indicator--panel {
+  margin-top: 0;
+}
+
 @media (max-width: 900px) {
   .desktop-setup-actions {
     gap: 12px;

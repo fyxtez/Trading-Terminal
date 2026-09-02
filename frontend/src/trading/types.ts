@@ -202,8 +202,17 @@ export type AlertTriggeredEvent = {
   triggered_at: number;
 };
 
+export type NotificationFailedEvent = {
+  type: "NOTIFICATION_FAILED";
+  channel: string;
+  context: string;
+  message: string;
+  occurred_at: number;
+};
+
 export type TradingStreamEvent =
   | OrderExecutedEvent
   | AlertTriggeredEvent
+  | NotificationFailedEvent
   | { type: "SNAPSHOT_REQUIRED"; reason: string }
   | { type: "STREAM_STATUS"; connected: boolean; message: string };

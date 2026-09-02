@@ -29,7 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["deb", "appimage"],
-    "externalBin": ["binaries/binance-futures-axum"],
+    "externalBin": ["binaries/fyxtez-backend"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

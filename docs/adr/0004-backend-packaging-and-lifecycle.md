@@ -11,13 +11,18 @@ fixed port, or a manually maintained `.env` file.
 
 ## Decision
 
-Build `binance-futures-axum` for every desktop target and include it as a Tauri
+Build `fyxtez-backend` for every desktop target and include it as a Tauri
 sidecar. Tauri owns its lifecycle: enforce a single application instance,
 select an ephemeral loopback port, generate a 256-bit per-launch capability,
 start the backend, wait for readiness, provide the endpoint to the WebView over
 IPC, and terminate the child on app exit. As accepted in ADR 0005, both Rust
 processes read exchange and notification secrets from the same OS credential
 store; Tauri does not hand those secrets to Axum.
+
+The sidecar also monitors the bootstrap stdin pipe. If the Tauri parent crashes
+or is force-terminated before its normal exit callback runs, the operating
+system closes that pipe and `fyxtez-backend` terminates itself instead of
+leaving a credential-bearing loopback API orphaned.
 
 The bootstrap is bounded JSON written to the child's stdin. It contains only the
 port, capability and Tauri application-data directory. It is not passed through

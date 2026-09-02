@@ -6,6 +6,7 @@ import {
 import type { OrderExecutedEvent } from "../trading/types";
 import { TRADING_API_BASE_URL_CHANGED_EVENT } from "../config/constants";
 import { canUseTradingAccount } from "../desktop/credentials";
+import { publishSystemNotice } from "../diagnostics/events";
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 15_000;
@@ -106,6 +107,17 @@ export function useTradingStream({
               detail: event,
             }),
           );
+          return;
+        }
+
+        if (event.type === "NOTIFICATION_FAILED") {
+          publishSystemNotice({
+            id: `notification-${event.channel}-${event.occurred_at}`,
+            occurredAt: event.occurred_at,
+            kind: "warning",
+            title: "Notification delivery failed",
+            message: `${event.context}: ${event.message}. The alert still triggered successfully.`,
+          });
           return;
         }
 

@@ -103,6 +103,34 @@ impl RuntimeConfig {
     }
 }
 
+/// Keep the desktop backend bound to the lifetime of the Tauri process.
+///
+/// The shell keeps the sidecar's stdin pipe open after writing the bootstrap
+/// line. Every operating system closes that pipe if the parent exits, even
+/// when it is killed before Tauri can run its normal shutdown callback.
+pub fn spawn_parent_lifetime_guard() -> AppResult<()> {
+    std::thread::Builder::new()
+        .name("fyxtez-parent-guard".into())
+        .spawn(|| {
+            let mut stdin = std::io::stdin().lock();
+            let mut buffer = [0_u8; 64];
+
+            loop {
+                match stdin.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => break,
+                }
+            }
+
+            // The parent is already unavailable, so immediate termination is
+            // safer than leaving a credential-bearing loopback API orphaned.
+            std::process::exit(0);
+        })?;
+    Ok(())
+}
+
 fn env_path(name: &str, default: &str) -> PathBuf {
     std::env::var_os(name)
         .map(PathBuf::from)

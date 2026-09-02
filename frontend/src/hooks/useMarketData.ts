@@ -86,6 +86,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
   const intervalSymbolRef = useRef(symbol);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [isChartLoading, setIsChartLoading] = useState(true);
+  const [marketDataError, setMarketDataError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // The active symbol's real tick size / decimal precision, from
@@ -273,6 +274,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     refs.chartReadyRef.current = false;
     setIsChartLoading(true);
     setMarketConnection("connecting");
+    setMarketDataError(null);
 
     refs.candleRef.current?.setData([]);
     refs.futureScaleRef.current?.setData([]);
@@ -518,6 +520,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
         refs.chartReadyRef.current = true;
         setIsChartLoading(false);
+        setMarketDataError(null);
 
         if (latest) {
           refs.lastCandleRef.current = latest;
@@ -752,11 +755,17 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
             applyCandleUpdate(candle);
             setMarketConnection("connected");
+            setMarketDataError(null);
           } catch (error) {
             if (cancelled || myEpoch !== refs.epochRef.current) return;
 
             console.warn("[market-poll] failed", error);
             setMarketConnection("disconnected");
+            setMarketDataError(
+              error instanceof Error
+                ? `Live market data unavailable: ${error.message}`
+                : "Live market data unavailable",
+            );
           }
         };
 
@@ -767,6 +776,13 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         );
       } catch (error) {
         refs.chartReadyRef.current = false;
+        setIsChartLoading(false);
+        setMarketConnection("disconnected");
+        setMarketDataError(
+          error instanceof Error
+            ? `Could not load market data: ${error.message}`
+            : "Could not load market data",
+        );
         console.error("Failed to load chart", error);
       }
     }
@@ -927,6 +943,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     interval,
     lastPrice,
     isChartLoading,
+    marketDataError,
     pricePrecision,
     /**
      * Same value as `pricePrecision` above, but as a ref instead of
@@ -941,6 +958,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     pricePrecisionRef,
     tickSize,
     marketConnection,
+    retryMarketData: () => setReloadKey((current) => current + 1),
     changeInterval,
     zoomIn,
     zoomOut,

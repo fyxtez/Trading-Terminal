@@ -29,6 +29,7 @@ import { useOpenOrders } from "../../hooks/useOpenOrders";
 import { useTradingStream } from "../../hooks/useTradingStream";
 import { useChartPositionPnl } from "../../hooks/useChartPositionPnl";
 import { useBackendConnection } from "../../hooks/useBackendConnection";
+import { useOperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import { getPositions } from "../../trading/api/positions";
 import { getCurrentLeverage } from "../../trading/api/leverage";
 import { estimatePendingLimitLiquidation } from "../../trading/estimatedLiquidation";
@@ -46,6 +47,7 @@ import TradeMenu from "../TradeMenu/TradeMenu";
 import PositionsPanel from "../PositionsPanel/PositionsPanel";
 import UnregisteredSymbolBanner from "../UnregisteredSymbolBanner/UnregisteredSymbolBanner";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
+import SystemNotice from "../SystemNotice/SystemNotice";
 
 import "./App.css";
 
@@ -665,6 +667,13 @@ function App() {
 
       tradeMarkersApi.addMarker(marker);
     },
+  });
+
+  const diagnostics = useOperationalDiagnostics({
+    isDesktop: desktopCredentials.isDesktop,
+    backendConnection,
+    marketConnection: marketData.marketConnection,
+    frontendStreamConnection: websocketConnection,
   });
 
   const currentSymbolConfig = getSymbolConfig(currentSymbol);
@@ -1433,6 +1442,8 @@ function App() {
           isHoveringDrawing={drawingCanvas.isHoveringDrawing}
           isHoveringHorizontalDrawing={drawingCanvas.isHoveringHorizontalDrawing}
           isChartLoading={marketData.isChartLoading}
+          marketDataError={marketData.marketDataError}
+          onRetryMarketData={marketData.retryMarketData}
           interval={marketData.interval}
           chartTimeZoneLabel={chartTimeZoneLabel}
           cancelTooltip={drawingCanvas.cancelTooltip}
@@ -1470,6 +1481,7 @@ function App() {
           width={settingsPanelWidth}
           onWidthChange={handleSettingsPanelWidthChange}
           backendConnection={backendConnection}
+          diagnostics={diagnostics}
           currentSymbol={currentSymbol}
           availableSymbols={availableSymbols}
           activePriceAlerts={priceAlertsApi.alerts}
@@ -1619,6 +1631,13 @@ function App() {
             })
           }
           onClose={() => drawingsApi.setContextMenu(null)}
+        />
+      )}
+
+      {diagnostics.notice && (
+        <SystemNotice
+          notice={diagnostics.notice}
+          onDismiss={diagnostics.dismissNotice}
         />
       )}
     </div>

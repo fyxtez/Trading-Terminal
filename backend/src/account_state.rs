@@ -5,6 +5,7 @@ use tokio::time::{Duration, sleep};
 
 use crate::{
     binance::BinanceClient,
+    diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
     models::{FuturesAccountInfo, FuturesPosition},
 };
@@ -82,6 +83,7 @@ pub fn spawn_refresh_worker(
     binance: BinanceClient,
     account_state: AccountState,
     mut refresh_rx: mpsc::Receiver<()>,
+    diagnostics: DiagnosticsState,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while refresh_rx.recv().await.is_some() {
@@ -94,12 +96,23 @@ pub fn spawn_refresh_worker(
             }
 
             match binance.account_info().await {
-                Ok(snapshot) => account_state.replace(snapshot).await,
-                Err(error) => tracing::error!(
-                    target: "api",
-                    %error,
-                    "Failed to reconcile local Binance account-state cache"
-                ),
+                Ok(snapshot) => {
+                    let previous = account_state.snapshot().await;
+                    let drifted = serde_json::to_value(&previous).ok()
+                        != serde_json::to_value(&snapshot).ok();
+                    account_state.replace(snapshot).await;
+                    diagnostics.exchange_success();
+                    diagnostics.reconciliation_success("account", drifted);
+                }
+                Err(error) => {
+                    diagnostics.exchange_failure(error.to_string());
+                    diagnostics.reconciliation_failure("account", error.to_string());
+                    tracing::error!(
+                        target: "api",
+                        %error,
+                        "Failed to reconcile local Binance account-state cache"
+                    );
+                }
             }
         }
     })

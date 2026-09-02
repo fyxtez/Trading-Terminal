@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::{ShellExt, process::CommandEvent};
 use tokio::sync::{mpsc, watch};
 
-const SIDECAR_NAME: &str = "binance-futures-axum";
+const SIDECAR_NAME: &str = "fyxtez-backend";
 const MAX_AUTOMATIC_RESTARTS: usize = 3;
 const STABLE_RUNTIME_RESET: Duration = Duration::from_secs(30);
 

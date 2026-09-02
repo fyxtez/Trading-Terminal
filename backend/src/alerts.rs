@@ -10,6 +10,7 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
+    diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
     trading_events::TradingEvent,
 };
@@ -221,10 +222,17 @@ pub fn spawn_alert_worker(
     store: AlertStore,
     ws_base: String,
     trading_events: broadcast::Sender<TradingEvent>,
+    diagnostics: DiagnosticsState,
 ) -> (AlertRuntime, tokio::task::JoinHandle<()>) {
     let (command_tx, command_rx) = mpsc::unbounded_channel();
     let runtime = AlertRuntime { command_tx };
-    let task = tokio::spawn(run_alert_worker(store, ws_base, trading_events, command_rx));
+    let task = tokio::spawn(run_alert_worker(
+        store,
+        ws_base,
+        trading_events,
+        diagnostics,
+        command_rx,
+    ));
     (runtime, task)
 }
 
@@ -232,6 +240,7 @@ async fn run_alert_worker(
     store: AlertStore,
     ws_base: String,
     trading_events: broadcast::Sender<TradingEvent>,
+    diagnostics: DiagnosticsState,
     mut command_rx: mpsc::UnboundedReceiver<AlertCommand>,
 ) {
     let mut retry = Duration::from_secs(1);
@@ -261,7 +270,15 @@ async fn run_alert_worker(
             Ok((socket, _)) => {
                 info!(%url, symbols = alerts.len(), "Connected Binance aggTrade stream for price alerts");
                 retry = Duration::from_secs(1);
-                match run_connected(&store, socket, &trading_events, &mut command_rx, alerts).await
+                match run_connected(
+                    &store,
+                    socket,
+                    &trading_events,
+                    &diagnostics,
+                    &mut command_rx,
+                    alerts,
+                )
+                .await
                 {
                     Ok(ConnectedExit::Refresh) => {
                         info!("Price-alert subscriptions changed; reconnecting market stream");
@@ -296,6 +313,7 @@ async fn run_connected(
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     trading_events: &broadcast::Sender<TradingEvent>,
+    diagnostics: &DiagnosticsState,
     command_rx: &mut mpsc::UnboundedReceiver<AlertCommand>,
     mut alerts: HashMap<String, Vec<PriceAlert>>,
 ) -> Result<ConnectedExit, String> {
@@ -360,8 +378,14 @@ async fn run_connected(
                                     // Notification delivery must not block processing the next
                                     // real-time trade event or another alert trigger.
                                     let notification_alert = alert.clone();
+                                    let notification_events = trading_events.clone();
+                                    let notification_diagnostics = diagnostics.clone();
                                     tokio::spawn(async move {
-                                        send_notifications(&notification_alert).await;
+                                        send_notifications(
+                                            &notification_alert,
+                                            &notification_events,
+                                            &notification_diagnostics,
+                                        ).await;
                                     });
                                 }
                                 Ok(false) => {}
@@ -446,14 +470,32 @@ fn load_notification_credentials() -> Result<NotificationCredentials, String> {
     })
 }
 
-async fn send_notifications(alert: &PriceAlert) {
+async fn send_notifications(
+    alert: &PriceAlert,
+    trading_events: &broadcast::Sender<TradingEvent>,
+    diagnostics: &DiagnosticsState,
+) {
     let credentials = match tokio::task::spawn_blocking(load_notification_credentials).await {
         Ok(Ok(credentials)) => credentials,
         Ok(Err(error)) => {
+            report_notification_failure(
+                diagnostics,
+                trading_events,
+                "credential-store",
+                alert,
+                &error,
+            );
             warn!(alert_id = %alert.id, %error, "Could not read notification credentials");
             return;
         }
         Err(error) => {
+            report_notification_failure(
+                diagnostics,
+                trading_events,
+                "credential-store",
+                alert,
+                "Notification credential task failed",
+            );
             warn!(alert_id = %alert.id, %error, "Notification credential task failed");
             return;
         }
@@ -476,6 +518,13 @@ async fn send_notifications(alert: &PriceAlert) {
     {
         Ok(client) => client,
         Err(error) => {
+            report_notification_failure(
+                diagnostics,
+                trading_events,
+                "notification-client",
+                alert,
+                "Could not initialize notification delivery",
+            );
             error!(%error, "Failed to build ntfy HTTP client");
             return;
         }
@@ -521,6 +570,14 @@ async fn send_notifications(alert: &PriceAlert) {
                 info!(id = %alert.id, "Telegram price-alert notification sent");
             }
             Ok(response) => {
+                let message = format!("Telegram rejected delivery ({})", response.status());
+                report_notification_failure(
+                    diagnostics,
+                    trading_events,
+                    "telegram",
+                    alert,
+                    &message,
+                );
                 warn!(
                     id = %alert.id,
                     status = %response.status(),
@@ -528,6 +585,13 @@ async fn send_notifications(alert: &PriceAlert) {
                 );
             }
             Err(_) => {
+                report_notification_failure(
+                    diagnostics,
+                    trading_events,
+                    "telegram",
+                    alert,
+                    "Telegram request failed",
+                );
                 // Do not log reqwest's URL because Telegram embeds the bot token in it.
                 warn!(id = %alert.id, "Failed to send Telegram price-alert notification");
             }
@@ -563,13 +627,38 @@ async fn send_notifications(alert: &PriceAlert) {
         }
         Ok(response) => {
             let status = response.status();
+            let message = format!("ntfy rejected delivery ({status})");
+            report_notification_failure(diagnostics, trading_events, "ntfy", alert, &message);
             warn!(id = %alert.id, %status, "ntfy rejected price-alert notification");
         }
         Err(_) => {
+            report_notification_failure(
+                diagnostics,
+                trading_events,
+                "ntfy",
+                alert,
+                "ntfy request failed",
+            );
             // The topic is part of the private URL, so never include reqwest's URL in logs.
             warn!(id = %alert.id, "Failed to send ntfy price-alert notification");
         }
     }
+}
+
+fn report_notification_failure(
+    diagnostics: &DiagnosticsState,
+    trading_events: &broadcast::Sender<TradingEvent>,
+    channel: &str,
+    alert: &PriceAlert,
+    message: &str,
+) {
+    diagnostics.notification_failure(channel, message);
+    let _ = trading_events.send(TradingEvent::NotificationFailed {
+        channel: channel.into(),
+        context: format!("{} price alert", alert.symbol),
+        message: message.into(),
+        occurred_at: chrono::Utc::now().timestamp_millis(),
+    });
 }
 
 fn row_to_alert(row: sqlx::sqlite::SqliteRow) -> AppResult<PriceAlert> {
