@@ -108,8 +108,14 @@ In particular:
 
 - If an old order is canceled but its replacement fails, the old order remains
   canceled unless a compensating order is independently accepted and verified.
-- If an entry fills but a protective order fails, the position exists without
-  the intended protection and must be surfaced for immediate operator action.
+- Auto Market submits its entry and full-position protective stop as one
+  backend workflow under `TradeLock`. A lost stop response is queried by its
+  preassigned `clientAlgoId`; if Binance cannot confirm the stop, the backend
+  sends a reduce-only market close for the entry's executed quantity and asks
+  every account/order projection to refresh. Auto Market is allowed only from
+  a flat symbol so this compensation cannot consume older exposure. A failed
+  compensation is surfaced as a critical unprotected-position error requiring
+  immediate manual verification on Binance.
 - Close-everything takes a fresh starting snapshot, but each cancellation and
   reduce-only close can succeed or fail independently. Its per-item result is
   not proof of the final account state; all positions and both regular and algo

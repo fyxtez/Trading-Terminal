@@ -25,6 +25,9 @@ export interface AutoMarketOrderRequest {
 }
 
 export type AutoMarketOrderResponse = {
+  completed: boolean;
+  rolled_back: boolean;
+  message?: string;
   symbol: string;
   side: OrderSide;
   stop_loss: number;
@@ -41,8 +44,20 @@ export type AutoMarketOrderResponse = {
   notional: number;
   estimated_loss_at_stop: number;
   client_order_id: string;
+  client_algo_id: string;
   stop_order_created: boolean;
+  stop_trigger_price: number;
+  stop_algo: BinanceAlgoOrderResponse | null;
   order: BinanceOrderResponse;
+  rollback_order?: BinanceOrderResponse;
+};
+
+export type BinanceAlgoOrderResponse = {
+  /** Kept as a string, not number - see api/safeJson.ts. */
+  algoId?: string | null;
+  clientAlgoId?: string | null;
+  algoStatus?: string | null;
+  symbol?: string | null;
 };
 
 export interface LimitOrderRequest {

@@ -30,10 +30,10 @@ use crate::{
     error::{AppError, AppResult},
     icons::IconStore,
     models::{
-        AutoSizePreview, AutoSizeQuery, ClosePositionRequest, ConditionalOrderRequest,
-        FuturesAccountInfo, IntentOrderType, LimitOrderRequest, MarginSizingConfig,
-        MarketOrderRequest, OrderSide, PositionIntent, PositionIntentRequest, SetLeverageRequest,
-        SymbolFilters,
+        AlgoOrderResponse, AutoSizePreview, AutoSizeQuery, BinanceOrderResponse,
+        ClosePositionRequest, ConditionalOrderRequest, FuturesAccountInfo, IntentOrderType,
+        LimitOrderRequest, MarginSizingConfig, MarketOrderRequest, OrderSide, PositionIntent,
+        PositionIntentRequest, SetLeverageRequest, SymbolFilters,
     },
     operation_safety::OperationSafety,
     position_risk_state::PositionRiskState,
@@ -348,6 +348,14 @@ async fn auto_market_order(
         .await?;
     refresh_exposure_prerequisites(&state, &symbol).await?;
 
+    // AUTO MARKET is an open-and-protect workflow, not an ADD workflow. A
+    // flat starting point makes the compensating reduce-only close precise:
+    // it can only remove exposure created by this request.
+    ensure_auto_market_starts_flat(&state.account_state.snapshot().await, &symbol)?;
+
+    let filters = state.binance.symbol_filters(&symbol).await?;
+    let stop_loss = round_to_tick(req.stop_loss, filters.tick_size);
+
     // AUTO MARKET previously ignored Settings -> Margin percentage and
     // forced a private 1% constant, while the UI describes this value as the
     // portfolio margin used per trade. Read the persisted setting here so
@@ -358,7 +366,7 @@ async fn auto_market_order(
         &symbol,
         req.side,
         None,
-        req.stop_loss,
+        stop_loss,
         None,
         margin_pct,
         req.allow_margin_bump,
@@ -394,48 +402,242 @@ async fn auto_market_order(
         )
         .await?;
 
-    // this endpoint previously relied ENTIRELY on the Binance
-    // user-data WebSocket's ACCOUNT_UPDATE event to ever tell
-    // `account_state` a position now exists. That event normally arrives
-    // within milliseconds - but if it's ever delayed, dropped, or fails
-    // to parse (network hiccups, a flaky connection, etc.), the very
-    // next request in this same flow - the frontend's immediate
-    // stop-market call for this auto-market order - would find
-    // `account_state` still showing no position at all and reject with
-    // "position not found", even though the fill genuinely happened on
-    // Binance. Requesting a refresh here (which the spawn_refresh_worker
-    // debounces/coalesces with any refresh ACCOUNT_UPDATE already
-    // triggered) closes that race without waiting on the websocket
-    // alone.
-    state.account_state.request_refresh();
-    // the chart's liquidation line comes from positionRisk, not the
-    // account snapshot alone. Refresh both caches as soon as AUTO MARKET
-    // fills so the frontend does not wait for a later websocket event or
-    // the slow safety poll before it can render the risk boundary.
-    state.position_risk_state.request_refresh();
+    // Entry and protection remain under one trade lock. The client ID lets us
+    // reconcile a lost POST response instead of submitting a duplicate stop.
+    let client_algo_id = new_client_order_id("fe-sl-auto");
+    let close_side = req.side.opposite();
+    let stop_result = state
+        .binance
+        .conditional_order(
+            &symbol,
+            close_side,
+            "STOP_MARKET",
+            stop_loss,
+            None,
+            true,
+            "CONTRACT_PRICE",
+            Some(&client_algo_id),
+        )
+        .await;
 
-    Ok(Json(json!({
-        "symbol": symbol,
-        "side": req.side,
-        "stop_loss": preview.stop_loss,
-        "entry_reference_price": preview.reference_price,
-        "stop_distance": preview.stop_distance,
-        "stop_distance_pct": preview.stop_distance_pct,
-        "margin_pct": margin_pct,
-        "margin_used": preview.margin_to_use,
-        "theoretical_max_leverage": preview.theoretical_max_leverage,
-        "safe_stop_leverage": preview.safe_stop_leverage,
-        "exchange_max_leverage": preview.exchange_max_leverage,
-        "maintenance_margin_ratio": preview.maintenance_margin_ratio,
-        "margin_bumped": preview.margin_bumped,
-        "applied_leverage": preview.leverage,
-        "submitted_quantity": preview.quantity,
-        "notional": preview.notional,
-        "estimated_loss_at_stop": preview.estimated_loss_at_stop,
-        "client_order_id": client_order_id,
-        "stop_order_created": false,
-        "order": order
-    })))
+    let (stop_order, stop_outcome_was_ambiguous) = match stop_result {
+        Ok(stop_order) if confirmed_algo_order(&stop_order) => (Some(stop_order), false),
+        Ok(stop_order) => {
+            tracing::warn!(
+                target: "api",
+                %symbol,
+                %client_algo_id,
+                algo_status = ?stop_order.algo_status,
+                "Automatic stop response did not confirm a usable protective order"
+            );
+            (None, false)
+        }
+        Err(error) if matches!(&error, AppError::Http(_) | AppError::Json(_)) => {
+            tracing::warn!(
+                target: "api",
+                %symbol,
+                %client_algo_id,
+                %error,
+                "Automatic stop response was ambiguous; querying Binance before compensation"
+            );
+            (reconcile_auto_stop(&state, &client_algo_id).await, true)
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "api",
+                %symbol,
+                %client_algo_id,
+                %error,
+                "Binance rejected the automatic stop; compensating the filled entry"
+            );
+            (None, false)
+        }
+    };
+
+    if let Some(stop_order) = stop_order {
+        request_trading_snapshot(&state, format!("auto market protected for {symbol}"));
+
+        return Ok(Json(json!({
+            "completed": true,
+            "rolled_back": false,
+            "symbol": symbol,
+            "side": req.side,
+            "stop_loss": stop_loss,
+            "entry_reference_price": preview.reference_price,
+            "stop_distance": preview.stop_distance,
+            "stop_distance_pct": preview.stop_distance_pct,
+            "margin_pct": margin_pct,
+            "margin_used": preview.margin_to_use,
+            "theoretical_max_leverage": preview.theoretical_max_leverage,
+            "safe_stop_leverage": preview.safe_stop_leverage,
+            "exchange_max_leverage": preview.exchange_max_leverage,
+            "maintenance_margin_ratio": preview.maintenance_margin_ratio,
+            "margin_bumped": preview.margin_bumped,
+            "applied_leverage": preview.leverage,
+            "submitted_quantity": preview.quantity,
+            "notional": preview.notional,
+            "estimated_loss_at_stop": preview.estimated_loss_at_stop,
+            "client_order_id": client_order_id,
+            "client_algo_id": client_algo_id,
+            "stop_order_created": true,
+            "stop_trigger_price": stop_loss,
+            "stop_algo": stop_order,
+            "order": order
+        })));
+    }
+
+    // If querying the ambiguous POST could not prove that no stop exists,
+    // cancel its stable client ID before closing. A lost cancel response stays
+    // explicitly uncertain; a closePosition order left behind could otherwise
+    // affect a later position in the same symbol.
+    let orphan_stop_cleanup_confirmed = if stop_outcome_was_ambiguous {
+        match state
+            .binance
+            .cancel_algo_order_by_client_id(&symbol, &client_algo_id)
+            .await
+        {
+            Ok(_) => true,
+            Err(AppError::Binance {
+                code: -2011 | -2013,
+                ..
+            }) => true,
+            Err(error) => {
+                tracing::error!(
+                    target: "api",
+                    %symbol,
+                    %client_algo_id,
+                    %error,
+                    "Could not prove cleanup of an ambiguously submitted automatic stop"
+                );
+                false
+            }
+        }
+    } else {
+        true
+    };
+
+    let rollback_quantity = executed_quantity_or(&order, preview.quantity);
+    let rollback_id = new_client_order_id("fe-auto-rollback");
+    let rollback = state
+        .binance
+        .market_order(
+            &symbol,
+            close_side,
+            rollback_quantity,
+            true,
+            Some(&rollback_id),
+        )
+        .await;
+
+    request_trading_snapshot(&state, format!("auto market compensation for {symbol}"));
+
+    match rollback {
+        Ok(rollback_order) if orphan_stop_cleanup_confirmed => Ok(Json(json!({
+            "completed": false,
+            "rolled_back": true,
+            "message": "Automatic stop-loss could not be confirmed. The entry was closed with a reduce-only market order; verify the final state on Binance before retrying.",
+            "symbol": symbol,
+            "side": req.side,
+            "stop_loss": stop_loss,
+            "entry_reference_price": preview.reference_price,
+            "stop_distance": preview.stop_distance,
+            "stop_distance_pct": preview.stop_distance_pct,
+            "margin_pct": margin_pct,
+            "margin_used": preview.margin_to_use,
+            "theoretical_max_leverage": preview.theoretical_max_leverage,
+            "safe_stop_leverage": preview.safe_stop_leverage,
+            "exchange_max_leverage": preview.exchange_max_leverage,
+            "maintenance_margin_ratio": preview.maintenance_margin_ratio,
+            "margin_bumped": preview.margin_bumped,
+            "applied_leverage": preview.leverage,
+            "submitted_quantity": preview.quantity,
+            "notional": preview.notional,
+            "estimated_loss_at_stop": preview.estimated_loss_at_stop,
+            "client_order_id": client_order_id,
+            "client_algo_id": client_algo_id,
+            "stop_order_created": false,
+            "stop_trigger_price": stop_loss,
+            "stop_algo": Value::Null,
+            "order": order,
+            "rollback_order": rollback_order
+        }))),
+        Ok(_) => Err(AppError::Invalid(format!(
+            "CRITICAL: the {symbol} entry was closed, but cleanup of an ambiguously submitted stop could not be confirmed. Verify and cancel any remaining conditional order on Binance before trading this symbol again"
+        ))),
+        Err(rollback_error) => Err(AppError::Invalid(format!(
+            "CRITICAL: the entry filled, its automatic stop could not be confirmed, and the reduce-only rollback failed ({rollback_error}). Verify and close {symbol} manually on Binance immediately"
+        ))),
+    }
+}
+
+fn ensure_auto_market_starts_flat(account: &FuturesAccountInfo, symbol: &str) -> AppResult<()> {
+    if find_nonzero_position(account, symbol).is_some() {
+        return Err(AppError::Invalid(format!(
+            "AUTO MARKET only opens a new protected position; {symbol} already has exposure. Use ADD, REDUCE, or REVERSE instead"
+        )));
+    }
+
+    Ok(())
+}
+
+fn executed_quantity_or(order: &BinanceOrderResponse, fallback: f64) -> f64 {
+    order
+        .executed_qty
+        .as_deref()
+        .and_then(|quantity| quantity.parse::<f64>().ok())
+        .filter(|quantity| quantity.is_finite() && *quantity > 0.0)
+        .unwrap_or(fallback)
+}
+
+fn confirmed_algo_order(order: &AlgoOrderResponse) -> bool {
+    let has_id = order.algo_id.is_some_and(|algo_id| algo_id > 0);
+    let rejected = order.algo_status.as_deref().is_some_and(|status| {
+        matches!(
+            status.to_ascii_uppercase().as_str(),
+            "REJECTED" | "CANCELED" | "CANCELLED" | "EXPIRED" | "FAILED" | "FAILURE"
+        )
+    });
+
+    has_id && !rejected
+}
+
+async fn reconcile_auto_stop(state: &AppState, client_algo_id: &str) -> Option<AlgoOrderResponse> {
+    const RETRY_DELAYS: [Duration; 3] = [
+        Duration::from_millis(0),
+        Duration::from_millis(150),
+        Duration::from_millis(350),
+    ];
+
+    for delay in RETRY_DELAYS {
+        if !delay.is_zero() {
+            sleep(delay).await;
+        }
+
+        match state
+            .binance
+            .query_algo_order_by_client_id(client_algo_id)
+            .await
+        {
+            Ok(order) if confirmed_algo_order(&order) => return Some(order),
+            Ok(_) => {}
+            Err(error) => tracing::warn!(
+                target: "api",
+                %client_algo_id,
+                %error,
+                "Automatic stop reconciliation attempt did not confirm the order"
+            ),
+        }
+    }
+
+    None
+}
+
+fn request_trading_snapshot(state: &AppState, reason: String) {
+    state.account_state.request_refresh();
+    state.position_risk_state.request_refresh();
+    let _ = state
+        .trading_events
+        .send(TradingEvent::SnapshotRequired { reason });
 }
 
 async fn market_order(
@@ -703,9 +905,14 @@ fn find_nonzero_position(account: &FuturesAccountInfo, symbol: &str) -> Option<f
     account
         .positions
         .iter()
-        .find(|position| position.symbol == symbol)
-        .and_then(|position| position.position_amt.parse::<f64>().ok())
-        .filter(|amount| amount.abs() > f64::EPSILON)
+        .filter(|position| position.symbol == symbol)
+        .find_map(|position| {
+            position
+                .position_amt
+                .parse::<f64>()
+                .ok()
+                .filter(|amount| amount.abs() > f64::EPSILON)
+        })
 }
 
 fn close_side_for_position(position_amount: f64) -> OrderSide {
@@ -2458,10 +2665,14 @@ mod financial_invariant_tests {
 
     use super::{
         close_everything_result, close_side_for_position, configured_margin_quantity,
+        confirmed_algo_order, ensure_auto_market_starts_flat, executed_quantity_or,
         find_nonzero_position, liquidation_price_for_position, unfilled_order_quantity,
         validate_auto_stop_liquidation_room, validate_stop_trigger,
     };
-    use crate::models::{FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters};
+    use crate::models::{
+        AlgoOrderResponse, BinanceOrderResponse, FuturesAccountInfo, FuturesPosition, OrderSide,
+        SymbolFilters,
+    };
 
     fn account_with_positions(positions: Vec<FuturesPosition>) -> FuturesAccountInfo {
         FuturesAccountInfo {
@@ -2555,11 +2766,65 @@ mod financial_invariant_tests {
             position("BTCUSDT", "0"),
             position("ETHUSDT", "invalid"),
             position("SOLUSDT", "-2.5"),
+            position("XRPUSDT", "0"),
+            position("XRPUSDT", "125"),
         ]);
 
         assert_eq!(find_nonzero_position(&account, "BTCUSDT"), None);
         assert_eq!(find_nonzero_position(&account, "ETHUSDT"), None);
         assert_eq!(find_nonzero_position(&account, "SOLUSDT"), Some(-2.5));
+        assert_eq!(find_nonzero_position(&account, "XRPUSDT"), Some(125.0));
+    }
+
+    #[test]
+    fn auto_market_compensation_requires_a_flat_starting_symbol() {
+        let flat = account_with_positions(vec![position("BTCUSDT", "0")]);
+        assert!(ensure_auto_market_starts_flat(&flat, "BTCUSDT").is_ok());
+
+        let exposed = account_with_positions(vec![position("BTCUSDT", "0.025")]);
+        let error = ensure_auto_market_starts_flat(&exposed, "BTCUSDT")
+            .expect_err("existing exposure must use an explicit position intent");
+        assert!(error.to_string().contains("already has exposure"));
+    }
+
+    #[test]
+    fn auto_market_rollback_uses_the_executed_fill_quantity() {
+        let order = BinanceOrderResponse {
+            order_id: Some(1),
+            symbol: Some("BTCUSDT".into()),
+            status: Some("FILLED".into()),
+            client_order_id: Some("entry".into()),
+            price: Some("0".into()),
+            avg_price: Some("100".into()),
+            orig_qty: Some("0.25".into()),
+            executed_qty: Some("0.20".into()),
+            extra: json!({}),
+        };
+
+        assert_eq!(executed_quantity_or(&order, 0.25), 0.20);
+
+        let missing_fill = BinanceOrderResponse {
+            executed_qty: Some("0".into()),
+            ..order
+        };
+        assert_eq!(executed_quantity_or(&missing_fill, 0.25), 0.25);
+    }
+
+    #[test]
+    fn ambiguous_stop_reconciliation_accepts_only_a_usable_algo_order() {
+        let order = |id, status: &str| AlgoOrderResponse {
+            algo_id: id,
+            client_algo_id: Some("stop-intent".into()),
+            algo_status: Some(status.into()),
+            symbol: Some("BTCUSDT".into()),
+            extra: json!({}),
+        };
+
+        assert!(confirmed_algo_order(&order(Some(42), "NEW")));
+        assert!(confirmed_algo_order(&order(Some(42), "WORKING")));
+        assert!(!confirmed_algo_order(&order(None, "NEW")));
+        assert!(!confirmed_algo_order(&order(Some(42), "REJECTED")));
+        assert!(!confirmed_algo_order(&order(Some(42), "CANCELED")));
     }
 
     #[test]

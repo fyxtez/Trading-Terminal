@@ -4,7 +4,6 @@ import { getAvailableBalance } from "../trading/api/account";
 import { estimatePendingLimitLiquidation } from "../trading/estimatedLiquidation";
 import {
   placeAutoMarketOrder,
-  placeFullStopLoss,
   placeLimitOrder,
   placeMarketOrder,
   getOpenOrders,
@@ -613,61 +612,35 @@ export function useTradeMenu(
         stopLoss,
       });
 
+      const stopSide: TradeSide = autoMarketDraft.side === "BUY" ? "SELL" : "BUY";
+
+      // The backend owns the complete entry + protective-stop workflow. A
+      // completed=false response means the stop failed but the entry was
+      // successfully compensated with a reduce-only market close.
+      if (!result.completed || result.rolled_back || !result.stop_order_created) {
+        setAutoMarketDraft(null);
+        dispatchTradingStateChanged();
+        throw new Error(
+          result.message ?? "Auto Market entry was rolled back because its stop failed",
+        );
+      }
+
       emitMarketMarker(autoMarketDraft.side, result.order, result.entry_reference_price);
 
-      // The stop selected in the pre-trade overlay is not merely a sizing
-      // input: once the market entry fills, immediately create the real
-      // closePosition STOP_MARKET order and save it so the live position
-      // bracket recognises that protection already exists.
-      const stopSide: TradeSide = autoMarketDraft.side === "BUY" ? "SELL" : "BUY";
-      // The backend's stop endpoint already refreshes account state when its
-      // cache has not observed the fill yet. Retrying every rejection here
-      // hid permanent validation errors behind twelve identical requests and
-      // inflated the diagnostics counter without making protection likelier.
-      let stopResponse: Awaited<ReturnType<typeof placeFullStopLoss>>;
-      try {
-        stopResponse = await placeFullStopLoss({
-          symbol,
-          side: stopSide,
-          triggerPrice: stopLoss,
-        });
-      } catch (error) {
+      const algoId = result.stop_algo?.algoId;
+      if (typeof algoId !== "string" || !/^\d+$/.test(algoId) || algoId === "0") {
         setAutoMarketDraft(null);
         dispatchTradingStateChanged();
         throw new Error(
-          `POSITION OPENED, but automatic stop-loss placement failed: ${
-            error instanceof Error ? error.message : "unknown stop-loss error"
-          }`,
+          "Position and stop were submitted, but Binance did not return a valid stop order ID. Refresh and verify the order on Binance.",
         );
       }
 
-      // this used to be `Number(stopResponse?.algo?.algoId)` -
-      // converting the (now correctly string-typed) algoId through JS's
-      // Number() would silently reintroduce the exact precision loss
-      // safeJson.ts's parseOrderJsonText exists to prevent. Validate it's
-      // a well-formed positive integer string instead of ever actually
-      // converting it to a number for storage.
-      const algoId = stopResponse?.algo?.algoId;
-      if (!stopResponse || typeof algoId !== "string" || !/^\d+$/.test(algoId) || algoId === "0") {
-        setAutoMarketDraft(null);
-        dispatchTradingStateChanged();
-        throw new Error(
-          "POSITION OPENED, but Binance did not return a valid automatic stop-loss order",
-        );
-      }
-
-      // this used to be `saveStop({ symbol: ..., ... })` with no
-      // second argument. It happened to still work here (the stop
-      // object is truthy, and stopLoss.ts's implementation keys off
-      // `stop.symbol` in that branch, not the missing param) - but
-      // `symbol` is now a required parameter on saveStop, so every call
-      // site passes it explicitly rather than depending on that
-      // implementation detail to quietly paper over a missing argument.
       saveStop(
         {
           symbol: symbol.toUpperCase(),
           side: stopSide,
-          triggerPrice: stopResponse.trigger_price,
+          triggerPrice: result.stop_trigger_price,
           algoId,
         },
         symbol,

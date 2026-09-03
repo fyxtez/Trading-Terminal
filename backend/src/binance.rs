@@ -702,6 +702,22 @@ impl BinanceClient {
             .await
     }
 
+    /// Resolve an ambiguous conditional-order submission by the stable client
+    /// identifier that was chosen before the POST was sent. A transport error
+    /// does not prove that Binance rejected the order, so callers must query
+    /// before compensating or retrying the mutation.
+    pub async fn query_algo_order_by_client_id(
+        &self,
+        client_algo_id: &str,
+    ) -> AppResult<AlgoOrderResponse> {
+        self.signed(
+            Method::GET,
+            "/fapi/v1/algoOrder",
+            vec![("clientAlgoId".into(), validate_id(client_algo_id)?)],
+        )
+        .await
+    }
+
     pub async fn cancel_algo_order(&self, symbol: &str, algo_id: i64) -> AppResult<Value> {
         if algo_id <= 0 {
             return Err(AppError::Invalid("algo_id must be > 0".into()));
@@ -713,6 +729,22 @@ impl BinanceClient {
             vec![
                 ("symbol".into(), normalize_symbol(symbol)?),
                 ("algoId".into(), algo_id.to_string()),
+            ],
+        )
+        .await
+    }
+
+    pub async fn cancel_algo_order_by_client_id(
+        &self,
+        symbol: &str,
+        client_algo_id: &str,
+    ) -> AppResult<Value> {
+        self.signed(
+            Method::DELETE,
+            "/fapi/v1/algoOrder",
+            vec![
+                ("symbol".into(), normalize_symbol(symbol)?),
+                ("clientAlgoId".into(), validate_id(client_algo_id)?),
             ],
         )
         .await
