@@ -84,6 +84,6 @@
   color: var(--text);
 }
 .trade-menu-close:disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.45;
 }

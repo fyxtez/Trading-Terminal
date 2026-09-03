@@ -340,13 +340,9 @@
   box-shadow: inset 3px 0 0 var(--amber);
 }
 
-/*
- * Applied whenever the backend is disconnected (or the sizing hasn't
- * loaded yet). Distinct from :hover/:active - this state should never
- * look "clickable", since clicking it does nothing while it's up.
- */
+/* Backend-disconnected fields keep their shape but remain visibly inactive. */
 .settings-field.disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.55;
 }
 
@@ -411,7 +407,7 @@
 
 .settings-field-value input:disabled {
   opacity: 0.6;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .percent-field input {
@@ -699,7 +695,7 @@
 
 .settings-time-marker-input:disabled {
   color: var(--text-faint);
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.55;
 }
 

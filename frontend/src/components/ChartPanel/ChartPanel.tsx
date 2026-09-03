@@ -234,7 +234,6 @@ type ChartPanelProps = {
   showDrawingSetBadge: boolean;
   activeDrawingSetName: string;
   isDrawingSetUnsaved: boolean;
-  canSaveDrawingSet: boolean;
   onSaveDrawingSet: (name: string) => boolean;
   isToolbarCollapsed: boolean;
   onShowToolbar: () => void;
@@ -330,7 +329,6 @@ export default function ChartPanel({
   showDrawingSetBadge,
   activeDrawingSetName,
   isDrawingSetUnsaved,
-  canSaveDrawingSet,
   onSaveDrawingSet,
   isToolbarCollapsed,
   onShowToolbar,
@@ -857,7 +855,6 @@ export default function ChartPanel({
             activeDrawingSetName={activeDrawingSetName}
             showDrawingSetBadge={showDrawingSetBadge}
             isDrawingSetUnsaved={isDrawingSetUnsaved}
-            canSaveDrawingSet={canSaveDrawingSet}
             onSaveDrawingSet={onSaveDrawingSet}
           />
         </div>

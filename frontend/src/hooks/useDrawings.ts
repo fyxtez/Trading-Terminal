@@ -405,7 +405,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
       (drawing) => !(drawing.type === "horizontal" && drawing.orderSide),
     );
 
-    if (!trimmedName || current.length === 0) return false;
+    if (!trimmedName) return false;
 
     const now = Date.now();
     const existing = drawingSets.find(

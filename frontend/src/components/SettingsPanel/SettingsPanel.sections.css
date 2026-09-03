@@ -158,7 +158,7 @@
 .drawing-set-primary-button:disabled,
 .drawing-set-new-button:disabled,
 .drawing-set-actions button:disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.45;
 }
 

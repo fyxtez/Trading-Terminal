@@ -7,7 +7,6 @@ type ChartContextBadgesProps = {
   activeDrawingSetName: string;
   showDrawingSetBadge: boolean;
   isDrawingSetUnsaved: boolean;
-  canSaveDrawingSet: boolean;
   onSaveDrawingSet: (name: string) => boolean;
 };
 
@@ -16,7 +15,6 @@ export default function ChartContextBadges({
   activeDrawingSetName,
   showDrawingSetBadge,
   isDrawingSetUnsaved,
-  canSaveDrawingSet,
   onSaveDrawingSet,
 }: ChartContextBadgesProps) {
   const [dayRefreshTick, setDayRefreshTick] = useState(0);
@@ -68,10 +66,6 @@ export default function ChartContextBadges({
     const trimmedName = drawingSetName.trim();
     if (!trimmedName) {
       setDrawingSetSaveError("Enter a name.");
-      return;
-    }
-    if (!canSaveDrawingSet) {
-      setDrawingSetSaveError("Add at least one drawing first.");
       return;
     }
     if (!onSaveDrawingSet(trimmedName)) {
@@ -134,13 +128,10 @@ export default function ChartContextBadges({
                   setDrawingSetSaveError(null);
                 }}
               />
-              <button type="submit" disabled={!drawingSetName.trim() || !canSaveDrawingSet}>
+              <button type="submit" disabled={!drawingSetName.trim()}>
                 Save
               </button>
               {drawingSetSaveError && <span>{drawingSetSaveError}</span>}
-              {!canSaveDrawingSet && !drawingSetSaveError && (
-                <span>Add at least one drawing first.</span>
-              )}
             </form>
           )}
         </div>

@@ -490,7 +490,7 @@ export default function SettingsPanel({
     }
 
     if (!onSaveCurrentDrawingSet(drawingSetName)) {
-      setDrawingSetMessage("There are no drawings to save.");
+      setDrawingSetMessage("Unable to save this drawing set.");
       return;
     }
 
@@ -1113,7 +1113,7 @@ export default function SettingsPanel({
                       <button
                         type="button"
                         className="drawing-set-primary-button"
-                        disabled={regularDrawingsCount === 0 || !drawingSetName.trim()}
+                        disabled={!drawingSetName.trim()}
                         onClick={handleSaveDrawingSet}
                       >
                         SAVE

@@ -780,7 +780,7 @@
 }
 
 .trade-step-back:disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.5;
 }
 

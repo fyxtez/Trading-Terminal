@@ -1086,7 +1086,6 @@ function App() {
                 ?.name ?? "New / unsaved"
             }
             isDrawingSetUnsaved={drawingsApi.activeDrawingSetId === null}
-            canSaveDrawingSet={drawingsApi.regularDrawingsCount > 0}
             onSaveDrawingSet={drawingsApi.saveCurrentDrawingSet}
             isToolbarCollapsed={isToolbarCollapsed}
             onShowToolbar={() => setIsToolbarCollapsed(false)}
