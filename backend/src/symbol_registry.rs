@@ -63,6 +63,7 @@ impl SymbolRegistry {
             .user_agent("fyxtez-backend/0.1")
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::limited(3))
             .build()?;
 
         let symbols = match fs::read(&path).await {

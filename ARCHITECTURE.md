@@ -129,6 +129,8 @@ The backend is a Tokio application exposed through Axum.
 - `trading_events.rs` broadcasts account/trade changes to connected clients.
 - `diagnostics.rs` maintains redacted, process-lifetime health timestamps and
   counters exposed through the authenticated diagnostics endpoint.
+- `operation_safety.rs` persists financial request intents, replayable results
+  and redacted audit correlation in SQLite.
 - `alerts.rs` stores and evaluates persistent price alerts.
 - `symbol_registry.rs` owns registered symbols and their market-data source.
   The single-user local registry has no arbitrary symbol-count ceiling; icon
@@ -166,14 +168,17 @@ HTTP trading workflows and are aborted during graceful shutdown.
 ### Order execution
 
 1. The user creates an intent in the frontend.
-2. The frontend sends an authenticated REST request.
-3. The backend resolves the registered execution symbol and validates the input.
-4. Account-mutating flows acquire `TradeLock`; exposure-increasing flows also
-   enforce isolated margin.
-5. The backend applies exchange filters/sizing and signs the Binance request.
-6. Binance user-data events provide low-latency updates and trigger REST snapshot
+2. The frontend sends an authenticated REST request with a durable UUID. It
+   coalesces concurrent identical actions and retains the UUID across a retry.
+3. Axum atomically starts or replays the matching intent from
+   `operations.sqlite3`; conflicting or uncertain reuse fails closed.
+4. The backend resolves the registered execution symbol and validates the input.
+5. Account-mutating flows acquire `TradeLock`. Exposure-increasing flows refresh
+   Binance prerequisites and require isolated margin.
+6. The backend applies exchange filters/sizing and signs the Binance request.
+7. Binance user-data events provide low-latency updates and trigger REST snapshot
    refreshes in the backend and frontend.
-7. Fresh Binance REST state replaces backend caches and frontend optimistic
+8. Fresh Binance REST state replaces backend caches and frontend optimistic
    projections after success, failure, reconnect, stream lag, or uncertainty.
 
 Close and reduction paths use `reduceOnly` where appropriate. These invariants
@@ -216,6 +221,7 @@ a manual retry; uncaught render failures enter the global fail-closed boundary.
 | Sizing policy | `backend/data/sizing.json` | Backend |
 | Symbol registry | `backend/data/symbols.json` | Backend |
 | Persistent alerts | `backend/data/alerts.sqlite3` | Backend |
+| Financial intents and redacted audit metadata | `backend/data/operations.sqlite3` | Backend |
 | Icon cache | `backend/data/icons/` | Backend |
 | UI settings/drawings/tabs | Browser `localStorage` | Frontend |
 | Binance/ntfy/Telegram secrets | OS credential manager | Native Rust |
@@ -224,6 +230,11 @@ The table shows standalone development defaults. In installed desktop builds,
 backend-owned JSON, SQLite, and icon data live under the operating system's
 application-data directory resolved by Tauri. Runtime data and secrets are
 ignored by Git.
+
+The supported closed-app backup and restore procedure is documented in
+[`docs/LOCAL-DATA-BACKUP.md`](docs/LOCAL-DATA-BACKUP.md). Outbound provider,
+timeout, redirect and failure boundaries are listed in
+[`docs/OUTBOUND-CONNECTIONS.md`](docs/OUTBOUND-CONNECTIONS.md).
 
 ## Authentication and trust boundaries
 
@@ -266,6 +277,12 @@ multi-user authentication design.
   retry is required.
 - Exposure-increasing symbol setup enforces isolated margin.
 - Multi-step trade workflows are serialized.
+- Financial mutations require persistent intent IDs; identical completed
+  requests replay their recorded result, while uncertain outcomes fail closed.
+- New exposure requires fresh exchange prerequisites, a registered Binance
+  execution symbol, isolated margin and valid exchange filters.
+- Native credential and notification inputs, Axum request bodies and request
+  duration are explicitly bounded.
 - The server responds to SIGINT/SIGTERM and stops background tasks.
 
 These controls reduce risk but do not replace tests, authentication, monitoring,

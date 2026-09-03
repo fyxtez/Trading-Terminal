@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::HeaderValue,
+    http::{HeaderValue, StatusCode},
     middleware,
     routing::{get, post, put},
 };
@@ -17,6 +17,8 @@ use tokio::{
 };
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
+    limit::RequestBodyLimitLayer,
+    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 
@@ -33,6 +35,7 @@ use crate::{
         MarketOrderRequest, OrderSide, PositionIntent, PositionIntentRequest, SetLeverageRequest,
         SymbolFilters,
     },
+    operation_safety::OperationSafety,
     position_risk_state::PositionRiskState,
     sizing_store::SizingStore,
     symbol_registry::SymbolRegistry,
@@ -45,6 +48,9 @@ mod alert_routes;
 mod catalog_routes;
 mod order_routes;
 mod system_routes;
+
+const MAX_REQUEST_BODY_BYTES: usize = 64 * 1024;
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 
 use account_routes::{account, balance, position_realized_pnl};
 use alert_routes::{create_alert, delete_alert, list_alerts, update_alert};
@@ -73,6 +79,7 @@ pub struct AppState {
     pub icon_store: IconStore,
     pub websocket_tickets: Arc<Mutex<HashMap<String, tokio::time::Instant>>>,
     pub diagnostics: DiagnosticsState,
+    pub operation_safety: OperationSafety,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -157,6 +164,17 @@ pub fn router(state: AppState) -> Router {
                 .allow_headers(Any)
                 .allow_methods(Any),
         )
+        // Trading requests are small JSON documents. Keep this explicit rather
+        // than relying on Axum's extractor default so future non-JSON routes
+        // cannot accidentally accept unbounded loopback input.
+        .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES))
+        // Binance calls have their own shorter client timeouts. This outer
+        // deadline bounds multi-step handlers and guarantees a wedged workflow
+        // cannot occupy the single-user backend indefinitely.
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
@@ -210,6 +228,13 @@ async fn set_leverage(
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
     let _guard = state.trade_lock.lock().await;
+    let configured_max = state.sizing.read().await.max_leverage;
+    if req.leverage == 0 || req.leverage > configured_max {
+        return Err(AppError::Invalid(format!(
+            "leverage {} exceeds the configured maximum {configured_max}",
+            req.leverage
+        )));
+    }
     let response = state.binance.set_leverage(&symbol, req.leverage).await?;
 
     state.position_risk_state.request_refresh();
@@ -225,6 +250,7 @@ async fn update_sizing(
     State(state): State<AppState>,
     Json(req): Json<MarginSizingConfig>,
 ) -> AppResult<Json<MarginSizingConfig>> {
+    let _guard = state.trade_lock.lock().await;
     let validated = MarginSizingConfig::new(req.margin_pct, req.leverage_safety, req.max_leverage)
         .map_err(AppError::Invalid)?;
 
@@ -263,6 +289,46 @@ struct AutoMarketOrderRequest {
     allow_margin_bump: bool,
 }
 
+async fn refresh_exposure_prerequisites(state: &AppState, symbol: &str) -> AppResult<()> {
+    if !state.binance.is_configured() {
+        return Err(AppError::Invalid(
+            "Binance is not connected; exposure increases are disabled".into(),
+        ));
+    }
+
+    state.binance.ensure_reference_data_fresh().await?;
+    let (account, position_risk, current_price) = tokio::try_join!(
+        state.binance.account_info(),
+        state.binance.position_risk(),
+        state.binance.price(symbol),
+    )?;
+    let available_balance = account
+        .available_balance
+        .parse::<f64>()
+        .map_err(|_| AppError::Invalid("invalid available balance from Binance".into()))?;
+    if !available_balance.is_finite() || available_balance < 0.0 {
+        return Err(AppError::Invalid(
+            "fresh Binance account state is invalid; exposure increase blocked".into(),
+        ));
+    }
+    if !current_price.is_finite() || current_price <= 0.0 {
+        return Err(AppError::Invalid(
+            "fresh Binance market price is unavailable; exposure increase blocked".into(),
+        ));
+    }
+
+    let account_drifted = serde_json::to_value(state.account_state.snapshot().await).ok()
+        != serde_json::to_value(&account).ok();
+    let risk_drifted = state.position_risk_state.snapshot().await != position_risk;
+    state.account_state.replace(account).await;
+    state.position_risk_state.replace(position_risk).await;
+    state.diagnostics.exchange_success();
+    state
+        .diagnostics
+        .reconciliation_success("pre-trade", account_drifted || risk_drifted);
+    Ok(())
+}
+
 async fn auto_market_order(
     State(state): State<AppState>,
     payload: Result<Json<AutoMarketOrderRequest>, axum::extract::rejection::JsonRejection>,
@@ -273,15 +339,14 @@ async fn auto_market_order(
 
     let symbol = normalize_symbol(&req.symbol)?;
 
-    // Unlike market_order/limit_order above, this endpoint has no
-    // reduce_only concept at all - it's dedicated entirely to opening a
-    // new auto-sized entry, so the check is unconditional here.
+    let _guard = state.trade_lock.lock().await;
+    // This endpoint is dedicated to opening exposure, so keep the registered
+    // execution-symbol check inside the same lock as the final risk checks.
     state
         .symbol_registry
         .ensure_binance_trading_symbol(&symbol)
         .await?;
-
-    let _guard = state.trade_lock.lock().await;
+    refresh_exposure_prerequisites(&state, &symbol).await?;
 
     // AUTO MARKET previously ignored Settings -> Margin percentage and
     // forced a private 1% constant, while the UI describes this value as the
@@ -383,17 +448,17 @@ async fn market_order(
 
     let symbol = normalize_symbol(&req.symbol)?;
 
-    // Only an entry (not reduce_only) can create NEW exposure to a
-    // symbol - see ensure_supported_symbol's own doc comment for why a
-    // reduce/close order must never be blocked here.
+    let _guard = state.trade_lock.lock().await;
+
     if !req.reduce_only {
+        // Only an entry can create new exposure. Check the registered symbol
+        // under the trade lock so a concurrent catalog edit cannot race it.
         state
             .symbol_registry
             .ensure_binance_trading_symbol(&symbol)
             .await?;
+        refresh_exposure_prerequisites(&state, &symbol).await?;
     }
-
-    let _guard = state.trade_lock.lock().await;
 
     let (quantity, leverage_to_set, preview) = resolve_quantity(
         &state,
@@ -504,15 +569,15 @@ async fn limit_order(
 
     let symbol = normalize_symbol(&req.symbol)?;
 
-    // Same reasoning as market_order above - only gate the entry path.
+    let _guard = state.trade_lock.lock().await;
+
     if !req.reduce_only {
         state
             .symbol_registry
             .ensure_binance_trading_symbol(&symbol)
             .await?;
+        refresh_exposure_prerequisites(&state, &symbol).await?;
     }
-
-    let _guard = state.trade_lock.lock().await;
 
     let filters = state.binance.symbol_filters(&symbol).await?;
     let price = round_to_tick(req.price, filters.tick_size);
@@ -1429,6 +1494,9 @@ async fn position_intent(
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&req.symbol)?;
     let _guard = state.trade_lock.lock().await;
+    if matches!(req.intent, PositionIntent::Add) {
+        refresh_exposure_prerequisites(&state, &symbol).await?;
+    }
     let filters = state.binance.symbol_filters(&symbol).await?;
 
     // same live-fallback pattern as stop_market/close_position - a
@@ -1725,6 +1793,11 @@ async fn position_intent(
                 .ensure_binance_trading_symbol(&symbol)
                 .await?;
 
+            // Re-read account, position-risk, filters and price after the close
+            // leg. If that authoritative refresh fails, the position stays flat
+            // and the exposure-increasing half of REVERSE is aborted.
+            refresh_exposure_prerequisites(&state, &symbol).await?;
+
             // a REVERSE closes first, then creates fresh exposure in the
             // opposite direction. Enforce ISOLATED after the account becomes
             // flat and before that new leg is submitted.
@@ -1760,6 +1833,11 @@ async fn chase_limit_order(
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
     let _guard = state.trade_lock.lock().await;
+    state
+        .symbol_registry
+        .ensure_binance_trading_symbol(&symbol)
+        .await?;
+    refresh_exposure_prerequisites(&state, &symbol).await?;
 
     let (open_orders, filters) = tokio::try_join!(
         state.binance.open_orders(&symbol),

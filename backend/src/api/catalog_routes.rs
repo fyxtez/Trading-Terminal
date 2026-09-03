@@ -22,6 +22,9 @@ pub(super) async fn add_symbol(
     State(state): State<AppState>,
     Json(request): Json<AddSymbolRequest>,
 ) -> AppResult<(axum::http::StatusCode, Json<Value>)> {
+    // Registry membership is part of the backend allow-list for new exposure.
+    // Serialize its mutation with trading, then release before cosmetic icon IO.
+    let registry_guard = state.trade_lock.lock().await;
     let (symbol, created) = state.symbol_registry.add(&request.symbol).await?;
 
     if symbol.data_source == MarketDataSource::Binance {
@@ -41,6 +44,7 @@ pub(super) async fn add_symbol(
             return Err(error);
         }
     }
+    drop(registry_guard);
 
     // Icon resolution is best-effort and never limits the local symbol registry.
     // Select the venue/asset-specific resolver. MEXC crypto uses
@@ -101,6 +105,7 @@ pub(super) async fn delete_symbol(
     // see the module doc-comment on `icons.rs` for why (cheap re-adds,
     // and a symbol that briefly disappears from the list shouldn't lose
     // its artwork).
+    let _guard = state.trade_lock.lock().await;
     let removed = state.symbol_registry.delete(&symbol).await?;
     Ok(Json(json!({
         "deleted": true,
@@ -192,7 +197,12 @@ pub(super) async fn mexc_klines(
         ));
     }
 
-    let mut request = reqwest::Client::new()
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()?;
+    let mut request = client
         .get(format!(
             "https://api.mexc.com/api/v1/contract/kline/{symbol}"
         ))

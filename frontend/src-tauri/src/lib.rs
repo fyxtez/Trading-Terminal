@@ -9,6 +9,8 @@ use zeroize::Zeroizing;
 const SERVICE: &str = "com.fyxtez.terminal";
 const BINANCE_NETWORK: &str = "binance-network";
 const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
+const MAX_URL_LENGTH: usize = 2_048;
+const MAX_CREDENTIAL_LENGTH: usize = 256;
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,11 +65,61 @@ fn store(name: &str, value: &str) -> Result<(), String> {
 }
 
 fn validate_http_url(name: &str, value: &str) -> Result<(), String> {
+    if value.len() > MAX_URL_LENGTH {
+        return Err(format!("{name} is too long"));
+    }
     let parsed = reqwest::Url::parse(value).map_err(|_| format!("{name} must be a valid URL"))?;
-    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
         return Err(format!("{name} must use http or https and include a host"));
     }
     Ok(())
+}
+
+fn validate_secret(name: &str, value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.len() < 16
+        || value.len() > MAX_CREDENTIAL_LENGTH
+        || value.chars().any(char::is_whitespace)
+    {
+        return Err(format!(
+            "{name} must contain 16 to {MAX_CREDENTIAL_LENGTH} non-whitespace characters"
+        ));
+    }
+    Ok(value.to_owned())
+}
+
+fn validate_telegram_token(value: &str) -> Result<String, String> {
+    let value = validate_secret("Telegram bot token", value)?;
+    let (bot_id, secret) = value
+        .split_once(':')
+        .ok_or_else(|| "Telegram bot token has an invalid format".to_string())?;
+    if bot_id.is_empty()
+        || !bot_id.bytes().all(|byte| byte.is_ascii_digit())
+        || secret.is_empty()
+        || !secret
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err("Telegram bot token has an invalid format".into());
+    }
+    Ok(value)
+}
+
+fn validate_telegram_chat_id(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    if value.is_empty()
+        || value.len() > 32
+        || digits.is_empty()
+        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err("Telegram chat ID must be a numeric ID".into());
+    }
+    Ok(value.to_owned())
 }
 
 fn normalize_ntfy_destination(value: &str) -> Result<String, String> {
@@ -127,6 +179,23 @@ async fn save_credentials(
         .filter(|value| !value.is_empty())
         .map(normalize_ntfy_destination)
         .transpose()?;
+    let normalized_telegram_token = input
+        .telegram_bot_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(validate_telegram_token)
+        .transpose()?;
+    let normalized_telegram_chat_id = input
+        .telegram_chat_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(validate_telegram_chat_id)
+        .transpose()?;
+    if normalized_telegram_token.is_some() != normalized_telegram_chat_id.is_some() {
+        return Err("Telegram token and chat ID must both be provided".into());
+    }
 
     match (input.binance_api_key, input.binance_api_secret) {
         (Some(api_key), Some(api_secret)) => {
@@ -142,11 +211,8 @@ async fn save_credentials(
             if network == "mainnet" && input.confirm_mainnet != Some(true) {
                 return Err("Confirm that Binance Mainnet uses real funds".into());
             }
-            let api_key = Zeroizing::new(api_key.trim().to_owned());
-            let api_secret = Zeroizing::new(api_secret.trim().to_owned());
-            if api_key.is_empty() || api_secret.is_empty() {
-                return Err("Enter both the Binance API key and secret".into());
-            }
+            let api_key = Zeroizing::new(validate_secret("Binance API key", &api_key)?);
+            let api_secret = Zeroizing::new(validate_secret("Binance API secret", &api_secret)?);
             store("binance-api-key", &api_key)?;
             store("binance-api-secret", &api_secret)?;
             store(BINANCE_NETWORK, network)?;
@@ -157,11 +223,11 @@ async fn save_credentials(
     if input.ntfy_url.is_some() {
         store_optional("ntfy-url", normalized_ntfy_url.as_deref())?;
     }
-    if let Some(value) = input.telegram_bot_token.as_deref() {
-        store_optional("telegram-bot-token", Some(value))?;
+    if input.telegram_bot_token.is_some() {
+        store_optional("telegram-bot-token", normalized_telegram_token.as_deref())?;
     }
-    if let Some(value) = input.telegram_chat_id.as_deref() {
-        store_optional("telegram-chat-id", Some(value))?;
+    if input.telegram_chat_id.is_some() {
+        store_optional("telegram-chat-id", normalized_telegram_chat_id.as_deref())?;
     }
     supervisor.restart().await?;
     Ok(credential_status())
@@ -212,16 +278,13 @@ async fn restart_backend(
 #[tauri::command]
 async fn send_notification(input: NotificationInput) -> Result<(), String> {
     if input.title.trim().is_empty()
-        || input.title.len() > 160
+        || input.title.chars().count() > 160
         || input.body.trim().is_empty()
-        || input.body.len() > 8_000
-        || !matches!(
-            input.click_url.split_once("://").map(|(scheme, _)| scheme),
-            Some("http" | "https")
-        )
+        || input.body.chars().count() > 8_000
     {
         return Err("invalid notification content".into());
     }
+    validate_http_url("notification click URL", input.click_url.trim())?;
 
     let ntfy_url = read_secret("ntfy-url")?;
     let telegram = match (
@@ -240,6 +303,7 @@ async fn send_notification(input: NotificationInput) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(12))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| "Could not initialize notification delivery".to_string())?;
 
@@ -336,7 +400,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_ntfy_destination, validate_http_url};
+    use super::{
+        normalize_ntfy_destination, validate_http_url, validate_secret, validate_telegram_chat_id,
+        validate_telegram_token,
+    };
 
     #[test]
     fn expands_an_ntfy_topic_to_the_public_publish_url() {
@@ -373,5 +440,32 @@ mod tests {
     #[test]
     fn rejects_notification_url_without_host() {
         assert!(validate_http_url("ntfy URL", "https://").is_err());
+    }
+
+    #[test]
+    fn rejects_urls_with_embedded_credentials_or_excessive_length() {
+        assert!(validate_http_url("ntfy URL", "https://user:secret@example.test/topic").is_err());
+        assert!(
+            validate_http_url(
+                "ntfy URL",
+                &format!("https://example.test/{}", "a".repeat(2_100))
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn validates_binance_secret_shape_without_exposing_its_value() {
+        assert!(validate_secret("Binance API key", "a-valid-secret-value").is_ok());
+        assert!(validate_secret("Binance API key", "short").is_err());
+        assert!(validate_secret("Binance API key", "contains whitespace").is_err());
+    }
+
+    #[test]
+    fn validates_telegram_connection_as_a_pair_of_strict_values() {
+        assert!(validate_telegram_token("123456789:abc_DEF-1234567890").is_ok());
+        assert!(validate_telegram_token("not-a-bot-token").is_err());
+        assert!(validate_telegram_chat_id("-1001234567890").is_ok());
+        assert!(validate_telegram_chat_id("@public-channel").is_err());
     }
 }

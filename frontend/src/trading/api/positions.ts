@@ -9,6 +9,11 @@ import {
 import type { BinanceOrderResponse, TradeOrderType } from "../types";
 import { parseOrderJsonText } from "./safeJson";
 import { canUseTradingAccount } from "../../desktop/credentials";
+import {
+  financialMutationFingerprint,
+  financialMutationHeaders,
+  runFinancialMutation,
+} from "./financialMutation";
 
 export type PositionSide = "LONG" | "SHORT";
 
@@ -79,7 +84,7 @@ export type PositionIntentResponse = {
   open_order?: BinanceOrderResponse;
 };
 
-function getHeaders(): HeadersInit {
+function getHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
@@ -88,6 +93,13 @@ function getHeaders(): HeadersInit {
     headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
   }
   return headers;
+}
+
+function getMutationHeaders(intentId: string): Record<string, string> {
+  return {
+    ...getHeaders(),
+    ...financialMutationHeaders(intentId, true),
+  };
 }
 
 async function readError(response: Response): Promise<string> {
@@ -313,23 +325,28 @@ export async function executePositionIntent(
   signal?: AbortSignal,
 ): Promise<PositionIntentResponse> {
   if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to trade");
-
-  const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_INTENT_ENDPOINT}`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify({
-      symbol: request.symbol.toUpperCase(),
-      intent: request.intent,
-      order_type: request.orderType,
-      price: request.price,
-      leverage: request.leverage,
-      reduce_pct: request.reducePct,
-    }),
-    signal,
-  });
-  if (!response.ok) throw new Error(await readError(response));
-  invalidatePositionsCache();
-  return parseOrderJsonText(await response.text()) as PositionIntentResponse;
+  const payload = {
+    symbol: request.symbol.toUpperCase(),
+    intent: request.intent,
+    order_type: request.orderType,
+    price: request.price,
+    leverage: request.leverage,
+    reduce_pct: request.reducePct,
+  };
+  return runFinancialMutation(
+    financialMutationFingerprint(POSITION_INTENT_ENDPOINT, payload),
+    async (intentId) => {
+      const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_INTENT_ENDPOINT}`, {
+        method: "POST",
+        headers: getMutationHeaders(intentId),
+        body: JSON.stringify(payload),
+        signal,
+      });
+      if (!response.ok) throw new Error(await readError(response));
+      invalidatePositionsCache();
+      return parseOrderJsonText(await response.text()) as PositionIntentResponse;
+    },
+  );
 }
 
 export async function closePositionMarket(
@@ -337,15 +354,21 @@ export async function closePositionMarket(
   signal?: AbortSignal,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${CLOSE_POSITION_ENDPOINT}`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify({ symbol: symbol.toUpperCase() }),
-    signal,
-  });
-  if (!response.ok) throw new Error(await readError(response));
-  invalidatePositionsCache();
-  return parseOrderJsonText(await response.text());
+  const payload = { symbol: symbol.toUpperCase() };
+  return runFinancialMutation(
+    financialMutationFingerprint(CLOSE_POSITION_ENDPOINT, payload),
+    async (intentId) => {
+      const response = await fetch(`${TRADING_API_BASE_URL}${CLOSE_POSITION_ENDPOINT}`, {
+        method: "POST",
+        headers: getMutationHeaders(intentId),
+        body: JSON.stringify(payload),
+        signal,
+      });
+      if (!response.ok) throw new Error(await readError(response));
+      invalidatePositionsCache();
+      return parseOrderJsonText(await response.text());
+    },
+  );
 }
 
 export type CloseEverythingResponse = {
@@ -372,21 +395,20 @@ export async function closeEverything(
   symbol?: string,
   signal?: AbortSignal,
 ): Promise<CloseEverythingResponse> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/account/close-everything`, {
-    method: "POST",
-    headers: getHeaders(),
-    // the backend now takes a Json<CloseEverythingRequest> extractor
-    // (added to support scoping this down to one symbol - see its own
-    // comment in api.rs) instead of no body at all, so a request with no
-    // body/wrong content-type would now fail JSON extraction outright
-    // regardless of what's being closed. Always send a real (possibly
-    // empty) JSON object; omitting `symbol` entirely still means the
-    // original full-account behavior.
-    body: JSON.stringify(symbol ? { symbol } : {}),
-    signal,
-  });
+  const endpoint = "/api/account/close-everything";
+  const payload = symbol ? { symbol } : {};
+  return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: getMutationHeaders(intentId),
+      // Always send a real JSON object; omitting `symbol` retains the
+      // original full-account close behavior.
+      body: JSON.stringify(payload),
+      signal,
+    });
 
-  if (!response.ok) throw new Error(await readError(response));
-  invalidatePositionsCache();
-  return parseOrderJsonText(await response.text()) as CloseEverythingResponse;
+    if (!response.ok) throw new Error(await readError(response));
+    invalidatePositionsCache();
+    return parseOrderJsonText(await response.text()) as CloseEverythingResponse;
+  });
 }

@@ -7,6 +7,7 @@ mod diagnostics;
 mod error;
 mod icons;
 mod models;
+mod operation_safety;
 mod position_risk_state;
 mod runtime_config;
 mod secure_store;
@@ -25,6 +26,7 @@ use diagnostics::DiagnosticsState;
 use error::{AppError, AppResult};
 use icons::IconStore;
 use models::{FuturesAccountInfo, MarginSizingConfig};
+use operation_safety::OperationSafety;
 use position_risk_state::{
     PositionRiskState, spawn_refresh_worker as spawn_position_risk_refresh_worker,
 };
@@ -214,6 +216,7 @@ async fn main() -> AppResult<()> {
     let (trading_events, _) = broadcast::channel(512);
 
     let alert_store = AlertStore::connect(&runtime.alerts_db_path).await?;
+    let operation_safety = OperationSafety::connect(&runtime.operation_journal_path).await?;
     let (alert_runtime, alert_worker_task) = spawn_alert_worker(
         alert_store.clone(),
         binance.user_stream_ws_base().to_string(),
@@ -236,6 +239,7 @@ async fn main() -> AppResult<()> {
         icon_store,
         websocket_tickets: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         diagnostics: diagnostics.clone(),
+        operation_safety,
     };
 
     info!(

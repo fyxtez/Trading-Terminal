@@ -1,4 +1,9 @@
 import { SIZING_ENDPOINT, TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
+import {
+  financialMutationFingerprint,
+  financialMutationHeaders,
+  runFinancialMutation,
+} from "./financialMutation";
 
 export type SizingConfig = {
   margin_pct: number;
@@ -6,7 +11,7 @@ export type SizingConfig = {
   max_leverage: number;
 };
 
-function getHeaders(includeJson = false): HeadersInit {
+function getHeaders(includeJson = false): Record<string, string> {
   if (!TRADING_API_TOKEN) {
     throw new Error("Trading API token is missing");
   }
@@ -79,16 +84,21 @@ export async function updateSizing(
   sizing: SizingConfig,
   signal?: AbortSignal,
 ): Promise<SizingConfig> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`, {
-    method: "PUT",
-    headers: getHeaders(true),
-    body: JSON.stringify(sizing),
-    signal,
-  });
+  return runFinancialMutation(
+    financialMutationFingerprint(SIZING_ENDPOINT, sizing),
+    async (intentId) => {
+      const response = await fetch(`${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`, {
+        method: "PUT",
+        headers: {
+          ...getHeaders(true),
+          ...financialMutationHeaders(intentId, true),
+        },
+        body: JSON.stringify(sizing),
+        signal,
+      });
 
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return validateSizing(await response.json());
+      if (!response.ok) throw new Error(await readError(response));
+      return validateSizing(await response.json());
+    },
+  );
 }

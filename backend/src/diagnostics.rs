@@ -235,10 +235,15 @@ fn redact_and_bound(message: String) -> String {
             {
                 return "[redacted]".to_owned();
             }
-            if token.contains("://")
-                && let Some(query_index) = token.find('?')
-            {
-                return format!("{}?[redacted]", &token[..query_index]);
+            if let Some((scheme, remainder)) = token.split_once("://") {
+                let authority = remainder
+                    .split(['/', '?', '#'])
+                    .next()
+                    .unwrap_or_default()
+                    .rsplit('@')
+                    .next()
+                    .unwrap_or_default();
+                return format!("{scheme}://{authority}/[redacted]");
             }
             token.to_owned()
         })
@@ -274,5 +279,21 @@ mod tests {
         let error = diagnostics.snapshot().exchange.last_error.unwrap();
         assert!(!error.contains("secret"));
         assert!(error.contains("[redacted]"));
+    }
+
+    #[test]
+    fn removes_private_topics_tokens_and_url_credentials_from_diagnostics() {
+        let message = redact_and_bound(
+            "delivery https://user:password@ntfy.sh/private-topic?auth=secret and https://api.telegram.org/bot123:secret/sendMessage"
+                .into(),
+        );
+
+        assert_eq!(
+            message,
+            "delivery https://ntfy.sh/[redacted] and https://api.telegram.org/[redacted]"
+        );
+        assert!(!message.contains("private-topic"));
+        assert!(!message.contains("password"));
+        assert!(!message.contains("bot123"));
     }
 }

@@ -73,15 +73,16 @@ After the account is safe—or immediately when compromise is suspected:
    and the terminal Diagnostics section. Redact API keys, private notification
    URLs, account identifiers, and financial information before sharing.
 3. Preserve the exact application version and downloaded artifact checksum.
-4. Preserve available Tauri/sidecar console or system-journal output. The
-   current release does not write a durable application audit log, so do not
-   close an attached development terminal before copying relevant output.
+4. Preserve available Tauri/sidecar console or system-journal output. The local
+   operation journal contains redacted request correlation and results, not
+   full exchange payloads, so copy relevant runtime output before closing an
+   attached development terminal.
 5. Make a private copy of the platform application-data directory before
    reinstalling. On Linux this is normally
    `$XDG_DATA_HOME/com.fyxtez.terminal` or
    `~/.local/share/com.fyxtez.terminal`. It contains runtime data such as the
-   symbol registry, sizing settings, alerts database, and icon cache; secrets
-   remain in the OS credential manager.
+   symbol registry, sizing settings, alerts database, operation journal, and
+   icon cache; secrets remain in the OS credential manager.
 
 Never attach the OS keyring database, secret values, full private URLs, or an
 unredacted environment dump to an issue.

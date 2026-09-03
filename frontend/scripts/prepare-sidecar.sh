@@ -19,6 +19,7 @@ HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 TARGET_TRIPLE="${TAURI_ENV_TARGET_TRIPLE:-$HOST_TRIPLE}"
 CARGO_ARGS=(build --locked --manifest-path "$BACKEND_DIR/Cargo.toml")
 PROFILE_DIR="debug"
+LEGACY_SIDECAR_NAME="binance-futures-axum"
 
 if [[ "$MODE" == "release" ]]; then
   CARGO_ARGS+=(--release)
@@ -31,6 +32,14 @@ if [[ "$TARGET_TRIPLE" != "$HOST_TRIPLE" ]]; then
 else
   SOURCE_BINARY="$BACKEND_DIR/target/$PROFILE_DIR/fyxtez-backend"
 fi
+
+# Tauri's AppImage staging scans executable artifacts in its target profile.
+# Remove the pre-rename sidecar from developer caches so an incremental build
+# cannot silently package both backend names. These paths contain build output
+# only and do not exist in a clean checkout.
+rm -f -- \
+  "$FRONTEND_DIR/src-tauri/target/$PROFILE_DIR/$LEGACY_SIDECAR_NAME" \
+  "$FRONTEND_DIR/src-tauri/target/$TARGET_TRIPLE/$PROFILE_DIR/$LEGACY_SIDECAR_NAME"
 
 echo "[fyxtez] Building Axum sidecar ($MODE, $TARGET_TRIPLE)..."
 cargo "${CARGO_ARGS[@]}"

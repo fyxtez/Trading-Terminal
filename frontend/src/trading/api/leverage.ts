@@ -1,6 +1,11 @@
 import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
+import {
+  financialMutationFingerprint,
+  financialMutationHeaders,
+  runFinancialMutation,
+} from "./financialMutation";
 
-function authHeaders(includeJson = false): HeadersInit {
+function authHeaders(includeJson = false): Record<string, string> {
   return {
     Accept: "application/json",
     Authorization: `Bearer ${TRADING_API_TOKEN}`,
@@ -45,20 +50,24 @@ export async function updateLeverage(
   symbol: string,
   leverage: number,
 ): Promise<SetLeverageResponse> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/leverage`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify({
-      symbol: symbol.toUpperCase(),
-      leverage: Math.round(leverage),
-    }),
+  const endpoint = "/api/leverage";
+  const payload = {
+    symbol: symbol.toUpperCase(),
+    leverage: Math.round(leverage),
+  };
+  return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        ...authHeaders(true),
+        ...financialMutationHeaders(intentId, true),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error(await readError(response));
+    return (await response.json()) as SetLeverageResponse;
   });
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-
-  return (await response.json()) as SetLeverageResponse;
 }
 
 export type CurrentLeverageResponse = {

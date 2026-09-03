@@ -38,12 +38,13 @@ or already-completed exchange action keeps its authoritative result.
   audit log.
 - A reconciliation difference is reported as repaired drift, not silently
   ignored.
-- Duplicate counts cover duplicates identified by the backend/exchange. Full
-  idempotency and durable intent IDs remain a separate mainnet requirement.
+- Duplicate counts include conflicts detected by the durable financial-intent
+  journal described in ADR 0009.
 - React error boundaries do not catch errors in asynchronous callbacks; those
   paths must continue to expose their own explicit error state.
 
 ## Follow-up
 
-Add durable, redacted audit events with request/intent IDs, then correlate them
-with diagnostics without placing secrets or full payloads in logs.
+Exercise diagnostics and durable audit correlation during the Testnet
+lost-response and sidecar-crash drills without placing secrets or full payloads
+in logs.

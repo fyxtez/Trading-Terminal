@@ -41,6 +41,13 @@ controls.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries, request flows,
 persistence, and security assumptions.
 
+Operational references:
+
+- [Local data and backup](docs/LOCAL-DATA-BACKUP.md)
+- [Outbound connections](docs/OUTBOUND-CONNECTIONS.md)
+- [Emergency procedure](docs/EMERGENCY-PROCEDURE.md)
+- [Linux releases](docs/RELEASING.md)
+
 ### Desktop development
 
 ```bash
@@ -177,9 +184,13 @@ Standalone backend development defaults to `backend/data/`:
 - `sizing.json` — sizing configuration
 - `symbols.json` — dynamic symbol registry
 - `alerts.sqlite3` — persistent alert database
+- `operations.sqlite3` — durable financial intents and redacted audit metadata
 - `icons/` — downloaded icon cache
 
-Paths can be overridden through backend environment variables.
+Paths can be overridden through backend environment variables. Use the
+[closed-app backup and restore procedure](docs/LOCAL-DATA-BACKUP.md) for an
+installed desktop profile; credentials remain in the OS credential manager and
+are never included in that backup.
 
 ## Deployment status
 

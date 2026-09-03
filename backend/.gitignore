@@ -15,3 +15,4 @@ backend.log
 /data/*.sqlite3-wal
 /data/icons/
 /data/symbols.json
+/data/sizing.json

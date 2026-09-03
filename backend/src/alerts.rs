@@ -266,8 +266,9 @@ async fn run_alert_worker(
         }
 
         let url = build_agg_trade_url(&ws_base, alerts.keys());
-        match connect_async(&url).await {
-            Ok((socket, _)) => {
+        match tokio::time::timeout(Duration::from_secs(20), connect_async(&url)).await {
+            Err(_) => warn!(%url, "Timed out connecting price-alert market websocket"),
+            Ok(Ok((socket, _))) => {
                 info!(%url, symbols = alerts.len(), "Connected Binance aggTrade stream for price alerts");
                 retry = Duration::from_secs(1);
                 match run_connected(
@@ -288,7 +289,7 @@ async fn run_alert_worker(
                     Err(error) => warn!(%error, "Price-alert market websocket disconnected"),
                 }
             }
-            Err(error) => warn!(%error, %url, "Failed to connect price-alert market websocket"),
+            Ok(Err(error)) => warn!(%error, %url, "Failed to connect price-alert market websocket"),
         }
 
         tokio::select! {
@@ -513,7 +514,9 @@ async fn send_notifications(
     );
 
     let client = match reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
     {
         Ok(client) => client,

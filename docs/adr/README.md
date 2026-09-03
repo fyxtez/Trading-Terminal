@@ -12,5 +12,6 @@ This directory records architectural decisions that are expensive or unsafe to r
 | [0006](0006-explicit-binance-network-selection.md) | Accepted | Require explicit Testnet/Mainnet selection for every Binance connection |
 | [0007](0007-operational-diagnostics-and-failure-isolation.md) | Accepted | Isolate secondary failures and expose redacted runtime diagnostics |
 | [0008](0008-authoritative-exchange-reconciliation.md) | Accepted | Rebuild trading projections from authoritative Binance state after uncertain outcomes |
+| [0009](0009-durable-financial-intents.md) | Accepted | Require durable intent IDs for financial mutations |
 
 New ADRs use the next four-digit number and contain Context, Decision, Consequences, and Follow-up sections.

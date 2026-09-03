@@ -13,6 +13,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::RwLock;
+use tokio::time::Instant;
 use url::form_urlencoded;
 use zeroize::Zeroizing;
 
@@ -42,6 +43,7 @@ struct ReferenceDataCache {
     // lookup below, which relies on that ordering to find the first
     // bracket whose cap covers a given notional.
     maintenance_brackets: HashMap<String, Vec<LeverageBracket>>,
+    refreshed_at: Option<Instant>,
 }
 
 #[derive(Clone)]
@@ -91,6 +93,7 @@ impl BinanceClient {
             .user_agent("fyxtez-backend/0.1")
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(20))
+            .redirect(reqwest::redirect::Policy::none())
             .pool_idle_timeout(Duration::from_secs(30))
             .pool_max_idle_per_host(10)
             .tcp_keepalive(Duration::from_secs(60))
@@ -287,6 +290,7 @@ impl BinanceClient {
         let filter_count = filters.len();
         *self.reference_data.write().await = ReferenceDataCache {
             symbol_filters: filters,
+            refreshed_at: Some(Instant::now()),
             ..ReferenceDataCache::default()
         };
 
@@ -365,6 +369,7 @@ impl BinanceClient {
             symbol_filters: filters,
             max_leverage: leverage,
             maintenance_brackets,
+            refreshed_at: Some(Instant::now()),
         };
 
         tracing::info!(
@@ -375,6 +380,23 @@ impl BinanceClient {
         );
 
         Ok(())
+    }
+
+    pub async fn ensure_reference_data_fresh(&self) -> AppResult<()> {
+        const MAX_REFERENCE_DATA_AGE: Duration = Duration::from_secs(4 * 24 * 60 * 60);
+        let fresh = self
+            .reference_data
+            .read()
+            .await
+            .refreshed_at
+            .is_some_and(|refreshed_at| refreshed_at.elapsed() <= MAX_REFERENCE_DATA_AGE);
+        if fresh {
+            return Ok(());
+        }
+
+        // Exposure increases fail closed if an overdue cache cannot be
+        // refreshed. Reduction/close paths deliberately do not use this guard.
+        self.refresh_reference_data().await
     }
 
     pub async fn symbol_filters(&self, symbol: &str) -> AppResult<SymbolFilters> {

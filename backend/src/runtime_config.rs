@@ -19,6 +19,7 @@ pub struct RuntimeConfig {
     pub icon_cache_dir: PathBuf,
     pub sizing_config_path: PathBuf,
     pub alerts_db_path: PathBuf,
+    pub operation_journal_path: PathBuf,
     pub desktop_sidecar: bool,
 }
 
@@ -71,6 +72,7 @@ impl RuntimeConfig {
             icon_cache_dir: data_dir.join("icons"),
             sizing_config_path: data_dir.join("sizing.json"),
             alerts_db_path: data_dir.join("alerts.sqlite3"),
+            operation_journal_path: data_dir.join("operations.sqlite3"),
             desktop_sidecar: true,
         })
     }
@@ -98,6 +100,7 @@ impl RuntimeConfig {
             icon_cache_dir: env_path("ICON_CACHE_DIR", "data/icons"),
             sizing_config_path: env_path("SIZING_CONFIG_PATH", "data/sizing.json"),
             alerts_db_path: env_path("ALERTS_DB_PATH", "data/alerts.sqlite3"),
+            operation_journal_path: env_path("OPERATION_JOURNAL_PATH", "data/operations.sqlite3"),
             desktop_sidecar: false,
         })
     }

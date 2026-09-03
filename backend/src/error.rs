@@ -23,6 +23,9 @@ pub enum AppError {
     #[error("Invalid request: {0}")]
     Invalid(String),
 
+    #[error("Duplicate or conflicting request: {0}")]
+    Conflict(String),
+
     #[error("Unauthorized")]
     Unauthorized,
 
@@ -47,16 +50,18 @@ struct ErrorBody {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let classification = ErrorClassification {
-            duplicate_request: matches!(
-                &self,
-                Self::Binance { message, .. }
-                    if message.to_ascii_lowercase().contains("duplicate")
-            ),
+            duplicate_request: matches!(&self, Self::Conflict(_))
+                || matches!(
+                    &self,
+                    Self::Binance { message, .. }
+                        if message.to_ascii_lowercase().contains("duplicate")
+                ),
             exchange_unavailable: matches!(&self, Self::Http(_) | Self::Json(_)),
         };
         let status = match self {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Invalid(_) => StatusCode::BAD_REQUEST,
+            Self::Conflict(_) => StatusCode::CONFLICT,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             // this used to be StatusCode::BAD_GATEWAY, same as the
             // genuine network-failure variants below (Http/Json). But

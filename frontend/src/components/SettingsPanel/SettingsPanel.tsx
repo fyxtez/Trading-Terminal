@@ -145,6 +145,7 @@ const FIELD_META: Record<
     description: "Hard leverage cap",
     step: 1,
     min: 1,
+    max: 125,
   },
 };
 

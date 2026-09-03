@@ -19,6 +19,30 @@ import type {
 } from "../types";
 import { parseOrderJsonText } from "./safeJson";
 import { canUseTradingAccount } from "../../desktop/credentials";
+import {
+  financialMutationFingerprint,
+  financialMutationHeaders,
+  runFinancialMutation,
+} from "./financialMutation";
+
+function mutationHeaders(intentId: string, includeJson = false): Record<string, string> {
+  return {
+    ...financialMutationHeaders(intentId, includeJson),
+    Authorization: `Bearer ${TRADING_API_TOKEN}`,
+  };
+}
+
+function payloadWithIntentClientId(payload: unknown, intentId?: string): unknown {
+  if (!payload || typeof payload !== "object") return payload;
+  const next = { ...(payload as Record<string, unknown>) };
+  for (const field of ["client_order_id", "client_algo_id"] as const) {
+    const current = next[field];
+    if (typeof current !== "string" || !current) continue;
+    const prefix = current.replace(/-[0-9a-f-]{8,}$/i, "");
+    next[field] = intentId ? `${prefix}-${intentId.replace(/-/g, "").slice(0, 12)}` : prefix;
+  }
+  return next;
+}
 
 async function parseTradingResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type");
@@ -44,17 +68,19 @@ async function parseTradingResponse<T>(response: Response): Promise<T> {
 
 async function postBinanceOrder<T>(endpoint: string, payload: unknown): Promise<T> {
   if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to trade");
+  const fingerprintPayload = payloadWithIntentClientId(payload);
+  return runFinancialMutation(
+    financialMutationFingerprint(endpoint, fingerprintPayload),
+    async (intentId) => {
+      const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: mutationHeaders(intentId, true),
+        body: JSON.stringify(payloadWithIntentClientId(payload, intentId)),
+      });
 
-  const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${TRADING_API_TOKEN}`,
+      return parseTradingResponse<T>(response);
     },
-    body: JSON.stringify(payload),
-  });
-
-  return parseTradingResponse<T>(response);
+  );
 }
 
 export type PlaceMarketOrderInput = {
@@ -143,19 +169,15 @@ export async function modifyLimitOrder(
   orderId: string,
   payload: ModifyLimitOrderRequest,
 ): Promise<ModifyLimitOrderResponse> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`,
-    {
+  const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`;
+  return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
+      headers: mutationHeaders(intentId, true),
       body: JSON.stringify(payload),
-    },
-  );
-
-  return parseTradingResponse<ModifyLimitOrderResponse>(response);
+    });
+    return parseTradingResponse<ModifyLimitOrderResponse>(response);
+  });
 }
 
 export async function repriceReduceOrder(
@@ -167,37 +189,33 @@ export async function repriceReduceOrder(
     reduce_pct?: number;
   },
 ): Promise<RepriceReduceOrderResponse> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/reprice-reduce`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
-      body: JSON.stringify(payload),
+  const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/reprice-reduce`;
+  return runFinancialMutation(
+    financialMutationFingerprint(endpoint, payloadWithIntentClientId(payload)),
+    async (intentId) => {
+      const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+        method: "PUT",
+        headers: mutationHeaders(intentId, true),
+        body: JSON.stringify(payloadWithIntentClientId(payload, intentId)),
+      });
+      const result = await parseTradingResponse<RepriceReduceOrderResponse>(response);
+      invalidateOpenOrdersCache();
+      return result;
     },
   );
-
-  const result = await parseTradingResponse<RepriceReduceOrderResponse>(response);
-  invalidateOpenOrdersCache();
-  return result;
 }
 
 export async function cancelOrder(symbol: string, orderId: string): Promise<unknown> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`,
-    {
+  const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`;
+  return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
-    },
-  );
-
-  const result = await parseTradingResponse<unknown>(response);
-  invalidateOpenOrdersCache();
-  return result;
+      headers: mutationHeaders(intentId),
+    });
+    const result = await parseTradingResponse<unknown>(response);
+    invalidateOpenOrdersCache();
+    return result;
+  });
 }
 
 export type OpenOrder = {
@@ -313,21 +331,18 @@ export async function updateReduceOrder(
   orderId: string,
   reducePct: number,
 ): Promise<UpdateReduceOrderResponse> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/reduce`,
-    {
+  const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/reduce`;
+  const payload = { reduce_pct: reducePct };
+  return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
-      body: JSON.stringify({ reduce_pct: reducePct }),
-    },
-  );
-
-  const result = await parseTradingResponse<UpdateReduceOrderResponse>(response);
-  invalidateOpenOrdersCache();
-  return result;
+      headers: mutationHeaders(intentId, true),
+      body: JSON.stringify(payload),
+    });
+    const result = await parseTradingResponse<UpdateReduceOrderResponse>(response);
+    invalidateOpenOrdersCache();
+    return result;
+  });
 }
 
 export type ChaseLimitOrderResponse = {
@@ -352,19 +367,16 @@ export async function chaseLimitOrder(
   symbol: string,
   orderId: string,
 ): Promise<ChaseLimitOrderResponse> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/chase`,
-    {
+  const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/chase`;
+  return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
-    },
-  );
-
-  const result = await parseTradingResponse<ChaseLimitOrderResponse>(response);
-  invalidateOpenOrdersCache();
-  return result;
+      headers: mutationHeaders(intentId),
+    });
+    const result = await parseTradingResponse<ChaseLimitOrderResponse>(response);
+    invalidateOpenOrdersCache();
+    return result;
+  });
 }
 
 export type FullStopLossResponse = {
@@ -402,15 +414,12 @@ export async function placeFullStopLoss(input: {
 }
 
 export async function cancelConditionalOrder(symbol: string, algoId: string): Promise<unknown> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/algo/${encodeURIComponent(symbol.toUpperCase())}/${algoId}`,
-    {
+  const endpoint = `/api/orders/algo/${encodeURIComponent(symbol.toUpperCase())}/${algoId}`;
+  return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
+    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
-      },
-    },
-  );
-
-  return parseTradingResponse<unknown>(response);
+      headers: mutationHeaders(intentId),
+    });
+    return parseTradingResponse<unknown>(response);
+  });
 }

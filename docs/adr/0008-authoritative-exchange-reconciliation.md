@@ -52,10 +52,10 @@ For an unknown outcome:
 5. If the outcome still cannot be proven, keep it visibly uncertain/degraded
    and require the operator to verify it in Binance before retrying.
 
-Durable client intent IDs and server-side idempotency are not implemented yet.
-Until they are, automatic retries of financially significant mutations are
-forbidden and live-trading validation remains blocked by the corresponding
-deployment checklist item.
+Durable client intent IDs and server-side response replay now protect financial
+mutations as defined in [ADR 0009](0009-durable-financial-intents.md).
+An intent left in progress by a crash still has an unknown exchange outcome: it
+fails closed and requires authoritative reconciliation rather than blind replay.
 
 ### Process crash and restart
 
@@ -137,9 +137,7 @@ private notification URLs.
 
 ## Follow-up
 
-- Add durable intent IDs and idempotency for state-changing requests.
 - Add automated Testnet drills for lost responses, process exits, stream gaps,
   partial fills and partial multi-step success.
-- Block exposure increases when authoritative prerequisites are stale.
-- Add durable, redacted audit correlation for exchange mutations.
-
+- Add an operator workflow for resolving durable intents whose outcome remains
+  uncertain after a crash.

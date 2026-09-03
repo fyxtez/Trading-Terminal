@@ -1,8 +1,9 @@
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
     Json,
+    body::{Body, to_bytes},
     extract::{Query, State},
-    http::{HeaderMap, Method, header},
+    http::{HeaderMap, HeaderValue, Method, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -13,10 +14,15 @@ use crate::{
     diagnostics::DiagnosticsSnapshot,
     error::{AppError, AppResult, ErrorClassification},
     models::{FuturesAccountInfo, HealthResponse},
+    operation_safety::{IntentDecision, OperationSafety},
     trading_events::TradingEvent,
 };
 
 use super::AppState;
+
+const INTENT_HEADER: &str = "x-fyxtez-intent-id";
+const MAX_INTENT_BODY_BYTES: usize = 64 * 1024;
+const MAX_INTENT_RESPONSE_BYTES: usize = 1024 * 1024;
 
 pub(super) async fn record_request_diagnostics(
     State(state): State<AppState>,
@@ -27,7 +33,12 @@ pub(super) async fn record_request_diagnostics(
         *request.method(),
         Method::POST | Method::PUT | Method::PATCH | Method::DELETE
     );
-    let path = request.uri().path().to_owned();
+    let path = request
+        .uri()
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or_else(|| request.uri().path())
+        .to_owned();
     let response = next.run(request).await;
     let failed = response.status().is_client_error() || response.status().is_server_error();
     let classification = response
@@ -89,7 +100,110 @@ pub(super) async fn authorize(
         return Err(AppError::Unauthorized);
     }
 
+    if requires_financial_intent(request.method(), path) {
+        return execute_financial_intent(state, request, next).await;
+    }
+
     Ok(next.run(request).await)
+}
+
+fn requires_financial_intent(method: &Method, path: &str) -> bool {
+    if !matches!(
+        *method,
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    ) {
+        return false;
+    }
+
+    path.starts_with("/api/orders/")
+        || path == "/api/positions/intent"
+        || path == "/api/account/close-everything"
+        || path == "/api/leverage"
+        || path == "/api/sizing"
+}
+
+async fn execute_financial_intent(
+    state: AppState,
+    request: axum::extract::Request,
+    next: Next,
+) -> AppResult<Response> {
+    let intent_id = request
+        .headers()
+        .get(INTENT_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| AppError::Invalid(format!("missing {INTENT_HEADER} header")))?
+        .to_owned();
+    let method = request.method().as_str().to_owned();
+    let path = request.uri().path().to_owned();
+    let (parts, body) = request.into_parts();
+    let request_body = to_bytes(body, MAX_INTENT_BODY_BYTES)
+        .await
+        .map_err(|_| AppError::Invalid("financial request body is too large".into()))?;
+    let fingerprint = OperationSafety::fingerprint(&method, &path, &request_body);
+
+    match state
+        .operation_safety
+        .begin(&intent_id, &method, &path, &fingerprint)
+        .await?
+    {
+        IntentDecision::Replay {
+            status,
+            content_type,
+            body,
+        } => {
+            let mut response = Response::builder().status(status);
+            if let Some(content_type) = content_type {
+                response = response.header(header::CONTENT_TYPE, content_type);
+            }
+            response = response
+                .header(INTENT_HEADER, intent_id)
+                .header("x-fyxtez-intent-replayed", "true");
+            return response
+                .body(Body::from(body))
+                .map_err(|error| AppError::Config(format!("cannot replay intent: {error}")));
+        }
+        IntentDecision::Execute => {}
+    }
+
+    let response = next
+        .run(axum::extract::Request::from_parts(
+            parts,
+            Body::from(request_body),
+        ))
+        .await;
+    let (mut parts, body) = response.into_parts();
+    let response_body = to_bytes(body, MAX_INTENT_RESPONSE_BYTES)
+        .await
+        .map_err(|_| AppError::Config("financial response exceeded journal limit".into()))?;
+    let content_type = parts
+        .headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let status = parts.status.as_u16();
+
+    if let Err(error) = state
+        .operation_safety
+        .complete(
+            &intent_id,
+            &method,
+            &path,
+            status,
+            content_type.as_deref(),
+            &response_body,
+        )
+        .await
+    {
+        // The exchange/handler result has already happened. Preserve that
+        // authoritative result and leave the persistent intent in-progress so
+        // a retry fails closed instead of creating duplicate exposure.
+        tracing::error!(target: "audit", %error, "Failed to complete operation journal entry");
+    }
+
+    if let Ok(value) = HeaderValue::from_str(&intent_id) {
+        parts.headers.insert(INTENT_HEADER, value);
+    }
+    Ok(Response::from_parts(parts, Body::from(response_body)))
 }
 
 pub(super) async fn reload_desktop_credentials(
@@ -206,4 +320,35 @@ pub(super) async fn diagnostics(State(state): State<AppState>) -> Json<Diagnosti
 
 pub(super) async fn server_time(State(state): State<AppState>) -> AppResult<Json<Value>> {
     Ok(Json(state.binance.server_time().await?))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::Method;
+
+    use super::requires_financial_intent;
+
+    #[test]
+    fn intent_boundary_covers_every_financial_mutation_family() {
+        for (method, path) in [
+            (Method::POST, "/api/orders/market"),
+            (Method::DELETE, "/api/orders/BTCUSDT/42"),
+            (Method::POST, "/api/positions/intent"),
+            (Method::POST, "/api/account/close-everything"),
+            (Method::POST, "/api/leverage"),
+            (Method::PUT, "/api/sizing"),
+        ] {
+            assert!(
+                requires_financial_intent(&method, path),
+                "{method} {path} must require a durable intent"
+            );
+        }
+
+        assert!(!requires_financial_intent(&Method::GET, "/api/orders/open"));
+        assert!(!requires_financial_intent(&Method::POST, "/api/alerts"));
+        assert!(!requires_financial_intent(
+            &Method::POST,
+            "/api/auth/ws-ticket"
+        ));
+    }
 }

@@ -45,6 +45,18 @@ authenticated POST; protected icon data is fetched with the bearer header.
 CORS accepts only the development and Tauri WebView origins. The local health
 route reveals only service/network status and is intentionally unauthenticated.
 
+Native input, Axum body and request-duration limits are explicit. Outbound
+credentials-bearing HTTP clients reject redirects, provider calls have bounded
+timeouts, and diagnostics remove URL paths/query/userinfo that may contain
+private topics, tokens or signatures. The reviewed destination matrix is in
+[docs/OUTBOUND-CONNECTIONS.md](docs/OUTBOUND-CONNECTIONS.md).
+
+Financial mutations require a durable intent UUID. Axum persists request
+fingerprints and replayable results in the local operation journal; conflicting
+or uncertain reuse fails closed. Before new exposure, the backend refreshes
+authoritative exchange prerequisites and enforces the registered execution
+symbol, isolated margin and Binance exchange filters.
+
 Tauri owns the sidecar lifecycle and limits automatic crash recovery to three
 attempts. A second desktop launch focuses the existing window instead of
 starting a competing backend/keyring owner. These controls protect the desktop
@@ -61,8 +73,13 @@ unsigned artifacts. See [docs/RELEASING.md](docs/RELEASING.md).
 ## Before committing
 
 Run `git status --short --ignored` and verify that `.env`, SQLite/WAL files,
-`backend/data/icons`, `backend/data/symbols.json`, `node_modules`, `dist` and
-Rust `target` directories are ignored. Commit `.env.example` templates only.
+`backend/data/icons`, `backend/data/symbols.json`, `backend/data/sizing.json`,
+`node_modules`, `dist` and Rust `target` directories are ignored. Commit
+`.env.example` templates only.
+
+Back up the complete closed-app data directory according to
+[docs/LOCAL-DATA-BACKUP.md](docs/LOCAL-DATA-BACKUP.md). Do not include exported
+credential-manager data or plaintext secrets.
 
 Run the validation commands documented in the root README. Test notification
 delivery separately for each configured provider because notification failure

@@ -126,6 +126,7 @@ async fn run_once(
         .user_agent("fyxtez-binance-user-stream/1.1")
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::none())
         .pool_idle_timeout(Duration::from_secs(30))
         .tcp_keepalive(Duration::from_secs(60))
         .tcp_nodelay(true)
@@ -154,9 +155,13 @@ async fn run_once(
         "Connecting to Binance Futures user-data WebSocket"
     );
 
-    let (mut socket, response) = connect_async(&ws_url).await.map_err(|error| {
-        format!("failed to connect Binance user-data WebSocket at {ws_base}: {error}")
-    })?;
+    let (mut socket, response) =
+        tokio::time::timeout(Duration::from_secs(20), connect_async(&ws_url))
+            .await
+            .map_err(|_| format!("timed out connecting Binance user-data WebSocket at {ws_base}"))?
+            .map_err(|error| {
+                format!("failed to connect Binance user-data WebSocket at {ws_base}: {error}")
+            })?;
 
     tracing::info!(
         target: "api",
