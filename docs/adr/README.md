@@ -13,5 +13,6 @@ This directory records architectural decisions that are expensive or unsafe to r
 | [0007](0007-operational-diagnostics-and-failure-isolation.md) | Accepted | Isolate secondary failures and expose redacted runtime diagnostics |
 | [0008](0008-authoritative-exchange-reconciliation.md) | Accepted | Rebuild trading projections from authoritative Binance state after uncertain outcomes |
 | [0009](0009-durable-financial-intents.md) | Accepted | Require durable intent IDs for financial mutations |
+| [0010](0010-embedded-mobile-backend.md) | Accepted | Embed the shared backend library in the Android Tauri process |
 
 New ADRs use the next four-digit number and contain Context, Decision, Consequences, and Follow-up sections.

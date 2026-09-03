@@ -360,6 +360,25 @@
   }
 }
 
+/* A touch-screen trade ticket must behave like a modal, not like the
+ * pointer-anchored desktop popover. The inline left/top coordinates still
+ * describe the double-tap location, so override both only on coarse mobile
+ * pointers and keep the complete ticket inside the device safe area. */
+@media (max-width: 720px) and (pointer: coarse) {
+  .trade-menu {
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right));
+    top: calc(50% + (env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2) !important;
+    width: auto;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    transform: translateY(-50%);
+    overscroll-behavior: contain;
+    box-shadow:
+      0 0 0 100vmax rgb(4 6 10 / 68%),
+      var(--shadow-pop);
+  }
+}
+
 .trade-action:disabled:not(.submitting) {
   opacity: 0.32;
 }

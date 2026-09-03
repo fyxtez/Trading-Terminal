@@ -6,17 +6,25 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 BACKEND_DIR="$PROJECT_DIR/backend"
 
+# Process ids owned by browser mode must outlive run_browser's local scope:
+# the EXIT trap runs after that function returns. Keeping them at script scope
+# also prevents `set -u` from turning cleanup itself into an error.
+BROWSER_BACKEND_PID=""
+BROWSER_FRONTEND_PID=""
+
 usage() {
   cat <<'EOF'
 Usage:
   ./run.sh                 Start the Tauri desktop application (default)
   ./run.sh desktop         Start the Tauri desktop application
   ./run.sh browser         Start backend + Vite and open the browser UI
+  ./run.sh android         Build, install, and launch the Android debug APK
   ./run.sh --help          Show this help
 
 Aliases:
   tauri -> desktop
   web   -> browser
+  apk   -> android
 EOF
 }
 
@@ -93,6 +101,26 @@ ensure_backend_is_stopped() {
   fi
 }
 
+browser_frontend_is_running() {
+  curl --silent --fail --max-time 1 "http://127.0.0.1:5173/" >/dev/null 2>&1
+}
+
+cleanup_browser() {
+  local exit_code="${1:-$?}"
+  trap - EXIT INT TERM
+
+  if [[ -n "$BROWSER_FRONTEND_PID" ]] && kill -0 "$BROWSER_FRONTEND_PID" 2>/dev/null; then
+    kill "$BROWSER_FRONTEND_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$BROWSER_BACKEND_PID" ]] && kill -0 "$BROWSER_BACKEND_PID" 2>/dev/null; then
+    kill "$BROWSER_BACKEND_PID" 2>/dev/null || true
+  fi
+
+  [[ -z "$BROWSER_FRONTEND_PID" ]] || wait "$BROWSER_FRONTEND_PID" 2>/dev/null || true
+  [[ -z "$BROWSER_BACKEND_PID" ]] || wait "$BROWSER_BACKEND_PID" 2>/dev/null || true
+  exit "$exit_code"
+}
+
 run_desktop() {
   require_command cargo
   require_command npm
@@ -111,28 +139,13 @@ run_browser() {
   require_browser_project_files
   validate_local_auth
 
-  local backend_pid=""
-  local frontend_pid=""
   local backend_port
   local backend_url
+  local reuse_frontend=false
 
-  cleanup_browser() {
-    local exit_code=$?
-    trap - EXIT INT TERM
-
-    if [[ -n "$frontend_pid" ]] && kill -0 "$frontend_pid" 2>/dev/null; then
-      kill "$frontend_pid" 2>/dev/null || true
-    fi
-    if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
-      kill "$backend_pid" 2>/dev/null || true
-    fi
-
-    [[ -z "$frontend_pid" ]] || wait "$frontend_pid" 2>/dev/null || true
-    [[ -z "$backend_pid" ]] || wait "$backend_pid" 2>/dev/null || true
-    exit "$exit_code"
-  }
-
-  trap cleanup_browser EXIT INT TERM
+  BROWSER_BACKEND_PID=""
+  BROWSER_FRONTEND_PID=""
+  trap 'cleanup_browser $?' EXIT INT TERM
 
   backend_port="$(sed -n 's/^[[:space:]]*SERVER_PORT[[:space:]]*=[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$BACKEND_DIR/.env" | tail -n 1)"
   backend_port="${backend_port:-8657}"
@@ -144,13 +157,13 @@ run_browser() {
     cd "$BACKEND_DIR"
     exec cargo run
   ) &
-  backend_pid=$!
+  BROWSER_BACKEND_PID=$!
 
   echo "[fyxtez] Waiting for backend readiness..."
   local backend_ready=false
   for _ in {1..120}; do
-    if ! kill -0 "$backend_pid" 2>/dev/null; then
-      wait "$backend_pid" || true
+    if ! kill -0 "$BROWSER_BACKEND_PID" 2>/dev/null; then
+      wait "$BROWSER_BACKEND_PID" || true
       echo "[fyxtez] Backend exited before it became ready." >&2
       exit 1
     fi
@@ -167,17 +180,27 @@ run_browser() {
     exit 1
   fi
 
-  echo "[fyxtez] Starting chart-only browser UI..."
-  (
-    cd "$FRONTEND_DIR"
-    exec npm run dev -- --host localhost --open
-  ) &
-  frontend_pid=$!
+  if browser_frontend_is_running; then
+    reuse_frontend=true
+    echo "[fyxtez] Reusing the Vite UI already running at http://localhost:5173."
+    echo "          Reload its browser tab to reconnect to the backend."
+  else
+    echo "[fyxtez] Starting chart-only browser UI..."
+    (
+      cd "$FRONTEND_DIR"
+      exec npm run dev -- --host localhost --open
+    ) &
+    BROWSER_FRONTEND_PID=$!
+  fi
 
   echo "[fyxtez] Browser development stack is running. Press Ctrl+C to stop it."
 
   set +e
-  wait -n "$backend_pid" "$frontend_pid"
+  if [[ "$reuse_frontend" == true ]]; then
+    wait "$BROWSER_BACKEND_PID"
+  else
+    wait -n "$BROWSER_BACKEND_PID" "$BROWSER_FRONTEND_PID"
+  fi
   local process_status=$?
   set -e
 
@@ -187,7 +210,46 @@ run_browser() {
     echo "[fyxtez] A development process stopped; shutting down the stack."
   fi
 
-  return "$process_status"
+  cleanup_browser "$process_status"
+}
+
+run_android() {
+  require_command adb
+  require_command cargo
+  require_command npm
+  require_command rustc
+  require_frontend_dependencies
+
+  local device_count
+  local apk_path="$FRONTEND_DIR/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+  device_count="$(adb devices | awk 'NR > 1 && $2 == "device" { count++ } END { print count + 0 }')"
+
+  if [[ "$device_count" -eq 0 ]]; then
+    echo "[fyxtez] No authorized Android device is connected." >&2
+    echo "          Enable USB debugging, connect the phone, and accept its authorization prompt." >&2
+    exit 1
+  fi
+  if [[ "$device_count" -gt 1 ]]; then
+    echo "[fyxtez] More than one Android device is connected; leave only the target device attached." >&2
+    exit 1
+  fi
+
+  echo "[fyxtez] Building the Android arm64 debug APK..."
+  (
+    cd "$FRONTEND_DIR"
+    npm run android:build:device
+  )
+
+  if [[ ! -f "$apk_path" ]]; then
+    echo "[fyxtez] Android build completed without the expected APK: $apk_path" >&2
+    exit 1
+  fi
+
+  echo "[fyxtez] Installing the APK on the connected device..."
+  adb install -r "$apk_path"
+
+  echo "[fyxtez] Launching Fyxtez Terminal..."
+  adb shell am start -n com.fyxtez.terminal/.MainActivity
 }
 
 mode="${1:-desktop}"
@@ -207,6 +269,9 @@ case "$mode" in
     ;;
   browser | web)
     run_browser
+    ;;
+  android | apk)
+    run_android
     ;;
   -h | --help | help)
     usage

@@ -1784,6 +1784,8 @@ export default function PositionBracketOverlay({
         height: coordinates.paneHeight,
       }}
     >
+      {dragKind !== null && <div className="position-bracket-interaction-shield" />}
+
       {/* liquidation is an account-risk boundary rather than a
           movable order, so it spans the whole chart and has no pointer
           handler. This whole overlay unmounts when the position closes. */}

@@ -37,6 +37,8 @@ npm run preview  # serve an existing production bundle
 npm run test:run       # run the frontend test suite once
 npm run desktop:dev    # managed Axum sidecar + Vite in a Tauri window
 npm run desktop:build  # create Linux .deb and AppImage bundles
+npm run android:dev    # run against an authorized Android device
+npm run android:build:device # build an arm64 Android debug APK
 ```
 
 The native source is in `src-tauri/`. Desktop commands do not use frontend or
@@ -48,6 +50,13 @@ directly to the terminal. Review
 [`../docs/adr`](../docs/adr/README.md) before changing IPC permissions, CSP or
 secret handling. Browser mode is intentionally chart-only and does not send
 native ntfy/Telegram notifications.
+
+On Android, the same `backend/` crate is linked into the Tauri process and
+served on a per-launch loopback port. The Android app therefore needs neither a
+separate sidecar nor developer tooling on the device. From the repository root,
+`./run.sh android` builds, installs, and launches the arm64 debug APK on one
+authorized ADB device. Android remains a development target; continuous
+background execution is not yet guaranteed.
 
 `src-tauri/app-icon.svg` is the editable application-icon source. Regenerate
 platform assets after changing it with `npx tauri icon src-tauri/app-icon.svg`.

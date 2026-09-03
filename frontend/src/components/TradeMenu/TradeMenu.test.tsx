@@ -64,4 +64,15 @@ describe("TradeMenu", () => {
     expect(screen.getByRole("button", { name: /AUTO MARKET/ })).toBeDisabled();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("commits leverage once through the shared pointer path used by mouse and touch", () => {
+    const onLeverageCommit = vi.fn();
+    render(<TradeMenu {...createProps({ onLeverageCommit })} />);
+
+    const slider = screen.getByRole("slider");
+    fireEvent.pointerUp(slider, { target: { value: "14" } });
+
+    expect(onLeverageCommit).toHaveBeenCalledOnce();
+    expect(onLeverageCommit).toHaveBeenCalledWith(14);
+  });
 });

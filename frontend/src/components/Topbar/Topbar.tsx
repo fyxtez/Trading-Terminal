@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { intervals, type Interval, type TradingSymbol } from "../../config/constants";
 import type { ConnectionState } from "../../hooks/useTradingStream";
+import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import SymbolSwitcher from "../SymbolSwitcher/SymbolSwitcher";
 import "./Topbar.css";
 
@@ -74,12 +76,19 @@ export default function Topbar({
 }: TopbarProps) {
   const [isIntervalMenuOpen, setIsIntervalMenuOpen] = useState(false);
   const intervalMenuRef = useRef<HTMLDivElement | null>(null);
+  const intervalMenuPopoverRef = useRef<HTMLDivElement | null>(null);
+  const intervalTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const intervalMenuStyle = useFixedPopoverPosition(intervalTriggerRef, isIntervalMenuOpen, 270, 7);
 
   useEffect(() => {
     if (!isIntervalMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (intervalMenuRef.current && !intervalMenuRef.current.contains(event.target as Node)) {
+      if (
+        intervalMenuRef.current &&
+        !intervalMenuRef.current.contains(event.target as Node) &&
+        !intervalMenuPopoverRef.current?.contains(event.target as Node)
+      ) {
         setIsIntervalMenuOpen(false);
       }
     };
@@ -126,6 +135,7 @@ export default function Topbar({
 
       <div className="mobile-timeframe-control" ref={intervalMenuRef}>
         <button
+          ref={intervalTriggerRef}
           className={`mobile-timeframe-trigger ${isIntervalMenuOpen ? "open" : ""}`}
           aria-label={`Timeframe ${interval}`}
           aria-expanded={isIntervalMenuOpen}
@@ -140,29 +150,36 @@ export default function Topbar({
           </span>
         </button>
 
-        {isIntervalMenuOpen && (
-          <div className="mobile-timeframe-menu" onClick={(event) => event.stopPropagation()}>
-            {intervalGroups.map((group) => (
-              <section className="mobile-timeframe-group" key={group.label}>
-                <div className="mobile-timeframe-group-label">{group.label}</div>
-                <div className="mobile-timeframe-grid">
-                  {group.values.map((timeframe) => (
-                    <button
-                      key={timeframe}
-                      className={interval === timeframe ? "active" : ""}
-                      onClick={() => {
-                        setIsIntervalMenuOpen(false);
-                        if (timeframe !== interval) onChangeInterval(timeframe);
-                      }}
-                    >
-                      {timeframe}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
+        {isIntervalMenuOpen &&
+          createPortal(
+            <div
+              ref={intervalMenuPopoverRef}
+              className="mobile-timeframe-menu"
+              style={intervalMenuStyle ?? { visibility: "hidden" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {intervalGroups.map((group) => (
+                <section className="mobile-timeframe-group" key={group.label}>
+                  <div className="mobile-timeframe-group-label">{group.label}</div>
+                  <div className="mobile-timeframe-grid">
+                    {group.values.map((timeframe) => (
+                      <button
+                        key={timeframe}
+                        className={interval === timeframe ? "active" : ""}
+                        onClick={() => {
+                          setIsIntervalMenuOpen(false);
+                          if (timeframe !== interval) onChangeInterval(timeframe);
+                        }}
+                      >
+                        {timeframe}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>,
+            document.body,
+          )}
       </div>
 
       <div className="topbar-spacer" />

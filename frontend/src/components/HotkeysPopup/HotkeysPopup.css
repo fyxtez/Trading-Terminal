@@ -4,8 +4,11 @@
   z-index: 11000;
   /* group-selection shortcuts include mouse gestures as well as keys;
    * the old 320px panel forced their descriptions into cramped line breaks. */
-  width: 390px;
+  width: min(390px, calc(100vw - 78px));
+  max-height: calc(100dvh - 36px);
   padding: 14px;
+  display: flex;
+  flex-direction: column;
 }
 .hotkeys-header {
   display: flex;
@@ -18,9 +21,15 @@
   letter-spacing: 0.2px;
 }
 .hotkeys-list {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
 }
 .hotkeys-list > div {
   display: grid;
@@ -102,4 +111,46 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .hotkeys-popup {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(100dvh - 16px);
+    padding: 12px;
+  }
+
+  .hotkeys-header {
+    margin-bottom: 10px;
+  }
+
+  .hotkeys-list {
+    gap: 6px;
+  }
+
+  .hotkeys-list > div {
+    font-size: 12.5px;
+  }
+
+  .hotkeys-list > div.hotkeys-group-row {
+    grid-template-columns: auto 12px auto minmax(0, 1fr);
+  }
+
+  .hotkeys-list > div.hotkeys-gesture-row {
+    grid-template-columns: minmax(146px, auto) minmax(0, 1fr);
+    column-gap: 8px;
+  }
+
+  .hotkeys-list > div.hotkeys-gesture-row kbd {
+    width: auto;
+    min-width: 146px;
+    padding-inline: 6px;
+  }
+
+  .hotkeys-list span {
+    overflow-wrap: anywhere;
+  }
 }

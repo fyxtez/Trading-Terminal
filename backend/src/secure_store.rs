@@ -1,4 +1,7 @@
+#[cfg(not(target_os = "android"))]
 use keyring::{Entry, Error as KeyringError};
+#[cfg(target_os = "android")]
+use keyring_core::{Entry, Error as KeyringError};
 use zeroize::Zeroizing;
 
 pub const SERVICE: &str = "com.fyxtez.terminal";

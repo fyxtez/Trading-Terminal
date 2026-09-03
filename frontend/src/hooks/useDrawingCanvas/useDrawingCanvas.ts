@@ -875,7 +875,7 @@ export function useDrawingCanvas(
     event.stopPropagation();
 
     if (hit.type === "horizontal" && hit.orderSide !== undefined) {
-      armOrderLineMove(hit);
+      armOrderLineMove(hit, event);
       return;
     }
 

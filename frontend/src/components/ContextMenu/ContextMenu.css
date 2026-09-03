@@ -242,3 +242,33 @@
   background: var(--bg-hover);
   border-color: var(--border-strong);
 }
+
+/* Right-click menus are pointer-anchored on desktop. On a phone the same
+ * coordinates can put most of the menu below/alongside the narrow chart, so
+ * present every chart/drawing context menu as a centered, safe-area modal. */
+@media (max-width: 720px) and (pointer: coarse) {
+  .context-menu,
+  .context-menu-drawing {
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right));
+    top: calc(50% + (env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2) !important;
+    width: auto;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    overflow-y: auto;
+    transform: translateY(-50%);
+    overscroll-behavior: contain;
+    box-shadow:
+      0 0 0 100vmax rgb(4 6 10 / 68%),
+      var(--shadow-pop);
+  }
+
+  .context-delete,
+  .context-action,
+  .context-align-button,
+  .context-tf-button,
+  .context-confirm-yes,
+  .context-confirm-no {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}

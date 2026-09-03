@@ -4,10 +4,13 @@ Rust, Tokio, and Axum service responsible for exchange access, trading safety,
 account state, persistent alerts, symbol metadata, and frontend REST/WebSocket
 APIs.
 
-This remains the local execution authority. Tauri packages it as a sidecar,
-starts it on an ephemeral loopback port, health-checks it, restarts it at most
-three times after crashes, and stops it with the application. See
-[`ADR 0004`](../docs/adr/0004-backend-packaging-and-lifecycle.md).
+This remains the local execution authority. The application lifecycle lives in
+`src/lib.rs`; `src/main.rs` is the thin standalone/desktop-sidecar executable.
+Desktop Tauri packages and supervises that executable. Android links the same
+crate as a library and starts it inside the Tauri process, avoiding a duplicate
+mobile backend implementation. See
+[`ADR 0004`](../docs/adr/0004-backend-packaging-and-lifecycle.md) and
+[`ADR 0010`](../docs/adr/0010-embedded-mobile-backend.md).
 
 ## Setup
 
@@ -48,10 +51,11 @@ public. The WebSocket upgrade uses a short-lived, one-use ticket issued through
 an authenticated POST; icon bytes use the normal bearer-protected fetch path.
 Bind standalone development to localhost.
 
-Desktop mode ignores project server/token/data-path settings. It reads a bounded
-one-line bootstrap payload from stdin, binds only to `127.0.0.1`, and keeps data
-under Tauri's platform application-data directory. Exchange and notification
-credentials still come directly from the OS credential manager.
+Native mode ignores project server/token/data-path settings and binds only to
+`127.0.0.1`. Desktop reads a bounded one-line bootstrap payload from stdin;
+Android receives equivalent configuration in process. Both keep data under
+Tauri's platform application-data directory and read exchange/notification
+credentials directly from the platform credential manager.
 
 See [`.env.example`](.env.example) for all configuration variables and
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for service internals.

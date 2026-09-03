@@ -17,9 +17,10 @@
   border-radius: 10px;
   box-shadow: 0 32px 110px rgb(0 0 0/55%);
   display: grid;
-  grid-template-rows: auto auto minmax(390px, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: min(820px, calc(100dvh - 96px));
   max-width: 1280px;
-  min-height: min(820px, calc(100vh - 96px));
+  min-height: 0;
   overflow: hidden;
   width: 100%;
 }
@@ -90,7 +91,12 @@
   display: grid;
   gap: 64px;
   grid-template-columns: minmax(300px, 0.75fr) minmax(420px, 1.25fr);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 56px 64px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 .desktop-setup-step-copy h2 {
   font-size: clamp(34px, 3vw, 50px);
@@ -212,31 +218,200 @@
 }
 @media (max-width: 900px) {
   .desktop-setup {
-    padding: 18px;
+    height: 100dvh;
+    padding: 12px;
     position: fixed;
   }
   .desktop-setup-card {
-    min-height: calc(100vh - 36px);
+    height: calc(100dvh - 24px);
+    min-height: 0;
   }
   .desktop-setup-header {
-    padding: 26px;
+    gap: 16px;
+    padding: 18px 20px;
+  }
+  .desktop-setup-header img {
+    height: 44px;
+    width: 34px;
+  }
+  .desktop-setup-header h1 {
+    font-size: clamp(28px, 7vw, 38px);
+    margin: 6px 0;
+  }
+  .desktop-setup-header p {
+    font-size: 14px;
   }
   .desktop-setup-steps {
-    padding: 0 26px;
+    padding: 0 20px;
+  }
+  .desktop-setup-steps div {
+    gap: 8px;
+    padding: 14px 0;
+  }
+  .desktop-setup-steps b {
+    height: 24px;
+    width: 24px;
   }
   .desktop-setup-body {
-    gap: 32px;
+    gap: 22px;
     grid-template-columns: 1fr;
-    padding: 34px 26px;
+    padding: 22px 20px;
+  }
+  .desktop-setup-step-copy h2 {
+    font-size: clamp(28px, 8vw, 38px);
+    margin: 10px 0;
+  }
+  .desktop-setup-step-copy p {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .desktop-setup-step-copy em {
+    margin-top: 14px;
+  }
+  .desktop-setup-fields {
+    gap: 15px;
+  }
+  .desktop-setup-fields aside {
+    font-size: 13px;
+    padding: 14px 16px;
+  }
+  .desktop-setup-fields label {
+    gap: 7px;
+  }
+  .desktop-setup-fields input {
+    min-height: 46px;
+    padding: 12px 14px;
   }
   .desktop-setup-actions {
     grid-template-columns: auto 1fr;
-    padding: 16px 26px;
+    min-height: 68px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   }
   .desktop-setup-actions > span {
     display: none;
   }
   .desktop-setup-actions > div {
     justify-self: end;
+  }
+}
+
+@media (max-width: 520px) {
+  .desktop-setup {
+    padding: 0;
+  }
+  .desktop-setup-card {
+    border: 0;
+    border-radius: 0;
+    height: 100dvh;
+  }
+  .desktop-setup-header {
+    padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+  }
+  .desktop-setup-header img {
+    display: none;
+  }
+  .desktop-setup-header h1 {
+    font-size: 27px;
+  }
+  .desktop-setup-header p {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .desktop-setup-steps {
+    padding: 0 14px;
+  }
+  .desktop-setup-steps div {
+    font-size: 9px;
+    gap: 6px;
+    letter-spacing: 0.08em;
+    padding: 11px 0;
+  }
+  .desktop-setup-steps b {
+    flex: 0 0 auto;
+    height: 22px;
+    width: 22px;
+  }
+  .desktop-setup-body {
+    gap: 18px;
+    padding: 18px 16px 24px;
+    scrollbar-gutter: auto;
+  }
+  .desktop-setup-step-copy h2 {
+    font-size: 28px;
+  }
+  .desktop-setup-step-copy p {
+    font-size: 14px;
+  }
+  .desktop-network-picker > div {
+    gap: 8px;
+  }
+  .desktop-network-picker button {
+    min-width: 0;
+    padding: 12px;
+  }
+  .desktop-mainnet-confirmation {
+    padding: 12px;
+  }
+  .desktop-setup-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .desktop-setup-actions > i {
+    display: none;
+  }
+  .desktop-setup-actions > .secondary {
+    flex: 0 0 auto;
+    min-width: 68px;
+  }
+  .desktop-setup-actions > div {
+    flex: 1 1 auto;
+    gap: 6px;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+  .desktop-setup-actions button {
+    min-height: 48px;
+    padding: 0 12px;
+  }
+  .desktop-setup-actions .skip,
+  .desktop-setup-actions .primary {
+    flex: 1 1 0;
+  }
+  .desktop-setup-actions .skip {
+    background: #11151b;
+    border-color: #353b46;
+  }
+}
+
+@media (max-height: 560px) {
+  .desktop-setup {
+    padding: 0;
+  }
+  .desktop-setup-card {
+    border-radius: 0;
+    height: 100dvh;
+  }
+  .desktop-setup-header {
+    padding-bottom: 10px;
+    padding-top: 10px;
+  }
+  .desktop-setup-header img,
+  .desktop-setup-header p {
+    display: none;
+  }
+  .desktop-setup-header h1 {
+    font-size: 25px;
+    margin: 4px 0 0;
+  }
+  .desktop-setup-steps div {
+    padding-bottom: 8px;
+    padding-top: 8px;
+  }
+  .desktop-setup-body {
+    padding-bottom: 18px;
+    padding-top: 16px;
   }
 }

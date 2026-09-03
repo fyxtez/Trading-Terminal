@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getSymbolConfig, type TradingSymbol } from "../../config/constants";
 import { getSymbolInfo } from "../../config/symbols";
-import { useViewportClampOffset } from "../../hooks/useViewportClampOffset";
+import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   loadSymbolCategories,
@@ -48,13 +49,11 @@ export default function ChartTabs({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const addMenuRef = useRef<HTMLDivElement | null>(null);
   const addMenuPopoverRef = useRef<HTMLDivElement | null>(null);
+  const addMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const addSearchRef = useRef<HTMLInputElement | null>(null);
   const addHighlightedOptionRef = useRef<HTMLButtonElement | null>(null);
   const tabContextMenuRef = useRef<HTMLDivElement | null>(null);
-  // With few tabs open, the "+" button (and this popover's anchor) can sit
-  // far from the screen edge - see useViewportClampOffset for why that
-  // otherwise clips the icon/ticker columns off-screen.
-  const addMenuOffset = useViewportClampOffset(addMenuPopoverRef, isAddOpen);
+  const addMenuStyle = useFixedPopoverPosition(addMenuTriggerRef, isAddOpen, 252, 5);
 
   const groupedAvailableSymbols = useMemo(() => {
     // the chart-tab picker now mirrors the main symbol switcher's
@@ -112,7 +111,11 @@ export default function ChartTabs({
     if (!isAddOpen) return;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+      if (
+        addMenuRef.current &&
+        !addMenuRef.current.contains(event.target as Node) &&
+        !addMenuPopoverRef.current?.contains(event.target as Node)
+      ) {
         setIsAddOpen(false);
         setAddSearch("");
         setAddHighlightedIndex(0);
@@ -242,6 +245,7 @@ export default function ChartTabs({
 
       <div className="chart-tab-add-wrap" ref={addMenuRef}>
         <button
+          ref={addMenuTriggerRef}
           className="chart-tab-add"
           aria-label="Open another chart tab"
           title="Open chart tab"
@@ -263,80 +267,86 @@ export default function ChartTabs({
           +
         </button>
 
-        {isAddOpen && availableToOpen.length > 0 && (
-          <div
-            className="chart-tab-add-menu"
-            ref={addMenuPopoverRef}
-            style={addMenuOffset ? { transform: `translateX(${addMenuOffset}px)` } : undefined}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="chart-tab-add-search-wrap">
-              <input
-                ref={addSearchRef}
-                className="chart-tab-add-search"
-                value={addSearch}
-                onChange={(event) => setAddSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowDown" && availableSymbolsInDisplayOrder.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setAddHighlightedIndex(
-                      (index) => (index + 1) % availableSymbolsInDisplayOrder.length,
+        {isAddOpen &&
+          availableToOpen.length > 0 &&
+          createPortal(
+            <div
+              className="chart-tab-add-menu"
+              ref={addMenuPopoverRef}
+              style={addMenuStyle ?? { visibility: "hidden" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="chart-tab-add-search-wrap">
+                <input
+                  ref={addSearchRef}
+                  className="chart-tab-add-search"
+                  value={addSearch}
+                  onChange={(event) => setAddSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && availableSymbolsInDisplayOrder.length > 0) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setAddHighlightedIndex(
+                        (index) => (index + 1) % availableSymbolsInDisplayOrder.length,
+                      );
+                    } else if (
+                      event.key === "ArrowUp" &&
+                      availableSymbolsInDisplayOrder.length > 0
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setAddHighlightedIndex(
+                        (index) =>
+                          (index - 1 + availableSymbolsInDisplayOrder.length) %
+                          availableSymbolsInDisplayOrder.length,
+                      );
+                    } else if (event.key === "Enter" && availableSymbolsInDisplayOrder.length > 0) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      // Enter opens the currently highlighted search result
+                      // while focus stays in the input for fast keyboard-only tab creation.
+                      const highlighted =
+                        availableSymbolsInDisplayOrder[addHighlightedIndex] ??
+                        availableSymbolsInDisplayOrder[0];
+                      if (highlighted) openSymbolFromAddMenu(highlighted);
+                    }
+                  }}
+                  placeholder="Search symbol"
+                  aria-label="Search symbols to open"
+                />
+              </div>
+              {groupedAvailableSymbols.map((group) => (
+                <section className="chart-tab-add-category" key={group.value}>
+                  <h3 className="chart-tab-add-category-heading">
+                    <span>{group.label}</span>
+                    <span aria-hidden="true" />
+                  </h3>
+                  {group.symbols.map((symbol) => {
+                    const info = getSymbolInfo(symbol);
+                    const symbolIndex = availableSymbolsInDisplayOrder.indexOf(symbol);
+                    const isHighlighted = symbolIndex === addHighlightedIndex;
+                    return (
+                      <button
+                        key={symbol}
+                        ref={isHighlighted ? addHighlightedOptionRef : undefined}
+                        className={isHighlighted ? "keyboard-highlighted" : undefined}
+                        onMouseEnter={() => setAddHighlightedIndex(symbolIndex)}
+                        onClick={() => openSymbolFromAddMenu(symbol)}
+                      >
+                        <SymbolIcon symbol={symbol} className="chart-tab-add-icon" />
+                        <span className="chart-tab-add-label">{info.label}</span>
+                        <span className="chart-tab-add-name">{info.name}</span>
+                      </button>
                     );
-                  } else if (event.key === "ArrowUp" && availableSymbolsInDisplayOrder.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setAddHighlightedIndex(
-                      (index) =>
-                        (index - 1 + availableSymbolsInDisplayOrder.length) %
-                        availableSymbolsInDisplayOrder.length,
-                    );
-                  } else if (event.key === "Enter" && availableSymbolsInDisplayOrder.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    // Enter opens the currently highlighted search result
-                    // while focus stays in the input for fast keyboard-only tab creation.
-                    const highlighted =
-                      availableSymbolsInDisplayOrder[addHighlightedIndex] ??
-                      availableSymbolsInDisplayOrder[0];
-                    if (highlighted) openSymbolFromAddMenu(highlighted);
-                  }
-                }}
-                placeholder="Search symbol"
-                aria-label="Search symbols to open"
-              />
-            </div>
-            {groupedAvailableSymbols.map((group) => (
-              <section className="chart-tab-add-category" key={group.value}>
-                <h3 className="chart-tab-add-category-heading">
-                  <span>{group.label}</span>
-                  <span aria-hidden="true" />
-                </h3>
-                {group.symbols.map((symbol) => {
-                  const info = getSymbolInfo(symbol);
-                  const symbolIndex = availableSymbolsInDisplayOrder.indexOf(symbol);
-                  const isHighlighted = symbolIndex === addHighlightedIndex;
-                  return (
-                    <button
-                      key={symbol}
-                      ref={isHighlighted ? addHighlightedOptionRef : undefined}
-                      className={isHighlighted ? "keyboard-highlighted" : undefined}
-                      onMouseEnter={() => setAddHighlightedIndex(symbolIndex)}
-                      onClick={() => openSymbolFromAddMenu(symbol)}
-                    >
-                      <SymbolIcon symbol={symbol} className="chart-tab-add-icon" />
-                      <span className="chart-tab-add-label">{info.label}</span>
-                      <span className="chart-tab-add-name">{info.name}</span>
-                    </button>
-                  );
-                })}
-              </section>
-            ))}
-            {groupedAvailableSymbols.length === 0 && (
-              <div className="chart-tab-add-empty">No matching symbols</div>
-            )}
-          </div>
-        )}
+                  })}
+                </section>
+              ))}
+              {groupedAvailableSymbols.length === 0 && (
+                <div className="chart-tab-add-empty">No matching symbols</div>
+              )}
+            </div>,
+            document.body,
+          )}
       </div>
 
       {tabContextMenu &&

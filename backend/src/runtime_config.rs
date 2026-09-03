@@ -20,7 +20,8 @@ pub struct RuntimeConfig {
     pub sizing_config_path: PathBuf,
     pub alerts_db_path: PathBuf,
     pub operation_journal_path: PathBuf,
-    pub desktop_sidecar: bool,
+    pub use_secure_network: bool,
+    pub parent_process_guard: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,7 +74,8 @@ impl RuntimeConfig {
             sizing_config_path: data_dir.join("sizing.json"),
             alerts_db_path: data_dir.join("alerts.sqlite3"),
             operation_journal_path: data_dir.join("operations.sqlite3"),
-            desktop_sidecar: true,
+            use_secure_network: true,
+            parent_process_guard: true,
         })
     }
 
@@ -101,7 +103,34 @@ impl RuntimeConfig {
             sizing_config_path: env_path("SIZING_CONFIG_PATH", "data/sizing.json"),
             alerts_db_path: env_path("ALERTS_DB_PATH", "data/alerts.sqlite3"),
             operation_journal_path: env_path("OPERATION_JOURNAL_PATH", "data/operations.sqlite3"),
-            desktop_sidecar: false,
+            use_secure_network: false,
+            parent_process_guard: false,
+        })
+    }
+
+    pub fn embedded(
+        address: SocketAddr,
+        service_token: String,
+        data_dir: PathBuf,
+    ) -> AppResult<Self> {
+        validate_token(&service_token)?;
+        if !address.ip().is_loopback() || address.port() == 0 {
+            return Err(AppError::Config(
+                "embedded backend must use a non-zero loopback address".into(),
+            ));
+        }
+        std::fs::create_dir_all(&data_dir)?;
+
+        Ok(Self {
+            address,
+            service_token,
+            symbol_registry_path: data_dir.join("symbols.json"),
+            icon_cache_dir: data_dir.join("icons"),
+            sizing_config_path: data_dir.join("sizing.json"),
+            alerts_db_path: data_dir.join("alerts.sqlite3"),
+            operation_journal_path: data_dir.join("operations.sqlite3"),
+            use_secure_network: true,
+            parent_process_guard: false,
         })
     }
 }
@@ -151,7 +180,9 @@ fn validate_token(token: &str) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_token;
+    use std::{net::SocketAddr, path::PathBuf};
+
+    use super::{RuntimeConfig, validate_token};
 
     #[test]
     fn rejects_short_service_tokens() {
@@ -161,5 +192,26 @@ mod tests {
     #[test]
     fn accepts_random_length_service_tokens() {
         assert!(validate_token(&"a".repeat(64)).is_ok());
+    }
+
+    #[test]
+    fn embedded_runtime_requires_loopback() {
+        let token = "a".repeat(64);
+        assert!(
+            RuntimeConfig::embedded(
+                "127.0.0.1:43123".parse::<SocketAddr>().unwrap(),
+                token.clone(),
+                PathBuf::from("data"),
+            )
+            .is_ok()
+        );
+        assert!(
+            RuntimeConfig::embedded(
+                "0.0.0.0:43123".parse::<SocketAddr>().unwrap(),
+                token,
+                PathBuf::from("data"),
+            )
+            .is_err()
+        );
     }
 }

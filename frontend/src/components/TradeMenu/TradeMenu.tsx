@@ -242,10 +242,7 @@ export default function TradeMenu(props: TradeMenuProps) {
                 value={leverage}
                 disabled={isLeverageDisabled}
                 onChange={(event) => onLeverageChange(Number(event.target.value))}
-                onMouseUp={(event) =>
-                  onLeverageCommit(Number((event.target as HTMLInputElement).value))
-                }
-                onTouchEnd={(event) =>
+                onPointerUp={(event) =>
                   onLeverageCommit(Number((event.target as HTMLInputElement).value))
                 }
                 onKeyUp={(event) =>

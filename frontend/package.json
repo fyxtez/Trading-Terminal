@@ -21,7 +21,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "android:dev": "tauri android dev",
+    "android:build": "tauri android build --apk",
+    "android:build:device": "tauri android build --debug --apk --target aarch64 --ci"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

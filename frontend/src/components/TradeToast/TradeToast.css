@@ -10,7 +10,7 @@
   bottom: 20px;
   transform: translateX(-50%);
   z-index: 240;
-  max-width: 420px;
+  max-width: min(420px, calc(100% - 24px));
   padding: 13px 18px;
   border: 1px solid var(--border-strong);
   border-left: 3px solid var(--border-strong);
@@ -35,6 +35,7 @@
    * the box's actual visual bounds.
    */
   white-space: normal;
+  overflow-wrap: anywhere;
   text-align: center;
 }
 .trade-toast.success {

@@ -166,6 +166,14 @@ impl BinanceClient {
         Ok(self.credentials()?.api_key)
     }
 
+    /// Reuse the client that already performed the startup time/reference
+    /// requests. In particular, repeatedly creating a fresh TLS/DNS pool on
+    /// Android made a temporary network failure snowball into a permanently
+    /// degraded user stream.
+    pub(crate) fn http_client(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     pub async fn server_time(&self) -> AppResult<Value> {
         self.public(Method::GET, "/fapi/v1/time", Vec::new()).await
     }

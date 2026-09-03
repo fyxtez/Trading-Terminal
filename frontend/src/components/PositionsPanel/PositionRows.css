@@ -559,15 +559,13 @@
 
 /*
  * ============================================================
- * MOBILE: convert the fixed-width grid tables into stacked
- * label/value cards. Below this breakpoint there's no realistic
- * amount of horizontal space to keep 9 (positions) or 5 (open
- * orders) columns readable side by side, so each row becomes its
- * own card and every value gets an explicit label instead of
- * relying on column position.
+ * NARROW PANEL: convert the fixed-width grid tables into stacked
+ * label/value cards. The container query also catches a wide window
+ * whose chart area has been narrowed by Settings; there is no realistic
+ * room to keep the positions/order columns readable side by side there.
  * ============================================================
  */
-@media (max-width: 720px) {
+@container positions-panel (max-width: 720px) {
   .positions-tabs {
     height: auto;
     min-height: 46px;
@@ -577,8 +575,11 @@
   }
 
   .positions-tab {
+    min-height: 44px;
     padding: 6px 10px;
     font-size: 14.5px;
+    white-space: nowrap;
+    touch-action: manipulation;
   }
 
   .positions-tabs-spacer {
@@ -597,6 +598,30 @@
   .close-everything-button {
     flex: 1;
     min-width: 0;
+    height: 44px;
+    touch-action: manipulation;
+  }
+
+  .close-everything-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* The anchored desktop menu extends to the left of its narrow trigger and
+   * gets clipped by the positions dock. A mobile bulk action is safer and
+   * readable as a centered modal whose complete labels remain on-screen. */
+  .close-everything-menu {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    top: calc(50% + (env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2);
+    z-index: 20000;
+    width: auto;
+    min-width: 0;
+    transform: translateY(-50%);
+    box-shadow:
+      0 0 0 100vmax rgb(4 6 10 / 68%),
+      var(--shadow-pop);
   }
 
   .positions-refresh {
@@ -619,6 +644,7 @@
     align-items: stretch;
     gap: 10px;
     padding: 14px 14px 16px;
+    touch-action: manipulation;
   }
 
   .position-row::before,
@@ -655,6 +681,8 @@
   }
 
   .position-value > strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
     text-align: right;
   }
 
@@ -667,13 +695,31 @@
     margin-top: 2px;
   }
 
+  .position-tpsl-visibility-cell,
+  .position-tpsl-visibility {
+    width: 100%;
+  }
+
+  .position-tpsl-visibility {
+    height: 44px;
+    touch-action: manipulation;
+  }
+
   .position-market-close {
     width: 100%;
-    height: 38px;
+    height: 44px;
+    touch-action: manipulation;
   }
 
   .open-order-symbol-cell {
     width: 100%;
+  }
+
+  .open-order-symbol-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    touch-action: manipulation;
   }
 
   .open-order-symbol-top {
@@ -686,6 +732,12 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  .open-order-value > strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
   }
 
   /*
@@ -724,7 +776,9 @@
 
   .open-order-action-cell button {
     flex: 1;
+    height: 44px;
     min-width: 96px;
+    touch-action: manipulation;
   }
 
   .open-order-focus-cue {
@@ -743,13 +797,25 @@
     gap: 6px;
   }
 
+  .reduce-order-editor-slider {
+    min-height: 44px;
+    touch-action: none;
+  }
+
   .reduce-order-editor-actions {
     flex-direction: column-reverse;
   }
 
   .reduce-order-editor-actions button {
     width: 100%;
-    height: 36px;
+    height: 44px;
+    touch-action: manipulation;
+  }
+
+  .close-everything-option {
+    height: 44px;
+    touch-action: manipulation;
+    white-space: normal;
   }
 }
 
@@ -797,7 +863,7 @@
   display: none;
 }
 
-@media (max-width: 720px) {
+@container positions-panel (max-width: 720px) {
   .positions-resize-handle {
     display: none;
   }

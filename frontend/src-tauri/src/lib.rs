@@ -1,7 +1,16 @@
+#[cfg(desktop)]
 mod backend_supervisor;
+#[cfg(mobile)]
+mod mobile_backend;
 
+#[cfg(desktop)]
 use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
-use keyring::Entry;
+#[cfg(not(target_os = "android"))]
+use keyring::{Entry, Error as KeyringError};
+#[cfg(target_os = "android")]
+use keyring_core::{Entry, Error as KeyringError};
+#[cfg(mobile)]
+use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
@@ -53,7 +62,7 @@ fn read_secret(name: &str) -> Result<Option<Zeroizing<String>>, String> {
     match entry(name)?.get_password() {
         Ok(value) if value.trim().is_empty() => Ok(None),
         Ok(value) => Ok(Some(Zeroizing::new(value))),
-        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(KeyringError::NoEntry) => Ok(None),
         Err(error) => Err(format!("failed to read {name}: {error}")),
     }
 }
@@ -360,8 +369,12 @@ async fn send_notification(input: NotificationInput) -> Result<(), String> {
     }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
@@ -369,8 +382,30 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_shell::init());
+
+    let app = builder
         .setup(|app| {
+            #[cfg(all(debug_assertions, desktop))]
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_fullscreen(false)?;
+                window.set_size(tauri::LogicalSize::new(1280.0, 800.0))?;
+                window.center()?;
+            }
+
+            #[cfg(target_os = "android")]
+            keyring_core::set_default_store(
+                android_native_keyring_store::Store::new_with_configuration(
+                    &std::collections::HashMap::new(),
+                )
+                .map_err(|error| {
+                    std::io::Error::other(format!("Android credential store failed: {error}"))
+                })?,
+            );
+
+            #[cfg(mobile)]
+            fyxtez_backend::init_tracing();
+
             let supervisor = BackendSupervisor::start(app.handle()).map_err(|error| {
                 std::io::Error::other(format!("backend startup failed: {error}"))
             })?;

@@ -24,6 +24,18 @@ Linux x86_64 `.deb` and AppImage bundling is enabled. Distribution still
 requires artifact signing and clean-machine acceptance. Decisions and
 constraints are recorded in [`docs/adr`](docs/adr/README.md).
 
+Android preserves the same React/Axum boundary but links the backend crate into
+the Tauri process instead of packaging a second executable:
+
+```text
+Android Tauri process
+  ├── Android-native credential store
+  ├── bounded embedded-backend supervisor
+  ├── WebView: existing React/Vite terminal
+  └── shared backend library on 127.0.0.1:<ephemeral-port>
+      └── private app-data JSON, SQLite, and icon storage
+```
+
 ### Desktop connection modes
 
 - **Chart only:** no Binance secret is configured; public market data and local
@@ -111,12 +123,13 @@ positions or order completion.
 
 ## Backend
 
-The backend is a Tokio application exposed through Axum.
+The backend is a reusable Tokio application exposed through Axum.
 
 ### Main areas
 
-- `main.rs` loads configuration, initializes stores and exchange reference data,
-  starts background workers, and handles graceful shutdown.
+- `lib.rs` loads configuration, initializes stores and exchange reference data,
+  starts background workers, and handles graceful shutdown. `main.rs` is a thin
+  standalone/desktop-sidecar entry point.
 - `runtime_config.rs` separates standalone `.env` development from the bounded
   stdin bootstrap used by the desktop sidecar.
 - `api.rs` composes routes and the remaining multi-step trading workflows.
@@ -146,8 +159,9 @@ its guard across the authoritative reads and writes of its workflow, so another
 request cannot place, cancel, modify, close, chase, or reverse an order in the
 middle of that transition. In particular, `close-everything` holds the guard
 from its fresh account/open-order snapshot through every cancellation and
-reduce-only close. The lock is not distributed; the desktop single-instance
-policy and managed sidecar provide the one-process ownership assumption. A
+reduce-only close. The lock is not distributed; desktop single-instance
+enforcement and Android's single application process provide the one-process
+ownership assumption. A
 contention test verifies that a second workflow cannot enter before the first
 guard is released.
 
@@ -207,7 +221,7 @@ as frontend warnings and retained as process-lifetime diagnostic counters.
 
 ### Failure and diagnostics flow
 
-`/health` answers only whether the sidecar API is alive. The authenticated
+`/health` answers only whether the local backend API is alive. The authenticated
 `/api/diagnostics` snapshot separately reports exchange connectivity,
 user-stream freshness, reconciliation drift and rejected/duplicate mutation
 requests. React adds its own sidecar and public market-feed states. Failed
@@ -226,7 +240,7 @@ a manual retry; uncaught render failures enter the global fail-closed boundary.
 | UI settings/drawings/tabs | Browser `localStorage` | Frontend |
 | Binance/ntfy/Telegram secrets | OS credential manager | Native Rust |
 
-The table shows standalone development defaults. In installed desktop builds,
+The table shows standalone development defaults. In installed native builds,
 backend-owned JSON, SQLite, and icon data live under the operating system's
 application-data directory resolved by Tauri. Runtime data and secrets are
 ignored by Git.
@@ -238,9 +252,10 @@ timeout, redirect and failure boundaries are listed in
 
 ## Authentication and trust boundaries
 
-Desktop startup generates a 256-bit per-launch bearer capability and an
-ephemeral loopback port. A one-line JSON bootstrap is written to the sidecar's
-stdin; neither value appears in `VITE_*`, argv, a file, nor application URLs.
+Native startup generates a 256-bit per-launch bearer capability and an
+ephemeral loopback port. Desktop writes a one-line JSON bootstrap to the
+sidecar's stdin; Android passes the same values directly to the linked backend
+library. Neither value appears in `VITE_*`, argv, a file, nor application URLs.
 Tauri gives the runtime information to the WebView through an IPC command.
 The desktop frontend build also shadows local `VITE_TRADING_*` variables with
 empty values, preventing an ignored developer `.env` from leaking its browser
@@ -271,9 +286,9 @@ multi-user authentication design.
   argv, URLs, localStorage, SQLite, or backend logs.
 - Desktop capabilities contain 256 random bits and service tokens must contain
   at least 32 characters.
-- The backend sidecar is packaged, health-checked, supervised, and stopped by
-  Tauri; only one desktop application instance owns it.
-- Automatic sidecar recovery is bounded to three attempts before a visible
+- The desktop backend sidecar is packaged, health-checked, supervised, and
+  stopped by Tauri; Android health-checks and supervises the embedded backend.
+- Automatic local-backend recovery is bounded to three attempts before a visible
   retry is required.
 - Exposure-increasing symbol setup enforces isolated margin.
 - Multi-step trade workflows are serialized.

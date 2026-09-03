@@ -758,7 +758,7 @@
     border-left: 1px solid var(--border-strong);
     box-shadow: -10px 0 28px rgba(0, 0, 0, 0.45);
     transform: translateX(100%);
-    transition: transform 220ms ease;
+    transition: transform 110ms ease-out;
   }
 
   .settings-panel.open {
@@ -798,7 +798,7 @@
     bottom: 0;
     z-index: 490;
     background: rgba(4, 6, 10, 0.5);
-    animation: settings-backdrop-fade 160ms ease;
+    animation: settings-backdrop-fade 90ms ease-out;
   }
 }
 

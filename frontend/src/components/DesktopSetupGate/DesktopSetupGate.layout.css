@@ -118,3 +118,17 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+@media (max-width: 520px) {
+  .desktop-setup-actions {
+    gap: 8px;
+  }
+
+  .desktop-setup-actions > .secondary {
+    min-width: 68px;
+  }
+
+  .desktop-network-picker button {
+    padding: 12px;
+  }
+}

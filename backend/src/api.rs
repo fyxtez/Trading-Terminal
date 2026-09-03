@@ -2225,6 +2225,20 @@ async fn build_auto_size(
     .await
 }
 
+fn validate_auto_stop_liquidation_room(
+    theoretical_max_leverage: f64,
+    price: f64,
+    stop_loss: f64,
+) -> AppResult<()> {
+    if theoretical_max_leverage.is_finite() && theoretical_max_leverage > 1.0 {
+        return Ok(());
+    }
+
+    Err(AppError::Invalid(format!(
+        "stop_loss {stop_loss} is beyond the estimated liquidation boundary even at 1x leverage; move the stop closer to entry price {price}"
+    )))
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn build_auto_size_with_margin_pct(
     state: &AppState,
@@ -2343,6 +2357,14 @@ async fn build_auto_size_with_margin_pct(
         }
     }
 
+    // At 1x isolated leverage the liquidation boundary is roughly one entry
+    // price away (slightly less after maintenance margin). A farther SHORT
+    // stop can therefore never execute before liquidation. The previous
+    // `.max(1.0)` above silently converted that impossible result into 1x,
+    // opened the position, and only the follow-up stop request exposed the
+    // problem. Reject it here, before any exchange mutation occurs.
+    validate_auto_stop_liquidation_room(theoretical_max_leverage, price, stop_loss)?;
+
     if leverage == 0 || leverage > exchange_max || leverage > config.max_leverage {
         return Err(AppError::Invalid(format!(
             "leverage {leverage} exceeds exchange/config maximum {}",
@@ -2437,7 +2459,7 @@ mod financial_invariant_tests {
     use super::{
         close_everything_result, close_side_for_position, configured_margin_quantity,
         find_nonzero_position, liquidation_price_for_position, unfilled_order_quantity,
-        validate_stop_trigger,
+        validate_auto_stop_liquidation_room, validate_stop_trigger,
     };
     use crate::models::{FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters};
 
@@ -2516,6 +2538,15 @@ mod financial_invariant_tests {
         assert!(validate_stop_trigger(-1.0, 100.0, 110.0, Some(120.0)).is_ok());
         assert!(validate_stop_trigger(-1.0, 100.0, 100.0, Some(120.0)).is_err());
         assert!(validate_stop_trigger(-1.0, 100.0, 120.0, Some(120.0)).is_err());
+    }
+
+    #[test]
+    fn auto_market_rejects_a_stop_that_cannot_precede_liquidation_at_one_x() {
+        assert!(validate_auto_stop_liquidation_room(4.2, 100.0, 120.0).is_ok());
+
+        let error = validate_auto_stop_liquidation_room(0.65, 100.0, 250.0)
+            .expect_err("an impossible stop must be rejected before entry");
+        assert!(error.to_string().contains("even at 1x leverage"));
     }
 
     #[test]

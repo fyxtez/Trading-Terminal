@@ -452,7 +452,9 @@ export default function AlertLinesOverlay({
               {alert.side}
             </button>
 
-            <span>ALERT: {formatAlertPrice(alert.price, pricePrecision)}</span>
+            <span className="alert-line-price">
+              ALERT: {formatAlertPrice(alert.price, pricePrecision)}
+            </span>
 
             <button
               type="button"

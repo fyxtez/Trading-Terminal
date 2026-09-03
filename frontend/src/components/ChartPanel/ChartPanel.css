@@ -20,6 +20,18 @@
   pointer-events: none;
 }
 
+/* The order-line editor listens on window so it can follow and confirm a
+ * click-move-click gesture. This transparent layer keeps that same pointer
+ * stream from reaching Lightweight Charts and panning/zooming it underneath. */
+.chart-interaction-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .drawing-canvas.drawings-hidden {
   visibility: hidden;
 }

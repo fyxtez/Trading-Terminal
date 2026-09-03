@@ -94,6 +94,13 @@
     height: min(62vh, 480px);
   }
 
+  /* Continuously resizing the chart throughout a height transition is costly
+   * on Android WebView and made the positions sheet visibly trail the tap. */
+  .bottom-dock,
+  .bottom-dock.open {
+    transition: none;
+  }
+
   /*
    * SettingsPanel becomes a fixed, full-height overlay on mobile (see
    * SettingsPanel.css) instead of a real grid column, so reserving

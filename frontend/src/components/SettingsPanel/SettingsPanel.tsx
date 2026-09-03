@@ -389,6 +389,14 @@ export default function SettingsPanel({
       return;
     }
 
+    // Mobile uses a short transform-only drawer animation, not the desktop
+    // grid-width animation. Waiting the old full 200ms there made the panel
+    // appear open while its body was still deliberately non-scrollable.
+    if (window.matchMedia("(max-width: 720px)").matches) {
+      setIsFullyOpen(true);
+      return;
+    }
+
     const timer = window.setTimeout(() => setIsFullyOpen(true), 200);
     return () => window.clearTimeout(timer);
   }, [isOpen]);

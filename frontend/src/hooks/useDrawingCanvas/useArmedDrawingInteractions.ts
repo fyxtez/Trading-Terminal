@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { BoxDrawing, Drawing, HorizontalDrawing, TrendDrawing } from "../../types/drawing";
 import { modifyLimitOrder, repriceReduceOrder } from "../../trading/api/orders";
@@ -48,11 +48,24 @@ export function useArmedDrawingInteractions(
   } | null>(null);
   const armedBoxHandleBeforeRef = useRef<BoxDrawing | null>(null);
 
-  const armOrderLineMove = (drawing: HorizontalDrawing) => {
+  const armOrderLineMove = (
+    drawing: HorizontalDrawing,
+    event?: ReactPointerEvent<HTMLDivElement>,
+  ) => {
     armedOrderLineBeforeRef.current = cloneDrawing(drawing) as HorizontalDrawing;
     setArmedOrderLineId(drawing.id);
     drawingsApi.setSelectedId(drawing.id);
     drawingsApi.setContextMenu(null);
+
+    // Keep the pointer sequence that picked up an order line on chart-wrap.
+    // This matters on touch screens: without capture, Lightweight Charts can
+    // retain the same finger stream and pan the chart while our order preview
+    // also follows it. Pointer capture makes the order-line interaction the
+    // sole owner until that finger is lifted; the existing click-move-click
+    // flow remains unchanged after pointerup.
+    if (event && !event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
   };
 
   const armTrendEndpointMove = (drawing: TrendDrawing, end: "start" | "end") => {

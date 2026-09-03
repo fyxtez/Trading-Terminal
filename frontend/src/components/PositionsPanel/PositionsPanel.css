@@ -6,6 +6,8 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-panel);
+  container-name: positions-panel;
+  container-type: inline-size;
 }
 
 .positions-resize-handle {
@@ -118,6 +120,9 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 
   /*
    * Was `hidden`. The heading/position rows below have a min-width of
@@ -387,5 +392,17 @@
       minmax(112px, 0.8fr)
       minmax(120px, 0.86fr);
     column-gap: 12px;
+  }
+}
+
+@container positions-panel (max-width: 720px) {
+  .positions-close {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .positions-body {
+    overflow-x: hidden;
   }
 }

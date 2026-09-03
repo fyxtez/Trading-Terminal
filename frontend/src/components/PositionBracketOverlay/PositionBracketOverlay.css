@@ -8,6 +8,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* TP/SL placement uses a window-level click-move-click handler. Capture the
+ * intervening touch movement here so Lightweight Charts cannot pan at the
+ * same time; the window handler still receives the bubbling pointer stream. */
+.position-bracket-interaction-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .position-entry-line,
 .position-stop-line {
   position: absolute;

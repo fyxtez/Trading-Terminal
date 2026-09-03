@@ -232,7 +232,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
         <header className="desktop-setup-header">
           <img src="/fyxtez-f-mark-alpha.png" alt="" />
           <div>
-            <small>LOCAL DESKTOP SETUP</small>
+            <small>LOCAL APP SETUP</small>
             <h1>
               {editingSingleConnection
                 ? `${configured ? "Edit" : "Connect"} ${activeStep.short.toLowerCase()}`
@@ -412,7 +412,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           ) : (
             <i />
           )}
-          <span>Secrets stay in your OS credential manager.</span>
+          <span>Secrets stay in your device credential manager.</span>
           <div>
             {!editingSingleConnection && (
               <button className="skip" type="button" disabled={saving} onClick={skip}>
@@ -441,7 +441,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           <LoadingIndicator
             variant="panel"
             label="Opening credential store"
-            detail="Reading connection status securely from this computer."
+            detail="Reading connection status securely from this device."
           />
         </div>
       </main>

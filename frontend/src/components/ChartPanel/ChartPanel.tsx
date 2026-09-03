@@ -237,6 +237,8 @@ type ChartPanelProps = {
   onSaveDrawingSet: (name: string) => boolean;
   isToolbarCollapsed: boolean;
   onShowToolbar: () => void;
+  /** Blocks Lightweight Charts gestures while an order line owns pointer movement. */
+  isPlacingOrderLine: boolean;
   onPointerDownCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMoveCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUpCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -332,6 +334,7 @@ export default function ChartPanel({
   onSaveDrawingSet,
   isToolbarCollapsed,
   onShowToolbar,
+  isPlacingOrderLine,
   onPointerDownCapture,
   onPointerMoveCapture,
   onPointerUpCapture,
@@ -353,6 +356,26 @@ export default function ChartPanel({
   const candleCountdownBaseAnchorRef = useRef<{ left: number; top: number } | null>(null);
   const candleCountdownGrabOffsetRef = useRef({ x: 0, y: 0 });
   const toolCursorIndicatorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    // A newly-mounted DOM shield cannot steal a touch sequence that already
+    // began on Lightweight Charts. Disable the chart's own gesture handlers
+    // for the complete order-line placement instead, then restore the normal
+    // pan/zoom behavior as soon as the line is confirmed or cancelled.
+    chart.applyOptions({
+      handleScroll: !isPlacingOrderLine,
+      handleScale: isPlacingOrderLine
+        ? false
+        : {
+            axisPressedMouseMove: { time: true, price: true },
+            mouseWheel: true,
+            pinch: true,
+          },
+    });
+  }, [chartRef, isPlacingOrderLine]);
 
   useEffect(() => {
     let previousLeft: number | null = null;
@@ -682,6 +705,8 @@ export default function ChartPanel({
         ref={containerRef}
         className={`chart ${isChartLoading ? "chart-loading" : "chart-ready"}`}
       />
+
+      {isPlacingOrderLine && <div className="chart-interaction-shield" aria-hidden="true" />}
 
       {tool !== "cursor" && !isChartLoading && (
         <div

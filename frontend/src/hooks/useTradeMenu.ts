@@ -620,24 +620,25 @@ export function useTradeMenu(
       // closePosition STOP_MARKET order and save it so the live position
       // bracket recognises that protection already exists.
       const stopSide: TradeSide = autoMarketDraft.side === "BUY" ? "SELL" : "BUY";
-      let stopResponse: Awaited<ReturnType<typeof placeFullStopLoss>> | null = null;
-      let lastStopError: unknown = null;
-
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        try {
-          stopResponse = await placeFullStopLoss({
-            symbol,
-            side: stopSide,
-            triggerPrice: stopLoss,
-          });
-          break;
-        } catch (error) {
-          lastStopError = error;
-          // The market order is already FILLED, but Binance's account update
-          // can arrive a fraction later. Give the backend cache a moment to
-          // observe the position before retrying the stop placement.
-          await new Promise((resolve) => window.setTimeout(resolve, 100));
-        }
+      // The backend's stop endpoint already refreshes account state when its
+      // cache has not observed the fill yet. Retrying every rejection here
+      // hid permanent validation errors behind twelve identical requests and
+      // inflated the diagnostics counter without making protection likelier.
+      let stopResponse: Awaited<ReturnType<typeof placeFullStopLoss>>;
+      try {
+        stopResponse = await placeFullStopLoss({
+          symbol,
+          side: stopSide,
+          triggerPrice: stopLoss,
+        });
+      } catch (error) {
+        setAutoMarketDraft(null);
+        dispatchTradingStateChanged();
+        throw new Error(
+          `POSITION OPENED, but automatic stop-loss placement failed: ${
+            error instanceof Error ? error.message : "unknown stop-loss error"
+          }`,
+        );
       }
 
       // this used to be `Number(stopResponse?.algo?.algoId)` -
@@ -651,11 +652,7 @@ export function useTradeMenu(
         setAutoMarketDraft(null);
         dispatchTradingStateChanged();
         throw new Error(
-          `POSITION OPENED, but automatic stop-loss placement failed: ${
-            lastStopError instanceof Error
-              ? lastStopError.message
-              : "Binance did not return a valid stop order"
-          }`,
+          "POSITION OPENED, but Binance did not return a valid automatic stop-loss order",
         );
       }
 

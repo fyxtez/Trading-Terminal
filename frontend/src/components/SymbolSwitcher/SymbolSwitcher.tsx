@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getSymbolInfo } from "../../config/symbols";
 import { getSymbolConfig, type ExchangeSource, type TradingSymbol } from "../../config/constants";
 import { addSymbol, deleteSymbol } from "../../trading/api/symbols";
 import { clearSymbolLocalMetadata } from "../../utils/symbolMetadata";
-import { useViewportClampOffset } from "../../hooks/useViewportClampOffset";
+import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   defaultSymbolCategory,
@@ -98,13 +99,11 @@ export default function SymbolSwitcher({
   const [categories, setCategories] = useState<StoredSymbolCategories>(loadSymbolCategories);
   const [isEditingCategories, setIsEditingCategories] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const highlightedOptionRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  // Keeps the menu on-screen if its 286px width would otherwise overflow
-  // past the window edge (the app root clips overflow, so that portion
-  // would just disappear instead of scrolling into view).
-  const menuOffset = useViewportClampOffset(menuRef, isOpen);
+  const menuStyle = useFixedPopoverPosition(triggerRef, isOpen, 360, 6);
   const info = getSymbolInfo(symbol);
   const activeConfig = getSymbolConfig(symbol);
 
@@ -115,8 +114,11 @@ export default function SymbolSwitcher({
   useEffect(() => {
     if (!isOpen) return;
 
-    // focus the search field as soon as the symbol menu is mounted so
-    // the user can open the switcher and immediately type without an extra click.
+    // Keep desktop keyboard navigation immediate, but do not summon the
+    // software keyboard as soon as the menu opens on a phone. It can consume
+    // most of the visual viewport before the user has seen any symbols.
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+
     const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
@@ -133,7 +135,13 @@ export default function SymbolSwitcher({
   useEffect(() => {
     if (!isOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) closeMenu();
+      if (
+        rootRef.current &&
+        !rootRef.current.contains(event.target as Node) &&
+        !menuRef.current?.contains(event.target as Node)
+      ) {
+        closeMenu();
+      }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeMenu();
@@ -277,6 +285,7 @@ export default function SymbolSwitcher({
   return (
     <div className="symbol-switcher" ref={rootRef}>
       <button
+        ref={triggerRef}
         className={`symbol-switcher-trigger ${isOpen ? "open" : ""}`}
         title="Switch chart market"
         onClick={(event) => {
@@ -296,187 +305,189 @@ export default function SymbolSwitcher({
         </span>
       </button>
 
-      {isOpen && (
-        <div
-          className="symbol-switcher-menu"
-          ref={menuRef}
-          style={menuOffset ? { transform: `translateX(${menuOffset}px)` } : undefined}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="symbol-category-toolbar">
-            <span>Grouped by category</span>
-            <button
-              type="button"
-              className={isEditingCategories ? "active" : ""}
-              aria-pressed={isEditingCategories}
-              onClick={() => setIsEditingCategories((editing) => !editing)}
-            >
-              {isEditingCategories ? "Done" : "Edit categories"}
-            </button>
-          </div>
-
-          <div className="symbol-switcher-list">
-            {groupedSymbols.map((group) => (
-              <section
-                className="symbol-category-group"
-                key={group.value}
-                aria-labelledby={`symbol-category-${group.value}`}
+      {isOpen &&
+        createPortal(
+          <div
+            className="symbol-switcher-menu"
+            ref={menuRef}
+            style={menuStyle ?? { visibility: "hidden" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="symbol-category-toolbar">
+              <span>Grouped by category</span>
+              <button
+                type="button"
+                className={isEditingCategories ? "active" : ""}
+                aria-pressed={isEditingCategories}
+                onClick={() => setIsEditingCategories((editing) => !editing)}
               >
-                <h3 id={`symbol-category-${group.value}`} className="symbol-category-heading">
-                  <span>{group.label}</span>
-                  <span aria-hidden="true" />
-                </h3>
-                {group.symbols.map((candidate) => {
-                  const candidateInfo = getSymbolInfo(candidate);
-                  const config = getSymbolConfig(candidate);
-                  const isActive = candidate === symbol;
-                  const category = symbolCategory(candidate, categories);
-                  const isWatchlisted = category === "watchlist";
-                  const candidateIndex = matchingSymbols.indexOf(candidate);
-                  const isHighlighted = candidateIndex === highlightedIndex;
-                  return (
-                    <div
-                      key={candidate}
-                      ref={isHighlighted ? highlightedOptionRef : undefined}
-                      className={`symbol-switcher-option ${isActive ? "active" : ""} ${isHighlighted ? "keyboard-highlighted" : ""}`}
-                    >
-                      {config.protected ? (
-                        <span
-                          className="symbol-pin-button locked"
-                          title="Primary market — category locked"
-                          aria-label={`${candidateInfo.label} is a primary market`}
-                        >
-                          <StarIcon filled />
-                        </span>
-                      ) : (
-                        <button
-                          className="symbol-pin-button"
-                          title={
-                            isWatchlisted
-                              ? `Remove ${candidateInfo.label} from Watchlist`
-                              : `Add ${candidateInfo.label} to Watchlist`
-                          }
-                          aria-label={
-                            isWatchlisted
-                              ? `Remove ${candidateInfo.label} from Watchlist`
-                              : `Add ${candidateInfo.label} to Watchlist`
-                          }
-                          aria-pressed={isWatchlisted}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleWatchlist(candidate);
-                          }}
-                        >
-                          <StarIcon filled={isWatchlisted} />
-                        </button>
-                      )}
-                      <button
-                        className="symbol-switcher-select"
-                        onClick={() => selectSymbol(candidate)}
+                {isEditingCategories ? "Done" : "Edit categories"}
+              </button>
+            </div>
+
+            <div className="symbol-switcher-list">
+              {groupedSymbols.map((group) => (
+                <section
+                  className="symbol-category-group"
+                  key={group.value}
+                  aria-labelledby={`symbol-category-${group.value}`}
+                >
+                  <h3 id={`symbol-category-${group.value}`} className="symbol-category-heading">
+                    <span>{group.label}</span>
+                    <span aria-hidden="true" />
+                  </h3>
+                  {group.symbols.map((candidate) => {
+                    const candidateInfo = getSymbolInfo(candidate);
+                    const config = getSymbolConfig(candidate);
+                    const isActive = candidate === symbol;
+                    const category = symbolCategory(candidate, categories);
+                    const isWatchlisted = category === "watchlist";
+                    const candidateIndex = matchingSymbols.indexOf(candidate);
+                    const isHighlighted = candidateIndex === highlightedIndex;
+                    return (
+                      <div
+                        key={candidate}
+                        ref={isHighlighted ? highlightedOptionRef : undefined}
+                        className={`symbol-switcher-option ${isActive ? "active" : ""} ${isHighlighted ? "keyboard-highlighted" : ""}`}
                       >
-                        <span className="symbol-switcher-option-symbol">
-                          <SymbolIcon symbol={candidate} />
-                          <span className="symbol-switcher-option-label">
-                            {candidateInfo.label}
+                        {config.protected ? (
+                          <span
+                            className="symbol-pin-button locked"
+                            title="Primary market — category locked"
+                            aria-label={`${candidateInfo.label} is a primary market`}
+                          >
+                            <StarIcon filled />
                           </span>
-                        </span>
-                        <span className="symbol-switcher-option-name">{candidateInfo.name}</span>
-                      </button>
-                      <div className="symbol-switcher-option-actions">
-                        {isEditingCategories && !config.protected && (
-                          <select
-                            className="symbol-category-select"
-                            value={category}
-                            aria-label={`Category for ${candidateInfo.label}`}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              setCategory(candidate, event.target.value as EditableSymbolCategory)
-                            }
-                          >
-                            {SYMBOL_CATEGORY_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        <ExchangeLogo
-                          source={config.source}
-                          executionEnabled={config.executionEnabled}
-                        />
-                        {!config.protected && (
+                        ) : (
                           <button
-                            className="symbol-delete-button"
-                            title={`Delete ${candidateInfo.label}`}
-                            aria-label={`Delete ${candidateInfo.label}`}
-                            disabled={pending !== null}
-                            onClick={() => void handleDelete(candidate)}
+                            className="symbol-pin-button"
+                            title={
+                              isWatchlisted
+                                ? `Remove ${candidateInfo.label} from Watchlist`
+                                : `Add ${candidateInfo.label} to Watchlist`
+                            }
+                            aria-label={
+                              isWatchlisted
+                                ? `Remove ${candidateInfo.label} from Watchlist`
+                                : `Add ${candidateInfo.label} to Watchlist`
+                            }
+                            aria-pressed={isWatchlisted}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleWatchlist(candidate);
+                            }}
                           >
-                            <span aria-hidden="true">×</span>
+                            <StarIcon filled={isWatchlisted} />
                           </button>
                         )}
+                        <button
+                          className="symbol-switcher-select"
+                          onClick={() => selectSymbol(candidate)}
+                        >
+                          <span className="symbol-switcher-option-symbol">
+                            <SymbolIcon symbol={candidate} />
+                            <span className="symbol-switcher-option-label">
+                              {candidateInfo.label}
+                            </span>
+                          </span>
+                          <span className="symbol-switcher-option-name">{candidateInfo.name}</span>
+                        </button>
+                        <div className="symbol-switcher-option-actions">
+                          {isEditingCategories && !config.protected && (
+                            <select
+                              className="symbol-category-select"
+                              value={category}
+                              aria-label={`Category for ${candidateInfo.label}`}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) =>
+                                setCategory(candidate, event.target.value as EditableSymbolCategory)
+                              }
+                            >
+                              {SYMBOL_CATEGORY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <ExchangeLogo
+                            source={config.source}
+                            executionEnabled={config.executionEnabled}
+                          />
+                          {!config.protected && (
+                            <button
+                              className="symbol-delete-button"
+                              title={`Delete ${candidateInfo.label}`}
+                              aria-label={`Delete ${candidateInfo.label}`}
+                              disabled={pending !== null}
+                              onClick={() => void handleDelete(candidate)}
+                            >
+                              <span aria-hidden="true">×</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </section>
-            ))}
-            {groupedSymbols.length === 0 && (
-              // explain an empty filtered list instead of leaving the
-              // menu visually blank when no registered symbol contains the text.
-              <div className="symbol-search-empty">No matching symbols — ready to add</div>
-            )}
-          </div>
-
-          <div className="symbol-add-row">
-            {/* one field now searches registered symbols as the user
-                types and becomes an Add-symbol input only when nothing matches. */}
-            <input
-              ref={searchInputRef}
-              value={newSymbol}
-              disabled={pending !== null}
-              placeholder="Search or add symbol"
-              aria-label="Search or add symbol"
-              onChange={(event) => {
-                setNewSymbol(event.target.value.toUpperCase());
-                // editing after a failed Add immediately removes the old
-                // message because it no longer describes the current query.
-                setError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown" && matchingSymbols.length > 0) {
-                  event.preventDefault();
-                  setHighlightedIndex((index) => (index + 1) % matchingSymbols.length);
-                } else if (event.key === "ArrowUp" && matchingSymbols.length > 0) {
-                  event.preventDefault();
-                  setHighlightedIndex(
-                    (index) => (index - 1 + matchingSymbols.length) % matchingSymbols.length,
-                  );
-                } else if (event.key === "Enter") {
-                  event.preventDefault();
-                  // when the typed ticker is not already registered, Enter
-                  // means Add even if partial search results are visible. Exact existing
-                  // tickers still open normally; arrows can be used for partial matches.
-                  if (exactRegisteredSymbol) selectSymbol(exactRegisteredSymbol);
-                  else void handleAdd();
-                }
-              }}
-            />
-            <button
-              className="symbol-add-button"
-              disabled={!canAddSymbol}
-              onClick={() => void handleAdd()}
-            >
-              {pending === "add" ? "…" : "Add"}
-            </button>
-          </div>
-          {error && (
-            <div className="symbol-switcher-error" title={error}>
-              {error}
+                    );
+                  })}
+                </section>
+              ))}
+              {groupedSymbols.length === 0 && (
+                // explain an empty filtered list instead of leaving the
+                // menu visually blank when no registered symbol contains the text.
+                <div className="symbol-search-empty">No matching symbols — ready to add</div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+
+            <div className="symbol-add-row">
+              {/* one field now searches registered symbols as the user
+                types and becomes an Add-symbol input only when nothing matches. */}
+              <input
+                ref={searchInputRef}
+                value={newSymbol}
+                disabled={pending !== null}
+                placeholder="Search or add symbol"
+                aria-label="Search or add symbol"
+                onChange={(event) => {
+                  setNewSymbol(event.target.value.toUpperCase());
+                  // editing after a failed Add immediately removes the old
+                  // message because it no longer describes the current query.
+                  setError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" && matchingSymbols.length > 0) {
+                    event.preventDefault();
+                    setHighlightedIndex((index) => (index + 1) % matchingSymbols.length);
+                  } else if (event.key === "ArrowUp" && matchingSymbols.length > 0) {
+                    event.preventDefault();
+                    setHighlightedIndex(
+                      (index) => (index - 1 + matchingSymbols.length) % matchingSymbols.length,
+                    );
+                  } else if (event.key === "Enter") {
+                    event.preventDefault();
+                    // when the typed ticker is not already registered, Enter
+                    // means Add even if partial search results are visible. Exact existing
+                    // tickers still open normally; arrows can be used for partial matches.
+                    if (exactRegisteredSymbol) selectSymbol(exactRegisteredSymbol);
+                    else void handleAdd();
+                  }
+                }}
+              />
+              <button
+                className="symbol-add-button"
+                disabled={!canAddSymbol}
+                onClick={() => void handleAdd()}
+              >
+                {pending === "add" ? "…" : "Add"}
+              </button>
+            </div>
+            {error && (
+              <div className="symbol-switcher-error" title={error}>
+                {error}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

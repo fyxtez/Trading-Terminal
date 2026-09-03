@@ -62,11 +62,10 @@
 }
 
 .symbol-switcher-menu {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 400;
+  position: fixed;
+  z-index: 20000;
   width: 360px;
+  overflow: hidden;
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -213,8 +212,12 @@
 }
 
 .symbol-switcher-list {
-  max-height: 330px;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -515,7 +518,22 @@
 
 @media (max-width: 720px) {
   .symbol-switcher-select {
-    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 48px;
+    grid-template-columns: 80px minmax(0, 1fr);
     column-gap: 8px;
+    touch-action: manipulation;
+  }
+
+  .symbol-pin-button,
+  .symbol-delete-button {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    touch-action: manipulation;
+  }
+
+  .symbol-switcher-option-actions {
+    gap: 0;
+    padding-right: 0;
   }
 }

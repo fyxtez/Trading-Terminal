@@ -206,9 +206,31 @@ button.topbar-connection-item:not(:disabled) {
 
 @media (max-width: 720px) {
   .topbar {
+    height: 50px;
     gap: 8px;
-    padding: 0 8px;
+    padding: 0 8px 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-color: var(--border-strong) transparent;
+    scrollbar-width: thin;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
   }
+
+  .topbar::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .topbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .topbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--border-strong);
+  }
+
   .symbol {
     font-size: 13.5px;
   }
@@ -291,11 +313,9 @@ button.topbar-connection-item:not(:disabled) {
   }
 
   .mobile-timeframe-menu {
-    position: absolute;
-    top: calc(100% + 7px);
-    left: 0;
-    z-index: 500;
-    width: min(270px, calc(100vw - 16px));
+    position: fixed;
+    z-index: 20000;
+    overflow-y: auto;
     padding: 10px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-m);

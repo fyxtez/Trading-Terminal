@@ -12,7 +12,7 @@ pub enum AppError {
     Io(#[from] std::io::Error),
 
     #[error("Binance HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(String),
 
     #[error("Binance JSON error: {0}")]
     Json(#[from] serde_json::Error),
@@ -98,3 +98,34 @@ impl IntoResponse for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+impl From<reqwest::Error> for AppError {
+    fn from(error: reqwest::Error) -> Self {
+        // reqwest's normal Display includes the complete request URL. Signed
+        // Binance URLs carry the signature in their query string, while a
+        // Telegram URL can carry the bot token in its path. Error responses,
+        // diagnostics and logs therefore retain only the failure category and
+        // the URL-free underlying transport cause.
+        let category = if error.is_timeout() {
+            "request timed out"
+        } else if error.is_connect() {
+            "connection failed"
+        } else if error.is_request() {
+            "request failed"
+        } else if error.is_body() {
+            "response body failed"
+        } else if error.is_decode() {
+            "response decode failed"
+        } else {
+            "HTTP transport failed"
+        };
+
+        let cause = std::error::Error::source(&error)
+            .map(ToString::to_string)
+            .filter(|message| !message.trim().is_empty());
+        Self::Http(match cause {
+            Some(cause) => format!("{category}: {cause}"),
+            None => category.to_string(),
+        })
+    }
+}

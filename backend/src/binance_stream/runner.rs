@@ -22,6 +22,16 @@ use crate::{
 
 const LISTEN_KEY_KEEPALIVE_SECS: u64 = 30 * 60;
 const RECONNECT_DELAY_SECS: u64 = 5;
+const MAX_RECONNECT_DELAY_SECS: u64 = 60;
+
+fn reconnect_delay(attempt: u64) -> Duration {
+    let exponent = attempt.saturating_sub(1).min(4) as u32;
+    Duration::from_secs(
+        RECONNECT_DELAY_SECS
+            .saturating_mul(2_u64.saturating_pow(exponent))
+            .min(MAX_RECONNECT_DELAY_SECS),
+    )
+}
 
 pub fn spawn_user_stream(
     binance: BinanceClient,
@@ -100,13 +110,14 @@ pub fn spawn_user_stream(
                 }
             }
 
+            let reconnect_delay = reconnect_delay(attempt);
             tracing::info!(
                 target: "api",
-                reconnect_delay_seconds = RECONNECT_DELAY_SECS,
+                reconnect_delay_seconds = reconnect_delay.as_secs(),
                 "Waiting before reconnecting Binance user-data stream"
             );
 
-            sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+            sleep(reconnect_delay).await;
         }
     })
 }
@@ -122,15 +133,7 @@ async fn run_once(
     let rest_base = binance.user_stream_rest_base();
     let ws_base = binance.user_stream_ws_base();
 
-    let client = reqwest::Client::builder()
-        .user_agent("fyxtez-binance-user-stream/1.1")
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(20))
-        .redirect(reqwest::redirect::Policy::none())
-        .pool_idle_timeout(Duration::from_secs(30))
-        .tcp_keepalive(Duration::from_secs(60))
-        .tcp_nodelay(true)
-        .build()?;
+    let client = binance.http_client();
 
     tracing::info!(
         target: "api",
@@ -139,7 +142,7 @@ async fn run_once(
     );
 
     let api_key = binance.user_stream_api_key()?;
-    let listen_key = create_listen_key(&client, rest_base, &api_key).await?;
+    let listen_key = create_listen_key(client, rest_base, &api_key).await?;
 
     tracing::info!(
         target: "api",
@@ -147,7 +150,7 @@ async fn run_once(
         "Binance Futures user-data listen key created"
     );
 
-    let ws_url = format!("{ws_base}/private/ws/{listen_key}");
+    let ws_url = format!("{ws_base}/ws/{listen_key}");
 
     tracing::info!(
         target: "api",
@@ -212,7 +215,7 @@ async fn run_once(
                 );
 
                 keepalive_listen_key(
-                    &client,
+                    client,
                     rest_base,
                     &api_key,
                     &listen_key,
@@ -600,4 +603,19 @@ fn current_time_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reconnect_delay;
+
+    #[test]
+    fn reconnect_delay_backs_off_and_stays_bounded() {
+        assert_eq!(reconnect_delay(1).as_secs(), 5);
+        assert_eq!(reconnect_delay(2).as_secs(), 10);
+        assert_eq!(reconnect_delay(3).as_secs(), 20);
+        assert_eq!(reconnect_delay(4).as_secs(), 40);
+        assert_eq!(reconnect_delay(5).as_secs(), 60);
+        assert_eq!(reconnect_delay(u64::MAX).as_secs(), 60);
+    }
 }

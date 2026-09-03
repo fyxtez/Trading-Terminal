@@ -16,8 +16,8 @@
         "title": "Fyxtez Terminal",
         "width": 1600,
         "height": 1000,
-        "minWidth": 1100,
-        "minHeight": 700,
+        "minWidth": 320,
+        "minHeight": 480,
         "resizable": true,
         "fullscreen": true
       }
