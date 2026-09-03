@@ -30,6 +30,7 @@ import { useTradingStream } from "../../hooks/useTradingStream";
 import { useChartPositionPnl } from "../../hooks/useChartPositionPnl";
 import { useBackendConnection } from "../../hooks/useBackendConnection";
 import { useOperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import { getPositions } from "../../trading/api/positions";
 import { getCurrentLeverage } from "../../trading/api/leverage";
 import { estimatePendingLimitLiquidation } from "../../trading/estimatedLiquidation";
@@ -919,6 +920,30 @@ function App() {
   );
 
   useHotkeys(refs, drawingsApi, priceAlertsApi, tradeMenuApi, chartTabs);
+
+  const hasDismissibleMobileLayer = Boolean(
+    isHotkeysOpen ||
+    drawingsApi.contextMenu ||
+    tradeMenuApi.tradeMenu ||
+    tradeMenuApi.autoMarketDraft ||
+    drawingCanvas.reduceOrderEditor ||
+    drawingCanvas.editingText ||
+    !isToolbarCollapsed ||
+    isSettingsOpen ||
+    isOrdersOpen,
+  );
+
+  useMobileBackDismissal(hasDismissibleMobileLayer, () => {
+    if (isHotkeysOpen) setIsHotkeysOpen(false);
+    else if (drawingsApi.contextMenu) drawingsApi.setContextMenu(null);
+    else if (tradeMenuApi.tradeMenu) tradeMenuApi.closeTradeMenu();
+    else if (tradeMenuApi.autoMarketDraft) tradeMenuApi.cancelAutoMarket();
+    else if (drawingCanvas.reduceOrderEditor) drawingCanvas.closeReduceOrderEditor();
+    else if (drawingCanvas.editingText) drawingCanvas.cancelTextEditing();
+    else if (!isToolbarCollapsed) setIsToolbarCollapsed(true);
+    else if (isSettingsOpen) setIsSettingsOpen(false);
+    else if (isOrdersOpen) setIsOrdersOpen(false);
+  });
 
   const chartTimeZoneLabel = getLocalZoneLabel();
 

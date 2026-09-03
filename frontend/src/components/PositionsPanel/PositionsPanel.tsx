@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { usePositions } from "../../hooks/usePositions";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import type { OpenOrdersApi } from "../../hooks/useOpenOrders";
 import { closeEverything } from "../../trading/api/positions";
 import { cancelConditionalOrder } from "../../trading/api/orders";
@@ -111,6 +112,12 @@ export default function PositionsPanel({
   // per-symbol TP/SL visibility preference. The preference itself remains in
   // localStorage so the chart and panel have one source of truth.
   const [, setTpSlVisibilityVersion] = useState(0);
+
+  useMobileBackDismissal(isCloseEverythingMenuOpen, () => {
+    setIsCloseEverythingMenuOpen(false);
+    setIsCloseEverythingArmed(false);
+    setCloseEverythingError(null);
+  });
 
   useEffect(() => {
     const refreshTpSlVisibility = () => setTpSlVisibilityVersion((version) => version + 1);

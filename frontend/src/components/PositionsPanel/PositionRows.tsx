@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import type { OpenPosition } from "../../trading/api/positions";
 import type { OpenOrder, UpdateReduceOrderResponse } from "../../trading/api/orders";
 import { getCachedSymbolFilters } from "../../trading/api/exchangeInfo";
@@ -315,6 +316,10 @@ export function OpenOrderRow({
    * that instead of silently applying the swap with no explanation.
    */
   const [reduceBumpNotice, setReduceBumpNotice] = useState<string | null>(null);
+  useMobileBackDismissal(isEditingReduce, () => {
+    setIsEditingReduce(false);
+    setReduceBumpNotice(null);
+  });
   const isStopRow = isSyntheticStopOrder(order);
 
   const isReduceLimit = order.reduceOnly && (order.type === "LIMIT" || order.origType === "LIMIT");

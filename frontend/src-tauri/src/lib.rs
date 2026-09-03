@@ -285,6 +285,11 @@ async fn restart_backend(
 }
 
 #[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 async fn send_notification(input: NotificationInput) -> Result<(), String> {
     if input.title.trim().is_empty()
         || input.title.chars().count() > 160
@@ -415,6 +420,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_runtime,
             restart_backend,
+            exit_app,
             credential_status,
             save_credentials,
             clear_credentials,

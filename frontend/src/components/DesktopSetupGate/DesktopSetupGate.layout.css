@@ -132,3 +132,20 @@
     padding: 12px;
   }
 }
+.android-back-exit-hint {
+  position: fixed;
+  z-index: 3000;
+  right: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  transform: translateX(50%);
+  max-width: calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  padding: 10px 16px;
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  background: rgba(19, 23, 31, 0.96);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}

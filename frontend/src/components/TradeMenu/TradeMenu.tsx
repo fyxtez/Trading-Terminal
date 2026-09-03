@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getSymbolInfo } from "../../config/symbols";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import type { PendingTradeAction } from "../../hooks/useTradeMenu";
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import type { PositionSide } from "../../trading/api/positions";
@@ -90,6 +91,11 @@ export default function TradeMenu(props: TradeMenuProps) {
   // the top-level ADD | REDUCE | MARKET REVERSE menu. See the positionSide
   // branch below.
   const [activeAction, setActiveAction] = useState<PositionAction>(null);
+
+  useMobileBackDismissal(selectedOrderType !== null || activeAction !== null, () => {
+    setSelectedOrderType(null);
+    setActiveAction(null);
+  });
 
   const {
     symbol,

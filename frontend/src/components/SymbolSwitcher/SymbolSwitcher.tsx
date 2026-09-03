@@ -5,6 +5,7 @@ import { getSymbolConfig, type ExchangeSource, type TradingSymbol } from "../../
 import { addSymbol, deleteSymbol } from "../../trading/api/symbols";
 import { clearSymbolLocalMetadata } from "../../utils/symbolMetadata";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   defaultSymbolCategory,
@@ -131,6 +132,8 @@ export default function SymbolSwitcher({
     setError(null);
     setHighlightedIndex(0);
   };
+
+  useMobileBackDismissal(isOpen, closeMenu);
 
   useEffect(() => {
     if (!isOpen) return;

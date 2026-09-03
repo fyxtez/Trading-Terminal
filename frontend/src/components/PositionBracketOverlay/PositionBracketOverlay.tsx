@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 import { intervalSeconds, type Interval } from "../../config/constants";
 import {
@@ -197,6 +198,8 @@ export default function PositionBracketOverlay({
   // overlay so YES reuses the existing close flow while NO cancels without an
   // API request or any change to the live position.
   const [isCloseConfirmationVisible, setIsCloseConfirmationVisible] = useState(false);
+
+  useMobileBackDismissal(isCloseConfirmationVisible, () => setIsCloseConfirmationVisible(false));
 
   useEffect(() => {
     // Confirmation belongs only to the position/symbol where X was

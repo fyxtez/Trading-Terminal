@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { getSymbolConfig, type TradingSymbol } from "../../config/constants";
 import { getSymbolInfo } from "../../config/symbols";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   loadSymbolCategories,
@@ -167,6 +168,20 @@ export default function ChartTabs({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [tabContextMenu]);
+
+  useMobileBackDismissal(Boolean(deleteConfirmSymbol || tabContextMenu || isAddOpen), () => {
+    if (deleteConfirmSymbol) {
+      setDeleteConfirmSymbol(null);
+      setDeleteError(null);
+    } else if (tabContextMenu) {
+      setTabContextMenu(null);
+      setDeleteError(null);
+    } else {
+      setIsAddOpen(false);
+      setAddSearch("");
+      setAddHighlightedIndex(0);
+    }
+  });
 
   return (
     <div className="chart-tabs-bar" aria-label="Open chart tabs">

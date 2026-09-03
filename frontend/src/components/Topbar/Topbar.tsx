@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { intervals, type Interval, type TradingSymbol } from "../../config/constants";
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
+import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import SymbolSwitcher from "../SymbolSwitcher/SymbolSwitcher";
 import TradingNetworkBadge from "./TradingNetworkBadge";
 import "./Topbar.css";
@@ -109,6 +110,8 @@ export default function Topbar({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isIntervalMenuOpen]);
+
+  useMobileBackDismissal(isIntervalMenuOpen, () => setIsIntervalMenuOpen(false));
 
   return (
     <div className="topbar">

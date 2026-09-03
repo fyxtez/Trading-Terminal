@@ -11,6 +11,7 @@ import { DesktopCredentialsContext } from "./DesktopCredentialsContext";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./DesktopSetupGate.css";
 import "./DesktopSetupGate.layout.css";
+import { useAndroidBackNavigation } from "../../hooks/useAndroidBackNavigation";
 
 const emptyStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
@@ -230,6 +231,30 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     setShowSetup(false);
   };
 
+  const exitArmed = useAndroidBackNavigation(() => {
+    if (!showSetup) return false;
+    if (saving) return true;
+
+    if (!editingSingleConnection && step > 0) {
+      setError(null);
+      setStep((current) => current - 1);
+      return true;
+    }
+
+    if (onboardingComplete || editingSingleConnection) {
+      closeSetup();
+      return true;
+    }
+
+    return false;
+  });
+
+  const exitHint = exitArmed && (
+    <div className="android-back-exit-hint" role="status">
+      Press back again to exit
+    </div>
+  );
+
   const stepNumber = String(step + 1).padStart(2, "0");
   const stepCount = String(activeSteps.length).padStart(2, "0");
   const configured = activeStep ? status[activeStep.statusKey] : false;
@@ -444,15 +469,18 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
 
   if (desktop && !loaded) {
     return (
-      <main className="desktop-setup">
-        <div className="desktop-setup-loading">
-          <LoadingIndicator
-            variant="panel"
-            label="Opening credential store"
-            detail="Reading connection status securely from this device."
-          />
-        </div>
-      </main>
+      <>
+        <main className="desktop-setup">
+          <div className="desktop-setup-loading">
+            <LoadingIndicator
+              variant="panel"
+              label="Opening credential store"
+              detail="Reading connection status securely from this device."
+            />
+          </div>
+        </main>
+        {exitHint}
+      </>
     );
   }
 
@@ -467,6 +495,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           {wizard}
         </>
       )}
+      {exitHint}
     </DesktopCredentialsContext.Provider>
   );
 }
