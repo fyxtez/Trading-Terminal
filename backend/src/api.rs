@@ -25,15 +25,18 @@ use tower_http::{
 use crate::{
     account_state::AccountState,
     alerts::{AlertRuntime, AlertStore},
+    auto_market_workflow::{
+        AutoMarketProtectionOutcome, AutoMarketProtectionRequest, protect_auto_market_entry,
+    },
     binance::{BinanceClient, floor_to_step, normalize_symbol, round_to_tick},
     diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
     icons::IconStore,
     models::{
-        AlgoOrderResponse, AutoSizePreview, AutoSizeQuery, BinanceOrderResponse,
-        ClosePositionRequest, ConditionalOrderRequest, FuturesAccountInfo, IntentOrderType,
-        LimitOrderRequest, MarginSizingConfig, MarketOrderRequest, OrderSide, PositionIntent,
-        PositionIntentRequest, SetLeverageRequest, SymbolFilters,
+        AutoSizePreview, AutoSizeQuery, BinanceOrderResponse, ClosePositionRequest,
+        ConditionalOrderRequest, FuturesAccountInfo, IntentOrderType, LimitOrderRequest,
+        MarginSizingConfig, MarketOrderRequest, OrderSide, PositionIntent, PositionIntentRequest,
+        SetLeverageRequest, SymbolFilters,
     },
     operation_safety::OperationSafety,
     position_risk_state::PositionRiskState,
@@ -406,58 +409,25 @@ async fn auto_market_order(
     // reconcile a lost POST response instead of submitting a duplicate stop.
     let client_algo_id = new_client_order_id("fe-sl-auto");
     let close_side = req.side.opposite();
-    let stop_result = state
-        .binance
-        .conditional_order(
-            &symbol,
+    let rollback_id = new_client_order_id("fe-auto-rollback");
+    let protection = protect_auto_market_entry(
+        &state.binance,
+        AutoMarketProtectionRequest {
+            symbol: &symbol,
             close_side,
-            "STOP_MARKET",
-            stop_loss,
-            None,
-            true,
-            "CONTRACT_PRICE",
-            Some(&client_algo_id),
-        )
-        .await;
+            trigger_price: stop_loss,
+            rollback_quantity: executed_quantity_or(&order, preview.quantity),
+            client_algo_id: &client_algo_id,
+            rollback_client_order_id: &rollback_id,
+        },
+    )
+    .await?;
 
-    let (stop_order, stop_outcome_was_ambiguous) = match stop_result {
-        Ok(stop_order) if confirmed_algo_order(&stop_order) => (Some(stop_order), false),
-        Ok(stop_order) => {
-            tracing::warn!(
-                target: "api",
-                %symbol,
-                %client_algo_id,
-                algo_status = ?stop_order.algo_status,
-                "Automatic stop response did not confirm a usable protective order"
-            );
-            (None, false)
-        }
-        Err(error) if matches!(&error, AppError::Http(_) | AppError::Json(_)) => {
-            tracing::warn!(
-                target: "api",
-                %symbol,
-                %client_algo_id,
-                %error,
-                "Automatic stop response was ambiguous; querying Binance before compensation"
-            );
-            (reconcile_auto_stop(&state, &client_algo_id).await, true)
-        }
-        Err(error) => {
-            tracing::warn!(
-                target: "api",
-                %symbol,
-                %client_algo_id,
-                %error,
-                "Binance rejected the automatic stop; compensating the filled entry"
-            );
-            (None, false)
-        }
-    };
+    match protection {
+        AutoMarketProtectionOutcome::Protected(stop_order) => {
+            request_trading_snapshot(&state, format!("auto market protected for {symbol}"));
 
-    if let Some(stop_order) = stop_order {
-        request_trading_snapshot(&state, format!("auto market protected for {symbol}"));
-
-        return Ok(Json(json!({
+            Ok(Json(json!({
             "completed": true,
             "rolled_back": false,
             "symbol": symbol,
@@ -483,56 +453,12 @@ async fn auto_market_order(
             "stop_trigger_price": stop_loss,
             "stop_algo": stop_order,
             "order": order
-        })));
-    }
-
-    // If querying the ambiguous POST could not prove that no stop exists,
-    // cancel its stable client ID before closing. A lost cancel response stays
-    // explicitly uncertain; a closePosition order left behind could otherwise
-    // affect a later position in the same symbol.
-    let orphan_stop_cleanup_confirmed = if stop_outcome_was_ambiguous {
-        match state
-            .binance
-            .cancel_algo_order_by_client_id(&symbol, &client_algo_id)
-            .await
-        {
-            Ok(_) => true,
-            Err(AppError::Binance {
-                code: -2011 | -2013,
-                ..
-            }) => true,
-            Err(error) => {
-                tracing::error!(
-                    target: "api",
-                    %symbol,
-                    %client_algo_id,
-                    %error,
-                    "Could not prove cleanup of an ambiguously submitted automatic stop"
-                );
-                false
-            }
+            })))
         }
-    } else {
-        true
-    };
+        AutoMarketProtectionOutcome::RolledBack(rollback_order) => {
+            request_trading_snapshot(&state, format!("auto market compensation for {symbol}"));
 
-    let rollback_quantity = executed_quantity_or(&order, preview.quantity);
-    let rollback_id = new_client_order_id("fe-auto-rollback");
-    let rollback = state
-        .binance
-        .market_order(
-            &symbol,
-            close_side,
-            rollback_quantity,
-            true,
-            Some(&rollback_id),
-        )
-        .await;
-
-    request_trading_snapshot(&state, format!("auto market compensation for {symbol}"));
-
-    match rollback {
-        Ok(rollback_order) if orphan_stop_cleanup_confirmed => Ok(Json(json!({
+            Ok(Json(json!({
             "completed": false,
             "rolled_back": true,
             "message": "Automatic stop-loss could not be confirmed. The entry was closed with a reduce-only market order; verify the final state on Binance before retrying.",
@@ -560,13 +486,8 @@ async fn auto_market_order(
             "stop_algo": Value::Null,
             "order": order,
             "rollback_order": rollback_order
-        }))),
-        Ok(_) => Err(AppError::Invalid(format!(
-            "CRITICAL: the {symbol} entry was closed, but cleanup of an ambiguously submitted stop could not be confirmed. Verify and cancel any remaining conditional order on Binance before trading this symbol again"
-        ))),
-        Err(rollback_error) => Err(AppError::Invalid(format!(
-            "CRITICAL: the entry filled, its automatic stop could not be confirmed, and the reduce-only rollback failed ({rollback_error}). Verify and close {symbol} manually on Binance immediately"
-        ))),
+            })))
+        }
     }
 }
 
@@ -587,49 +508,6 @@ fn executed_quantity_or(order: &BinanceOrderResponse, fallback: f64) -> f64 {
         .and_then(|quantity| quantity.parse::<f64>().ok())
         .filter(|quantity| quantity.is_finite() && *quantity > 0.0)
         .unwrap_or(fallback)
-}
-
-fn confirmed_algo_order(order: &AlgoOrderResponse) -> bool {
-    let has_id = order.algo_id.is_some_and(|algo_id| algo_id > 0);
-    let rejected = order.algo_status.as_deref().is_some_and(|status| {
-        matches!(
-            status.to_ascii_uppercase().as_str(),
-            "REJECTED" | "CANCELED" | "CANCELLED" | "EXPIRED" | "FAILED" | "FAILURE"
-        )
-    });
-
-    has_id && !rejected
-}
-
-async fn reconcile_auto_stop(state: &AppState, client_algo_id: &str) -> Option<AlgoOrderResponse> {
-    const RETRY_DELAYS: [Duration; 3] = [
-        Duration::from_millis(0),
-        Duration::from_millis(150),
-        Duration::from_millis(350),
-    ];
-
-    for delay in RETRY_DELAYS {
-        if !delay.is_zero() {
-            sleep(delay).await;
-        }
-
-        match state
-            .binance
-            .query_algo_order_by_client_id(client_algo_id)
-            .await
-        {
-            Ok(order) if confirmed_algo_order(&order) => return Some(order),
-            Ok(_) => {}
-            Err(error) => tracing::warn!(
-                target: "api",
-                %client_algo_id,
-                %error,
-                "Automatic stop reconciliation attempt did not confirm the order"
-            ),
-        }
-    }
-
-    None
 }
 
 fn request_trading_snapshot(state: &AppState, reason: String) {
@@ -2665,13 +2543,12 @@ mod financial_invariant_tests {
 
     use super::{
         close_everything_result, close_side_for_position, configured_margin_quantity,
-        confirmed_algo_order, ensure_auto_market_starts_flat, executed_quantity_or,
-        find_nonzero_position, liquidation_price_for_position, unfilled_order_quantity,
+        ensure_auto_market_starts_flat, executed_quantity_or, find_nonzero_position,
+        liquidation_price_for_position, unfilled_order_quantity,
         validate_auto_stop_liquidation_room, validate_stop_trigger,
     };
     use crate::models::{
-        AlgoOrderResponse, BinanceOrderResponse, FuturesAccountInfo, FuturesPosition, OrderSide,
-        SymbolFilters,
+        BinanceOrderResponse, FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters,
     };
 
     fn account_with_positions(positions: Vec<FuturesPosition>) -> FuturesAccountInfo {
@@ -2808,23 +2685,6 @@ mod financial_invariant_tests {
             ..order
         };
         assert_eq!(executed_quantity_or(&missing_fill, 0.25), 0.25);
-    }
-
-    #[test]
-    fn ambiguous_stop_reconciliation_accepts_only_a_usable_algo_order() {
-        let order = |id, status: &str| AlgoOrderResponse {
-            algo_id: id,
-            client_algo_id: Some("stop-intent".into()),
-            algo_status: Some(status.into()),
-            symbol: Some("BTCUSDT".into()),
-            extra: json!({}),
-        };
-
-        assert!(confirmed_algo_order(&order(Some(42), "NEW")));
-        assert!(confirmed_algo_order(&order(Some(42), "WORKING")));
-        assert!(!confirmed_algo_order(&order(None, "NEW")));
-        assert!(!confirmed_algo_order(&order(Some(42), "REJECTED")));
-        assert!(!confirmed_algo_order(&order(Some(42), "CANCELED")));
     }
 
     #[test]

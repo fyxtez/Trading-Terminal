@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DESKTOP_ONBOARDING_KEY } from "../../desktop/credentials";
+import { useDesktopCredentials } from "./DesktopCredentialsContext";
 import DesktopSetupGate from "./DesktopSetupGate";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -16,13 +18,47 @@ const emptyStatus = {
   telegramConfigured: false,
 };
 
+function BinanceEditorLauncher() {
+  const credentials = useDesktopCredentials();
+  return <button onClick={() => credentials.openSetup("binance")}>Edit Binance</button>;
+}
+
 describe("DesktopSetupGate", () => {
   beforeEach(() => {
+    localStorage.clear();
     invokeMock.mockImplementation((command: string) => {
       if (command === "credential_status") return Promise.resolve(emptyStatus);
       if (command === "save_credentials") return Promise.resolve(emptyStatus);
       return Promise.reject(new Error(`Unexpected command: ${command}`));
     });
+  });
+
+  it("preselects the active Binance network when editing the connection", async () => {
+    const configuredStatus = {
+      ...emptyStatus,
+      binanceConfigured: true,
+      binanceNetwork: "testnet" as const,
+    };
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "credential_status") return Promise.resolve(configuredStatus);
+      if (command === "save_credentials") return Promise.resolve(configuredStatus);
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+    localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
+
+    render(
+      <DesktopSetupGate>
+        <BinanceEditorLauncher />
+      </DesktopSetupGate>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Binance" }));
+
+    expect(screen.getByRole("button", { name: /TESTNET/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /MAINNET/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("requires an explicit Binance network and Mainnet confirmation", async () => {

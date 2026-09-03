@@ -963,6 +963,11 @@ function App() {
         }
         websocketConnection={websocketConnection}
         marketConnection={marketData.marketConnection}
+        binanceNetwork={
+          desktopCredentials.status.binanceConfigured
+            ? desktopCredentials.status.binanceNetwork
+            : null
+        }
       />
 
       <ChartTabs

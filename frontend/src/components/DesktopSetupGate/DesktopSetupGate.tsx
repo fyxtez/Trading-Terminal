@@ -100,13 +100,21 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const isLastStep = step === activeSteps.length - 1;
   const editingSingleConnection = targetConnection !== null;
 
-  const openSetup = useCallback((connection?: DesktopConnection) => {
-    setTargetConnection(connection ?? null);
-    setStep(0);
-    setValues(emptyValues());
-    setError(null);
-    setShowSetup(true);
-  }, []);
+  const openSetup = useCallback(
+    (connection?: DesktopConnection) => {
+      setTargetConnection(connection ?? null);
+      setStep(0);
+      setValues({
+        ...emptyValues(),
+        // Editing Binance should show the currently active venue immediately.
+        // Secrets remain intentionally blank and must be entered again.
+        binanceNetwork: connection === "binance" ? (status.binanceNetwork ?? "") : "",
+      });
+      setError(null);
+      setShowSetup(true);
+    },
+    [status.binanceNetwork],
+  );
 
   useEffect(() => {
     if (!desktop) return;

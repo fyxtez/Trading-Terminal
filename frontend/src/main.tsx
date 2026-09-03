@@ -5,7 +5,6 @@ import "./styles/global.css";
 import DesktopSetupGate from "./components/DesktopSetupGate/DesktopSetupGate";
 import DesktopRuntimeGate from "./components/DesktopRuntimeGate/DesktopRuntimeGate";
 import AppErrorBoundary from "./components/AppErrorBoundary/AppErrorBoundary";
-import ViewportSizeBadge from "./components/ViewportSizeBadge/ViewportSizeBadge";
 
 /**
  * Chromium/Brave may restore this document from the back-forward cache
@@ -34,7 +33,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <App />
         </DesktopSetupGate>
       </DesktopRuntimeGate>
-      {import.meta.env.DEV && <ViewportSizeBadge />}
     </AppErrorBoundary>
   </React.StrictMode>,
 );

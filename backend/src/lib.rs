@@ -1,6 +1,7 @@
 mod account_state;
 mod alerts;
 mod api;
+mod auto_market_workflow;
 mod binance;
 mod binance_stream;
 mod diagnostics;

@@ -4,6 +4,7 @@ import { intervals, type Interval, type TradingSymbol } from "../../config/const
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import SymbolSwitcher from "../SymbolSwitcher/SymbolSwitcher";
+import TradingNetworkBadge from "./TradingNetworkBadge";
 import "./Topbar.css";
 
 type TopbarProps = {
@@ -47,6 +48,8 @@ type TopbarProps = {
    * from the UI alone.
    */
   marketConnection: ConnectionState;
+  /** Selected execution venue; null means no private trading connection. */
+  binanceNetwork: "mainnet" | "testnet" | null;
 };
 
 const intervalGroups: { label: string; values: readonly Interval[] }[] = [
@@ -73,6 +76,7 @@ export default function Topbar({
   onRetryBackend,
   websocketConnection,
   marketConnection,
+  binanceNetwork,
 }: TopbarProps) {
   const [isIntervalMenuOpen, setIsIntervalMenuOpen] = useState(false);
   const intervalMenuRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +187,8 @@ export default function Topbar({
       </div>
 
       <div className="topbar-spacer" />
+
+      <TradingNetworkBadge network={binanceNetwork} />
 
       <div className="topbar-connection-group" aria-label="Connection status">
         <button

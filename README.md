@@ -237,5 +237,6 @@ verified release targets, and v1 intentionally has no automatic updater.
 - [Security model and operating guidance](SECURITY.md)
 - [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
 - [Linux release procedure](docs/RELEASING.md)
+- [Desktop release and live-trading checklist](docs/RELEASE-CHECKLIST.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
 - [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)
