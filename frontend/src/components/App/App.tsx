@@ -48,160 +48,20 @@ import PositionsPanel from "../PositionsPanel/PositionsPanel";
 import UnregisteredSymbolBanner from "../UnregisteredSymbolBanner/UnregisteredSymbolBanner";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
 import SystemNotice from "../SystemNotice/SystemNotice";
+import {
+  MAX_POSITIONS_PANEL_HEIGHT,
+  MAX_SETTINGS_PANEL_WIDTH,
+  MIN_POSITIONS_PANEL_HEIGHT,
+  MIN_SETTINGS_PANEL_WIDTH,
+  persistPositionsPanelHeight,
+  persistSettingsPanelWidth,
+  readStoredPositionsPanelHeight,
+  readStoredSettingsPanelWidth,
+} from "./appPanelLayout";
+import { LIMIT_REDUCE_COLOR, classifyLimitOrder, loadFullStopPrice } from "./orderPresentation";
+import { useAppPreferences } from "./useAppPreferences";
 
 import "./App.css";
-
-const SETTINGS_PANEL_WIDTH_KEY = "fyxtez.settings.panelWidth";
-const DEFAULT_SETTINGS_PANEL_WIDTH = 440;
-const MIN_SETTINGS_PANEL_WIDTH = 360;
-const MAX_SETTINGS_PANEL_WIDTH = 720;
-
-const POSITIONS_PANEL_HEIGHT_KEY = "fyxtez.positions.panelHeight";
-const DEFAULT_POSITIONS_PANEL_HEIGHT = 280;
-const MIN_POSITIONS_PANEL_HEIGHT = 120;
-const MAX_POSITIONS_PANEL_HEIGHT = 640;
-
-function readStoredSettingsPanelWidth(): number {
-  try {
-    const stored = Number(window.localStorage.getItem(SETTINGS_PANEL_WIDTH_KEY));
-    if (Number.isFinite(stored) && stored > 0) {
-      return Math.min(MAX_SETTINGS_PANEL_WIDTH, Math.max(MIN_SETTINGS_PANEL_WIDTH, stored));
-    }
-  } catch {
-    // Ignore storage failures and fall back to the default width.
-  }
-
-  return DEFAULT_SETTINGS_PANEL_WIDTH;
-}
-
-function readStoredPositionsPanelHeight(): number {
-  try {
-    const stored = Number(window.localStorage.getItem(POSITIONS_PANEL_HEIGHT_KEY));
-    if (Number.isFinite(stored) && stored > 0) {
-      return Math.min(
-        MAX_POSITIONS_PANEL_HEIGHT,
-        Math.max(MIN_POSITIONS_PANEL_HEIGHT, stored),
-      );
-    }
-  } catch {
-    // Ignore storage failures and fall back to the default height.
-  }
-
-  return DEFAULT_POSITIONS_PANEL_HEIGHT;
-}
-
-const LIMIT_REDUCE_COLOR = "#f5a623";
-const FULL_STOP_STORAGE_PREFIX = "fyxtez:full-stop:";
-
-/**
- * Whether the Asia/London/New York session boundary lines (see
- * SessionZonesOverlay.tsx) are shown on the chart. Purely a local
- * display preference - there's no backend concept of this at all, so
- * unlike the margin/leverage settings this never needs to be gated on
- * backendConnection or sent anywhere; it just persists to localStorage.
- * Deliberately NOT per-symbol - it's a chart display preference, not
- * trade data.
- */
-const DRAWINGS_VISIBILITY_STORAGE_KEY = "fyxtez:drawings-visible";
-const ASIA_SESSION_STORAGE_KEY = "fyxtez:asia-session-enabled";
-const LONDON_SESSION_STORAGE_KEY = "fyxtez:london-session-enabled";
-const NEW_YORK_SESSION_STORAGE_KEY = "fyxtez:new-york-session-enabled";
-const NEW_YORK_KILL_ZONE_STORAGE_KEY = "fyxtez:new-york-kill-zone-enabled";
-const DESKTOP_SESSION_DEFAULTS_VERSION_KEY = "fyxtez:desktop-session-defaults-v2";
-
-/**
- * Same idea as SESSION_ZONES_STORAGE_KEY above - purely local display
- * preferences for the two chart-corner PNL cards (see
- * ChartPositionPnl.tsx), no backend concept, default to shown.
- */
-const PNL_CARD_STORAGE_KEY = "fyxtez:pnl-card-enabled";
-const TOTAL_PNL_CARD_STORAGE_KEY = "fyxtez:total-pnl-card-enabled";
-const CANDLE_COUNTDOWN_STORAGE_KEY = "fyxtez:candle-countdown-enabled";
-const DRAWING_SET_BADGE_STORAGE_KEY = "fyxtez:drawing-set-badge-enabled";
-// FEATURE: keep watermark visibility as a local display preference so users can hide branding without affecting chart state.
-const WATERMARK_VISIBILITY_STORAGE_KEY = "fyxtez:watermark-visible";
-
-/** Whether midnight/start-of-day marker lines are shown. */
-const START_OF_DAY_STORAGE_KEY = "fyxtez:start-of-day-enabled";
-const START_OF_DAY_LOOKBACK_STORAGE_KEY = "fyxtez:start-of-day-lookback-days";
-
-/**
- * Same idea as SESSION_ZONES_STORAGE_KEY above - purely local display
- * preference for whether pending price alert lines (see
- * AlertLinesOverlay.tsx) are drawn on the chart. Defaults to shown, like
- * loadBooleanPreference's other consumers below.
- */
-const PRICE_ALERTS_VISIBLE_STORAGE_KEY = "fyxtez:price-alerts-visible";
-
-/**
- * Whether newly-created price alerts are handed off to the backend
- * instead of being tracked and fired straight from this browser tab.
- * Deliberately does NOT default to true via loadBooleanPreference
- * (whose "absent key" default is true), keeping backend-managed alerts
- * as an explicit user preference.
- */
-const PERSISTENT_ALERTS_ENABLED_STORAGE_KEY =
-  "fyxtez:persistent-alerts-enabled";
-
-function loadPersistentAlertsEnabled(): boolean {
-  try {
-    return (
-      localStorage.getItem(PERSISTENT_ALERTS_ENABLED_STORAGE_KEY) === "true"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function loadBooleanPreference(key: string): boolean {
-  try {
-    const raw = localStorage.getItem(key);
-    // Default to shown - absent key means "never set", not "turned off".
-    return raw === null ? true : raw === "true";
-  } catch {
-    return true;
-  }
-}
-
-function loadSessionPreference(key: string, isDesktop: boolean): boolean {
-  try {
-    // Tauri dev uses a persistent localhost WebView origin, which can inherit
-    // old browser values. Hide session overlays exactly once, then honor
-    // every explicit Settings change normally on subsequent launches.
-    if (
-      isDesktop &&
-      localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied"
-    ) {
-      return false;
-    }
-  } catch {}
-  return loadBooleanPreference(key);
-}
-
-function loadFullStopPrice(symbol: string): number | null {
-  try {
-    const raw = localStorage.getItem(
-      `${FULL_STOP_STORAGE_PREFIX}${symbol.toUpperCase()}`,
-    );
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as { triggerPrice?: unknown };
-    const price = Number(parsed.triggerPrice);
-    return Number.isFinite(price) && price > 0 ? price : null;
-  } catch {
-    return null;
-  }
-}
-
-function classifyLimitOrder(
-  clientOrderId?: string | null,
-  reduceOnly?: boolean,
-): "ENTRY" | "ADD" | "REDUCE" | undefined {
-  if (reduceOnly || clientOrderId?.startsWith("fe-red-")) return "REDUCE";
-  if (clientOrderId?.startsWith("fe-entry-")) return "ENTRY";
-  if (clientOrderId?.startsWith("fe-add-")) return "ADD";
-  return undefined;
-}
 
 function App() {
   const desktopCredentials = useDesktopCredentials();
@@ -242,7 +102,7 @@ function App() {
   };
 
   const removeDeletedSymbolTab = (symbol: typeof currentSymbol) => {
-    // FEATURE: backend deletion must also remove the stale chart tab. When it
+    // backend deletion must also remove the stale chart tab. When it
     // is the last open chart, pick another registered symbol as a replacement
     // instead of violating the app's at-least-one-tab invariant.
     const fallback = availableSymbols.find((candidate) => candidate !== symbol);
@@ -250,7 +110,7 @@ function App() {
   };
 
   const deleteTrackedSymbolFromTab = async (symbol: typeof currentSymbol) => {
-    // FEATURE: tab-context Delete reuses the same backend contract as the
+    // tab-context Delete reuses the same backend contract as the
     // Symbol Switcher delete action, then clears per-symbol browser metadata
     // and refreshes the authoritative registry before removing the chart tab.
     await deleteSymbol(getSymbolInfo(symbol).label);
@@ -263,206 +123,42 @@ function App() {
 
   useChartInstance(refs, coord.logicalToTime);
 
-  // FIX: gate market loading on the authoritative symbol registry so a saved
+  // gate market loading on the authoritative symbol registry so a saved
   // MEXC tab never performs an initial Binance request after page refresh.
   const marketData = useMarketData(refs, currentSymbol, symbolRegistryReady);
   const { positionPnl, totalPnl, clearPositionPnl } = useChartPositionPnl(currentSymbol);
 
   const backendConnection = useBackendConnection();
-
-  const [showDrawings, setShowDrawingsState] = useState<boolean>(() =>
-    loadBooleanPreference(DRAWINGS_VISIBILITY_STORAGE_KEY),
-  );
-
-  const setShowDrawings = (enabled: boolean) => {
-    setShowDrawingsState(enabled);
-    try {
-      localStorage.setItem(DRAWINGS_VISIBILITY_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showAsiaSession, setShowAsiaSessionState] = useState<boolean>(() =>
-    loadSessionPreference(ASIA_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
-  );
-  const [showLondonSession, setShowLondonSessionState] = useState<boolean>(() =>
-    loadSessionPreference(LONDON_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
-  );
-  const [showNewYorkSession, setShowNewYorkSessionState] = useState<boolean>(() =>
-    loadSessionPreference(NEW_YORK_SESSION_STORAGE_KEY, desktopCredentials.isDesktop),
-  );
-  useEffect(() => {
-    if (!desktopCredentials.isDesktop) return;
-    try {
-      if (
-        localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied"
-      ) {
-        setShowAsiaSessionState(false);
-        setShowLondonSessionState(false);
-        setShowNewYorkSessionState(false);
-        localStorage.setItem(ASIA_SESSION_STORAGE_KEY, "false");
-        localStorage.setItem(LONDON_SESSION_STORAGE_KEY, "false");
-        localStorage.setItem(NEW_YORK_SESSION_STORAGE_KEY, "false");
-        localStorage.setItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY, "applied");
-      }
-    } catch {
-      // Ignore - the defaults will be applied again on the next launch.
-    }
-  }, [desktopCredentials.isDesktop]);
-  const [showNewYorkKillZone, setShowNewYorkKillZoneState] = useState<boolean>(
-    () => {
-      try {
-        // FEATURE: the new overlay is opt-in; missing storage must not enable
-        // it for every existing user during the first upgraded load.
-        return localStorage.getItem(NEW_YORK_KILL_ZONE_STORAGE_KEY) === "true";
-      } catch {
-        return false;
-      }
-    },
-  );
-
-  const setBooleanPreference = (
-    setter: (enabled: boolean) => void,
-    key: string,
-    enabled: boolean,
-  ) => {
-    setter(enabled);
-    try {
-      localStorage.setItem(key, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showPositionPnl, setShowPositionPnlState] = useState<boolean>(() =>
-    loadBooleanPreference(PNL_CARD_STORAGE_KEY),
-  );
-
-  const setShowPositionPnl = (enabled: boolean) => {
-    setShowPositionPnlState(enabled);
-    try {
-      localStorage.setItem(PNL_CARD_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showTotalPnl, setShowTotalPnlState] = useState<boolean>(() =>
-    loadBooleanPreference(TOTAL_PNL_CARD_STORAGE_KEY),
-  );
-
-  const setShowTotalPnl = (enabled: boolean) => {
-    setShowTotalPnlState(enabled);
-    try {
-      localStorage.setItem(TOTAL_PNL_CARD_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showCandleCountdown, setShowCandleCountdownState] = useState<boolean>(
-    () => loadBooleanPreference(CANDLE_COUNTDOWN_STORAGE_KEY),
-  );
-
-  const setShowCandleCountdown = (enabled: boolean) => {
-    setShowCandleCountdownState(enabled);
-    try {
-      localStorage.setItem(CANDLE_COUNTDOWN_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  // FEATURE: watermark visibility follows the same persistent, backend-free settings pattern as other chart display toggles.
-  const [showWatermark, setShowWatermarkState] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(WATERMARK_VISIBILITY_STORAGE_KEY) !== "false";
-    } catch {
-      return true;
-    }
-  });
-
-  const setShowWatermark = (enabled: boolean) => {
-    setShowWatermarkState(enabled);
-    try {
-      localStorage.setItem(WATERMARK_VISIBILITY_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showDrawingSetBadge, setShowDrawingSetBadgeState] = useState<boolean>(
-    () => loadBooleanPreference(DRAWING_SET_BADGE_STORAGE_KEY),
-  );
-
-  const setShowDrawingSetBadge = (enabled: boolean) => {
-    setShowDrawingSetBadgeState(enabled);
-    try {
-      localStorage.setItem(DRAWING_SET_BADGE_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showStartOfDay, setShowStartOfDayState] = useState<boolean>(() =>
-    loadBooleanPreference(START_OF_DAY_STORAGE_KEY),
-  );
-
-  const setShowStartOfDay = (enabled: boolean) =>
-    setBooleanPreference(
-      setShowStartOfDayState,
-      START_OF_DAY_STORAGE_KEY,
-      enabled,
-    );
-
-  const [startOfDayLookbackDays, setStartOfDayLookbackDaysState] = useState<number>(() => {
-    try {
-      const stored = Number(localStorage.getItem(START_OF_DAY_LOOKBACK_STORAGE_KEY));
-      return Number.isFinite(stored) ? Math.min(20, Math.max(1, Math.round(stored))) : 10;
-    } catch {
-      return 10;
-    }
-  });
-
-  const setStartOfDayLookbackDays = (days: number) => {
-    if (!Number.isFinite(days)) return;
-    const normalized = Math.min(20, Math.max(1, Math.round(days)));
-    setStartOfDayLookbackDaysState(normalized);
-    try {
-      localStorage.setItem(START_OF_DAY_LOOKBACK_STORAGE_KEY, String(normalized));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [showPriceAlerts, setShowPriceAlertsState] = useState<boolean>(() =>
-    loadBooleanPreference(PRICE_ALERTS_VISIBLE_STORAGE_KEY),
-  );
-
-  const setShowPriceAlerts = (enabled: boolean) => {
-    setShowPriceAlertsState(enabled);
-    try {
-      localStorage.setItem(PRICE_ALERTS_VISIBLE_STORAGE_KEY, String(enabled));
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
-
-  const [persistentAlertsEnabled, setPersistentAlertsEnabledState] =
-    useState<boolean>(() => loadPersistentAlertsEnabled());
-
-  const setPersistentAlertsEnabled = (enabled: boolean) => {
-    setPersistentAlertsEnabledState(enabled);
-    try {
-      localStorage.setItem(
-        PERSISTENT_ALERTS_ENABLED_STORAGE_KEY,
-        String(enabled),
-      );
-    } catch {
-      // Ignore - the preference just won't persist across reloads.
-    }
-  };
+  const {
+    showDrawings,
+    setShowDrawings,
+    showAsiaSession,
+    setShowAsiaSession,
+    showLondonSession,
+    setShowLondonSession,
+    showNewYorkSession,
+    setShowNewYorkSession,
+    showNewYorkKillZone,
+    setShowNewYorkKillZone,
+    showPositionPnl,
+    setShowPositionPnl,
+    showTotalPnl,
+    setShowTotalPnl,
+    showCandleCountdown,
+    setShowCandleCountdown,
+    showWatermark,
+    setShowWatermark,
+    showDrawingSetBadge,
+    setShowDrawingSetBadge,
+    showStartOfDay,
+    setShowStartOfDay,
+    startOfDayLookbackDays,
+    setStartOfDayLookbackDays,
+    showPriceAlerts,
+    setShowPriceAlerts,
+    persistentAlertsEnabled,
+    setPersistentAlertsEnabled,
+  } = useAppPreferences(desktopCredentials.isDesktop);
 
   const priceAlertsApi = usePriceAlerts(
     refs,
@@ -474,7 +170,7 @@ function App() {
   const tradeMarkersApi = useTradeMarkers(refs, currentSymbol);
 
   /*
-   * FIX (duplicate market markers after accepting Binance-side fills): market
+   * market
    * orders submitted by this UI are recorded immediately from their REST
    * response, then Binance reports the same execution again over the user
    * stream. Keep a short-lived fingerprint of those locally confirmed fills
@@ -492,9 +188,7 @@ function App() {
     const cutoff = Math.floor(Date.now() / 1000) - 15;
 
     locallyRecordedMarketFillsRef.current = [
-      ...locallyRecordedMarketFillsRef.current.filter(
-        (candidate) => candidate.time >= cutoff,
-      ),
+      ...locallyRecordedMarketFillsRef.current.filter((candidate) => candidate.time >= cutoff),
       normalizedFill,
     ];
 
@@ -539,7 +233,7 @@ function App() {
   }, [currentSymbol]);
 
   const fullTakeProfitPrice = useMemo(() => {
-    // FIX (snap-back bug, real root cause): moving the Full TP line goes
+    // moving the Full TP line goes
     // through useDrawingCanvas's submitOrderLineMove, which calls
     // repriceReduceOrder - and that can come back with a brand NEW
     // orderId (see RepriceReduceOrderResponse / the .then() in
@@ -579,10 +273,7 @@ function App() {
         return false;
       }
 
-      const intent = classifyLimitOrder(
-        order.clientOrderId,
-        order.reduceOnly,
-      );
+      const intent = classifyLimitOrder(order.clientOrderId, order.reduceOnly);
       if (intent !== "REDUCE") return false;
 
       const metadata = parseReduceMetadata(order.clientOrderId);
@@ -601,10 +292,7 @@ function App() {
         return false;
       }
 
-      const intent = classifyLimitOrder(
-        order.clientOrderId,
-        order.reduceOnly,
-      );
+      const intent = classifyLimitOrder(order.clientOrderId, order.reduceOnly);
       if (intent !== "REDUCE") return false;
 
       const metadata = parseReduceMetadata(order.clientOrderId);
@@ -615,25 +303,21 @@ function App() {
   }, [openOrdersApi.orders, drawingsApi.isHydrated, currentSymbol]);
 
   const websocketConnection = useTradingStream({
-    enabled:
-      desktopCredentials.isDesktop &&
-      desktopCredentials.status.binanceConfigured,
+    enabled: desktopCredentials.isDesktop && desktopCredentials.status.binanceConfigured,
     onOrderExecuted: (event) => {
       const normalizedSymbol = event.symbol.toUpperCase();
       const eventTime = Math.floor(event.event_time / 1000);
 
       if (event.order_type !== "LIMIT") {
-        const duplicateIndex = locallyRecordedMarketFillsRef.current.findIndex(
-          (fill) => {
-            const priceTolerance = Math.max(1e-8, event.price * 0.001);
-            return (
-              fill.symbol === normalizedSymbol &&
-              fill.side === event.side &&
-              Math.abs(fill.time - eventTime) <= 5 &&
-              Math.abs(fill.price - event.price) <= priceTolerance
-            );
-          },
-        );
+        const duplicateIndex = locallyRecordedMarketFillsRef.current.findIndex((fill) => {
+          const priceTolerance = Math.max(1e-8, event.price * 0.001);
+          return (
+            fill.symbol === normalizedSymbol &&
+            fill.side === event.side &&
+            Math.abs(fill.time - eventTime) <= 5 &&
+            Math.abs(fill.price - event.price) <= priceTolerance
+          );
+        });
 
         if (duplicateIndex >= 0) {
           // Consume the fingerprint once: a second genuine Binance fill must
@@ -644,7 +328,7 @@ function App() {
       }
 
       /*
-       * FIX (missing S/B marker when a position is closed on Binance): this
+       * this
        * handler previously rejected every execution except LIMIT, because UI
        * market orders already add their marker from the REST response. That
        * also rejected MARKET fills created outside this frontend, including a
@@ -700,7 +384,7 @@ function App() {
         orderIntent: order.intent,
         orderReducePct: order.reducePct,
         orderRemainingPct: order.remainingPct,
-        // FEATURE: this estimate exists only before Binance has a real position
+        // this estimate exists only before Binance has a real position
         // liquidationPrice, so keep it on the runtime order drawing itself.
         estimatedLiquidationPrice: order.estimatedLiquidationPrice,
       });
@@ -727,24 +411,15 @@ function App() {
     const orderDrawings = openOrdersApi.orders
       .filter((order) => order.type === "LIMIT" || order.origType === "LIMIT")
       .map((order) => {
-        const orderIntent = classifyLimitOrder(
-          order.clientOrderId,
-          order.reduceOnly,
-        );
+        const orderIntent = classifyLimitOrder(order.clientOrderId, order.reduceOnly);
         const reduceMetadata =
-          orderIntent === "REDUCE"
-            ? parseReduceMetadata(order.clientOrderId)
-            : {};
+          orderIntent === "REDUCE" ? parseReduceMetadata(order.clientOrderId) : {};
         const currentDrawing = drawingsApi.drawings.find(
-          (drawing) =>
-            drawing.type === "horizontal" &&
-            drawing.id === `order-${order.orderId}`,
+          (drawing) => drawing.type === "horizontal" && drawing.id === `order-${order.orderId}`,
         );
         const serverPrice = Number(order.price);
         const wasPending =
-          currentDrawing?.type === "horizontal"
-            ? currentDrawing.orderPricePending
-            : false;
+          currentDrawing?.type === "horizontal" ? currentDrawing.orderPricePending : false;
 
         const stillPending =
           wasPending &&
@@ -776,7 +451,7 @@ function App() {
           orderReducePct: reduceMetadata.reducePct,
           orderRemainingPct: reduceMetadata.remainingPct,
           orderPricePending: stillPending,
-          // FEATURE: openOrders does not expose leverage/liquidation for a
+          // openOrders does not expose leverage/liquidation for a
           // resting order. Preserve the estimate and its visibility state from
           // the locally-created drawing instead of dropping them every 4s poll.
           estimatedLiquidationPrice:
@@ -831,22 +506,17 @@ function App() {
       if (order.type !== "LIMIT" && order.origType !== "LIMIT") return false;
 
       const drawing = drawingsApi.drawings.find(
-        (candidate) =>
-          candidate.type === "horizontal" &&
-          candidate.id === `order-${order.orderId}`,
+        (candidate) => candidate.type === "horizontal" && candidate.id === `order-${order.orderId}`,
       );
 
-      return (
-        drawing?.type === "horizontal" &&
-        drawing.estimatedLiquidationPrice == null
-      );
+      return drawing?.type === "horizontal" && drawing.estimatedLiquidationPrice == null;
     });
 
     if (missingEstimateOrders.length === 0) return;
 
     let cancelled = false;
 
-    // FIX: openOrders does not contain the transient EST. LIQ value returned
+    // openOrders does not contain the transient EST. LIQ value returned
     // when the LIMIT was first created. After reload (or for an order that
     // existed before this feature) the canvas therefore had no value to draw,
     // even though the order line itself was restored correctly. Rebuild a
@@ -865,8 +535,7 @@ function App() {
           if (estimate == null) continue;
 
           drawingsApi.updateDrawing(`order-${order.orderId}`, (drawing) =>
-            drawing.type === "horizontal" &&
-            drawing.estimatedLiquidationPrice == null
+            drawing.type === "horizontal" && drawing.estimatedLiquidationPrice == null
               ? { ...drawing, estimatedLiquidationPrice: estimate }
               : drawing,
           );
@@ -913,14 +582,12 @@ function App() {
         const longQuantity =
           positions.find(
             (item) =>
-              item.symbol.toUpperCase() === currentSymbol.toUpperCase() &&
-              item.side === "LONG",
+              item.symbol.toUpperCase() === currentSymbol.toUpperCase() && item.side === "LONG",
           )?.quantity ?? 0;
         const shortQuantity =
           positions.find(
             (item) =>
-              item.symbol.toUpperCase() === currentSymbol.toUpperCase() &&
-              item.side === "SHORT",
+              item.symbol.toUpperCase() === currentSymbol.toUpperCase() && item.side === "SHORT",
           )?.quantity ?? 0;
 
         if (hasSeededKnownQuantityRef.current) {
@@ -929,21 +596,13 @@ function App() {
 
           for (const order of disappearedOrders) {
             const isReduce =
-              order.reduceOnly ||
-              order.clientOrderId?.startsWith("fe-red-") === true;
+              order.reduceOnly || order.clientOrderId?.startsWith("fe-red-") === true;
 
             const affectedSide: "LONG" | "SHORT" =
-              order.side === "BUY"
-                ? isReduce
-                  ? "SHORT"
-                  : "LONG"
-                : isReduce
-                  ? "LONG"
-                  : "SHORT";
+              order.side === "BUY" ? (isReduce ? "SHORT" : "LONG") : isReduce ? "LONG" : "SHORT";
 
             const before = previousQuantity[affectedSide];
-            const after =
-              affectedSide === "LONG" ? longQuantity : shortQuantity;
+            const after = affectedSide === "LONG" ? longQuantity : shortQuantity;
 
             const filled = isReduce
               ? after < before - QUANTITY_EPSILON
@@ -989,19 +648,12 @@ function App() {
 
   const [isHotkeysOpen, setIsHotkeysOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsPanelWidth, setSettingsPanelWidth] = useState(
-    readStoredSettingsPanelWidth,
-  );
+  const [settingsPanelWidth, setSettingsPanelWidth] = useState(readStoredSettingsPanelWidth);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
-  const [positionsPanelHeight, setPositionsPanelHeight] = useState(
-    readStoredPositionsPanelHeight,
-  );
+  const [positionsPanelHeight, setPositionsPanelHeight] = useState(readStoredPositionsPanelHeight);
 
   const handleSettingsPanelWidthChange = (nextWidth: number) => {
-    const viewportMax = Math.max(
-      MIN_SETTINGS_PANEL_WIDTH,
-      window.innerWidth - 480,
-    );
+    const viewportMax = Math.max(MIN_SETTINGS_PANEL_WIDTH, window.innerWidth - 480);
     const width = Math.min(
       MAX_SETTINGS_PANEL_WIDTH,
       viewportMax,
@@ -1009,22 +661,14 @@ function App() {
     );
 
     setSettingsPanelWidth(width);
-
-    try {
-      window.localStorage.setItem(SETTINGS_PANEL_WIDTH_KEY, String(width));
-    } catch {
-      // Resizing should still work if localStorage is unavailable.
-    }
+    persistSettingsPanelWidth(width);
   };
 
   const handlePositionsPanelHeightChange = (nextHeight: number) => {
     // Always leave a useful amount of chart visible above the dock. The hard
     // maximum also prevents a previously stored value from taking over a
     // smaller display after moving the app between monitors.
-    const viewportMax = Math.max(
-      MIN_POSITIONS_PANEL_HEIGHT,
-      window.innerHeight - 260,
-    );
+    const viewportMax = Math.max(MIN_POSITIONS_PANEL_HEIGHT, window.innerHeight - 260);
     const height = Math.min(
       MAX_POSITIONS_PANEL_HEIGHT,
       viewportMax,
@@ -1032,12 +676,7 @@ function App() {
     );
 
     setPositionsPanelHeight(height);
-
-    try {
-      window.localStorage.setItem(POSITIONS_PANEL_HEIGHT_KEY, String(height));
-    } catch {
-      // Resizing should still work if localStorage is unavailable.
-    }
+    persistPositionsPanelHeight(height);
   };
 
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(true);
@@ -1067,9 +706,7 @@ function App() {
     }, highlightDurationMs);
   };
 
-  const [focusedPositionKey, setFocusedPositionKey] = useState<string | null>(
-    null,
-  );
+  const [focusedPositionKey, setFocusedPositionKey] = useState<string | null>(null);
   const positionFocusTimeoutRef = useRef<number | null>(null);
 
   const focusPosition = (key: string) => {
@@ -1100,14 +737,10 @@ function App() {
    * why that exists). Extracted so both call sites stay in sync instead
    * of duplicating this same branch.
    */
-  const handlePositionClosed = (
-    side: TradeSide,
-    symbol: string,
-    price?: number,
-  ) => {
+  const handlePositionClosed = (side: TradeSide, symbol: string, price?: number) => {
     if (symbol.toUpperCase() !== currentSymbol.toUpperCase()) {
       /*
-       * FIX: this used to just `return` here, silently dropping
+       * this used to just `return` here, silently dropping
        * the marker entirely for any symbol other than whatever
        * chart happened to be open - e.g. an ETH position closed
        * via "Close Everything FULL" while looking at BTC never
@@ -1231,10 +864,7 @@ function App() {
         const MAX_POSITION_OPEN_ATTEMPTS = 12;
         const POSITION_OPEN_RETRY_MS = 250;
 
-        if (
-          retryForNewPosition &&
-          attempt < MAX_POSITION_OPEN_ATTEMPTS - 1
-        ) {
+        if (retryForNewPosition && attempt < MAX_POSITION_OPEN_ATTEMPTS - 1) {
           clearRetryTimer();
           retryTimer = window.setTimeout(() => {
             retryTimer = null;
@@ -1265,19 +895,13 @@ function App() {
       });
     };
 
-    window.addEventListener(
-      "account-state-changed",
-      handleAccountStateChanged,
-    );
+    window.addEventListener("account-state-changed", handleAccountStateChanged);
 
     return () => {
       disposed = true;
       requestGeneration += 1;
       clearRetryTimer();
-      window.removeEventListener(
-        "account-state-changed",
-        handleAccountStateChanged,
-      );
+      window.removeEventListener("account-state-changed", handleAccountStateChanged);
     };
   }, [allOpenOrdersApi.orders.length]);
 
@@ -1289,7 +913,7 @@ function App() {
     tradeMenuApi,
     isHotkeysOpen,
     setIsHotkeysOpen,
-    // FIX: visibility is handled inside the shared canvas so trading order
+    // visibility is handled inside the shared canvas so trading order
     // lines remain visible even when the user hides regular drawings.
     showDrawings,
   );
@@ -1301,10 +925,12 @@ function App() {
   return (
     <div
       className="app"
-      style={{
-        "--settings-panel-width": `${settingsPanelWidth}px`,
-        "--positions-panel-height": `${positionsPanelHeight}px`,
-      } as CSSProperties}
+      style={
+        {
+          "--settings-panel-width": `${settingsPanelWidth}px`,
+          "--positions-panel-height": `${positionsPanelHeight}px`,
+        } as CSSProperties
+      }
       onClick={() => {
         drawingsApi.setContextMenu(null);
         setIsHotkeysOpen(false);
@@ -1378,101 +1004,100 @@ function App() {
             isCollapsed={isToolbarCollapsed}
           />
 
-        {/* FEATURE: wire the chart TP-size editor from the canvas interaction hook
+          {/* wire the chart TP-size editor from the canvas interaction hook
             into ChartPanel so existing reduce orders can be resized in place. */}
-        <ChartPanel
-          symbol={currentSymbol}
-          chartWrapRef={refs.chartWrapRef}
-          containerRef={refs.containerRef}
-          canvasRef={refs.canvasRef}
-          chartRef={refs.chartRef}
-          candleRef={refs.candleRef}
-          futureScaleRef={refs.futureScaleRef}
-          lastDataTimeRef={refs.lastDataTimeRef}
-          currentPriceRef={refs.currentPriceRef}
-          liveMarketPriceRef={refs.liveMarketPriceRef}
-          temporaryTradePrice={tradeMenuApi.tradeMenu?.selectedPrice ?? null}
-          pricePrecision={marketData.pricePrecision}
-          fullTakeProfitPrice={fullTakeProfitPrice}
-          fullTakeProfitOrderId={fullTakeProfitOrderId}
-          coordTimeToX={coord.timeToX}
-          highlightedOrderIdRef={refs.highlightedOrderIdRef}
-          highlightedOrderUntilRef={refs.highlightedOrderUntilRef}
-          highlightedPositionUntilRef={refs.highlightedPositionUntilRef}
-          highlightedPositionKeyRef={refs.highlightedPositionKeyRef}
-          tradeMarkersRef={refs.tradeMarkersRef}
-          onPositionClosed={handlePositionClosed}
-          onOpenAlertSymbol={chartTabs.openTab}
-          showDrawings={showDrawings}
-          showAsiaSession={showAsiaSession}
-          showLondonSession={showLondonSession}
-          showNewYorkSession={showNewYorkSession}
-          showNewYorkKillZone={showNewYorkKillZone}
-          showStartOfDay={showStartOfDay}
-          startOfDayLookbackDays={startOfDayLookbackDays}
-          hoveredDrawingInfo={drawingCanvas.hoveredDrawingInfo}
-          reduceOrderEditor={drawingCanvas.reduceOrderEditor}
-          onReduceOrderEditorPctChange={drawingCanvas.setReduceOrderEditorPct}
-          onSubmitReduceOrderEditor={drawingCanvas.submitReduceOrderEditor}
-          onCloseReduceOrderEditor={drawingCanvas.closeReduceOrderEditor}
-          editingText={drawingCanvas.editingText}
-          onEditingTextChange={drawingCanvas.setEditingTextValue}
-          onCommitTextEditing={drawingCanvas.commitTextEditing}
-          onCancelTextEditing={drawingCanvas.cancelTextEditing}
-          alerts={priceAlertsApi.alerts}
-          showAlerts={showPriceAlerts}
-          onRemoveAlert={priceAlertsApi.removeAlert}
-          onUpdateAlertPrice={priceAlertsApi.updateAlertPrice}
-          onToggleAlertSide={priceAlertsApi.toggleAlertSide}
-          onSetAlertPattern={priceAlertsApi.setAlertPattern}
-          onSetAlertAdditionalInfo={priceAlertsApi.setAlertAdditionalInfo}
-          onToggleAlertLocked={priceAlertsApi.toggleAlertLocked}
-          onToggleAlertHidden={priceAlertsApi.toggleAlertHidden}
-          autoMarketDraft={tradeMenuApi.autoMarketDraft}
-          isSubmittingAutoMarket={
-            tradeMenuApi.pendingTradeAction === "AUTO_MARKET_BUY" ||
-            tradeMenuApi.pendingTradeAction === "AUTO_MARKET_SELL"
-          }
-          onAutoMarketStopLossChange={tradeMenuApi.updateAutoMarketStopLoss}
-          onSubmitAutoMarket={tradeMenuApi.submitAutoMarket}
-          onCancelAutoMarket={tradeMenuApi.cancelAutoMarket}
-          tradeToast={tradeMenuApi.tradeToast}
-          onSetTradeToast={tradeMenuApi.setTradeToast}
-          tool={drawingsApi.tool}
-          isHoveringDrawing={drawingCanvas.isHoveringDrawing}
-          isHoveringHorizontalDrawing={drawingCanvas.isHoveringHorizontalDrawing}
-          isChartLoading={marketData.isChartLoading}
-          marketDataError={marketData.marketDataError}
-          onRetryMarketData={marketData.retryMarketData}
-          interval={marketData.interval}
-          chartTimeZoneLabel={chartTimeZoneLabel}
-          cancelTooltip={drawingCanvas.cancelTooltip}
-          chaseTooltip={drawingCanvas.chaseTooltip}
-          estimatedLiquidationTooltip={drawingCanvas.estimatedLiquidationTooltip}
-          positionPnl={showPositionPnl ? positionPnl?.unrealizedPnl ?? null : null}
-          positionRealizedPnl={showPositionPnl ? positionPnl?.realizedPnl ?? null : null}
-          totalPnl={showTotalPnl ? totalPnl : null}
-          showCandleCountdown={showCandleCountdown}
-          showWatermark={showWatermark}
-          showDrawingSetBadge={showDrawingSetBadge}
-          activeDrawingSetName={
-            drawingsApi.drawingSets.find(
-              (set) => set.id === drawingsApi.activeDrawingSetId,
-            )?.name ?? "New / unsaved"
-          }
-          isDrawingSetUnsaved={drawingsApi.activeDrawingSetId === null}
-          canSaveDrawingSet={drawingsApi.regularDrawingsCount > 0}
-          onSaveDrawingSet={drawingsApi.saveCurrentDrawingSet}
-          isToolbarCollapsed={isToolbarCollapsed}
-          onShowToolbar={() => setIsToolbarCollapsed(false)}
-          onPointerDownCapture={drawingCanvas.handlePointerDownCapture}
-          onPointerMoveCapture={drawingCanvas.handlePointerMoveCapture}
-          onPointerUpCapture={drawingCanvas.handlePointerUpCapture}
-          onPointerLeave={drawingCanvas.handlePointerLeave}
-          onContextMenuCapture={drawingCanvas.handleContextMenuCapture}
-          onDoubleClick={drawingCanvas.handleChartDoubleClick}
-          onMobileDoubleTap={drawingCanvas.handleChartDoubleTap}
-        />
+          <ChartPanel
+            symbol={currentSymbol}
+            chartWrapRef={refs.chartWrapRef}
+            containerRef={refs.containerRef}
+            canvasRef={refs.canvasRef}
+            chartRef={refs.chartRef}
+            candleRef={refs.candleRef}
+            futureScaleRef={refs.futureScaleRef}
+            lastDataTimeRef={refs.lastDataTimeRef}
+            currentPriceRef={refs.currentPriceRef}
+            liveMarketPriceRef={refs.liveMarketPriceRef}
+            temporaryTradePrice={tradeMenuApi.tradeMenu?.selectedPrice ?? null}
+            pricePrecision={marketData.pricePrecision}
+            fullTakeProfitPrice={fullTakeProfitPrice}
+            fullTakeProfitOrderId={fullTakeProfitOrderId}
+            coordTimeToX={coord.timeToX}
+            highlightedOrderIdRef={refs.highlightedOrderIdRef}
+            highlightedOrderUntilRef={refs.highlightedOrderUntilRef}
+            highlightedPositionUntilRef={refs.highlightedPositionUntilRef}
+            highlightedPositionKeyRef={refs.highlightedPositionKeyRef}
+            tradeMarkersRef={refs.tradeMarkersRef}
+            onPositionClosed={handlePositionClosed}
+            onOpenAlertSymbol={chartTabs.openTab}
+            showDrawings={showDrawings}
+            showAsiaSession={showAsiaSession}
+            showLondonSession={showLondonSession}
+            showNewYorkSession={showNewYorkSession}
+            showNewYorkKillZone={showNewYorkKillZone}
+            showStartOfDay={showStartOfDay}
+            startOfDayLookbackDays={startOfDayLookbackDays}
+            hoveredDrawingInfo={drawingCanvas.hoveredDrawingInfo}
+            reduceOrderEditor={drawingCanvas.reduceOrderEditor}
+            onReduceOrderEditorPctChange={drawingCanvas.setReduceOrderEditorPct}
+            onSubmitReduceOrderEditor={drawingCanvas.submitReduceOrderEditor}
+            onCloseReduceOrderEditor={drawingCanvas.closeReduceOrderEditor}
+            editingText={drawingCanvas.editingText}
+            onEditingTextChange={drawingCanvas.setEditingTextValue}
+            onCommitTextEditing={drawingCanvas.commitTextEditing}
+            onCancelTextEditing={drawingCanvas.cancelTextEditing}
+            alerts={priceAlertsApi.alerts}
+            showAlerts={showPriceAlerts}
+            onRemoveAlert={priceAlertsApi.removeAlert}
+            onUpdateAlertPrice={priceAlertsApi.updateAlertPrice}
+            onToggleAlertSide={priceAlertsApi.toggleAlertSide}
+            onSetAlertPattern={priceAlertsApi.setAlertPattern}
+            onSetAlertAdditionalInfo={priceAlertsApi.setAlertAdditionalInfo}
+            onToggleAlertLocked={priceAlertsApi.toggleAlertLocked}
+            onToggleAlertHidden={priceAlertsApi.toggleAlertHidden}
+            autoMarketDraft={tradeMenuApi.autoMarketDraft}
+            isSubmittingAutoMarket={
+              tradeMenuApi.pendingTradeAction === "AUTO_MARKET_BUY" ||
+              tradeMenuApi.pendingTradeAction === "AUTO_MARKET_SELL"
+            }
+            onAutoMarketStopLossChange={tradeMenuApi.updateAutoMarketStopLoss}
+            onSubmitAutoMarket={tradeMenuApi.submitAutoMarket}
+            onCancelAutoMarket={tradeMenuApi.cancelAutoMarket}
+            tradeToast={tradeMenuApi.tradeToast}
+            onSetTradeToast={tradeMenuApi.setTradeToast}
+            tool={drawingsApi.tool}
+            isHoveringDrawing={drawingCanvas.isHoveringDrawing}
+            isHoveringHorizontalDrawing={drawingCanvas.isHoveringHorizontalDrawing}
+            isChartLoading={marketData.isChartLoading}
+            marketDataError={marketData.marketDataError}
+            onRetryMarketData={marketData.retryMarketData}
+            interval={marketData.interval}
+            chartTimeZoneLabel={chartTimeZoneLabel}
+            cancelTooltip={drawingCanvas.cancelTooltip}
+            chaseTooltip={drawingCanvas.chaseTooltip}
+            estimatedLiquidationTooltip={drawingCanvas.estimatedLiquidationTooltip}
+            positionPnl={showPositionPnl ? (positionPnl?.unrealizedPnl ?? null) : null}
+            positionRealizedPnl={showPositionPnl ? (positionPnl?.realizedPnl ?? null) : null}
+            totalPnl={showTotalPnl ? totalPnl : null}
+            showCandleCountdown={showCandleCountdown}
+            showWatermark={showWatermark}
+            showDrawingSetBadge={showDrawingSetBadge}
+            activeDrawingSetName={
+              drawingsApi.drawingSets.find((set) => set.id === drawingsApi.activeDrawingSetId)
+                ?.name ?? "New / unsaved"
+            }
+            isDrawingSetUnsaved={drawingsApi.activeDrawingSetId === null}
+            canSaveDrawingSet={drawingsApi.regularDrawingsCount > 0}
+            onSaveDrawingSet={drawingsApi.saveCurrentDrawingSet}
+            isToolbarCollapsed={isToolbarCollapsed}
+            onShowToolbar={() => setIsToolbarCollapsed(false)}
+            onPointerDownCapture={drawingCanvas.handlePointerDownCapture}
+            onPointerMoveCapture={drawingCanvas.handlePointerMoveCapture}
+            onPointerUpCapture={drawingCanvas.handlePointerUpCapture}
+            onPointerLeave={drawingCanvas.handlePointerLeave}
+            onContextMenuCapture={drawingCanvas.handleContextMenuCapture}
+            onDoubleClick={drawingCanvas.handleChartDoubleClick}
+            onMobileDoubleTap={drawingCanvas.handleChartDoubleTap}
+          />
         </div>
 
         <SettingsPanel
@@ -1496,21 +1121,13 @@ function App() {
           showDrawings={showDrawings}
           onShowDrawingsChange={setShowDrawings}
           showAsiaSession={showAsiaSession}
-          onShowAsiaSessionChange={(enabled) =>
-            setBooleanPreference(setShowAsiaSessionState, ASIA_SESSION_STORAGE_KEY, enabled)
-          }
+          onShowAsiaSessionChange={setShowAsiaSession}
           showLondonSession={showLondonSession}
-          onShowLondonSessionChange={(enabled) =>
-            setBooleanPreference(setShowLondonSessionState, LONDON_SESSION_STORAGE_KEY, enabled)
-          }
+          onShowLondonSessionChange={setShowLondonSession}
           showNewYorkSession={showNewYorkSession}
-          onShowNewYorkSessionChange={(enabled) =>
-            setBooleanPreference(setShowNewYorkSessionState, NEW_YORK_SESSION_STORAGE_KEY, enabled)
-          }
+          onShowNewYorkSessionChange={setShowNewYorkSession}
           showNewYorkKillZone={showNewYorkKillZone}
-          onShowNewYorkKillZoneChange={(enabled) =>
-            setBooleanPreference(setShowNewYorkKillZoneState, NEW_YORK_KILL_ZONE_STORAGE_KEY, enabled)
-          }
+          onShowNewYorkKillZoneChange={setShowNewYorkKillZone}
           showPositionPnl={showPositionPnl}
           onShowPositionPnlChange={setShowPositionPnl}
           showTotalPnl={showTotalPnl}
@@ -1554,10 +1171,7 @@ function App() {
         </div>
       </div>
 
-
-      {isHotkeysOpen && (
-        <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />
-      )}
+      {isHotkeysOpen && <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />}
 
       {tradeMenuApi.tradeMenu && (
         <TradeMenu
@@ -1595,9 +1209,7 @@ function App() {
       {drawingsApi.contextMenu && (
         <ContextMenu
           contextMenu={drawingsApi.contextMenu}
-          hasPenDrawings={drawingsApi.drawings.some(
-            (drawing) => drawing.type === "pen",
-          )}
+          hasPenDrawings={drawingsApi.drawings.some((drawing) => drawing.type === "pen")}
           hasDrawings={drawingsApi.drawings.some(
             (drawing) => !(drawing.type === "horizontal" && drawing.orderSide),
           )}
@@ -1635,10 +1247,7 @@ function App() {
       )}
 
       {diagnostics.notice && (
-        <SystemNotice
-          notice={diagnostics.notice}
-          onDismiss={diagnostics.dismissNotice}
-        />
+        <SystemNotice notice={diagnostics.notice} onDismiss={diagnostics.dismissNotice} />
       )}
     </div>
   );

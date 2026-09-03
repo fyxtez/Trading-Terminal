@@ -418,7 +418,7 @@ impl BinanceClient {
     /// keep an auto-market stop-loss strictly inside the actual
     /// liquidation distance instead of past it - see the comment on
     /// `theoretical_max_leverage` there for the full explanation.
-    /// FEATURE: returns the complete maintenance-margin terms for a notional.
+    /// returns the complete maintenance-margin terms for a notional.
     /// `cum` matters when projecting liquidation; using only the ratio can move
     /// the displayed boundary noticeably on larger Binance bracket tiers.
     pub async fn maintenance_margin_terms(
@@ -502,7 +502,7 @@ impl BinanceClient {
         .await
     }
 
-    /// FIX: read the exchange's current margin mode before trying to change
+    /// read the exchange's current margin mode before trying to change
     /// it. Calling `/marginType` unconditionally while a position or open
     /// order exists can be rejected even when the symbol is already ISOLATED,
     /// which previously made legitimate ADD orders fail.
@@ -535,7 +535,7 @@ impl BinanceClient {
         Ok(margin_type)
     }
 
-    /// FIX: enforce ISOLATED for one dynamically registered Binance symbol.
+    /// enforce ISOLATED for one dynamically registered Binance symbol.
     /// The old startup-only helper iterated a fixed four-symbol array and was
     /// disabled, which left TUT and every newly added contract free to trade in
     /// CROSS mode. This guard is deliberately safe to call at startup, during
@@ -546,7 +546,7 @@ impl BinanceClient {
     pub async fn ensure_isolated_margin(&self, symbol: &str) -> AppResult<()> {
         let symbol = normalize_symbol(symbol)?;
 
-        // FIX: treat the read-back value as the source of truth. An already
+        // treat the read-back value as the source of truth. An already
         // isolated symbol needs no mutation, so ADD can proceed while its
         // position and protective TP/SL orders remain open. CROSS symbols
         // still go through Binance's change endpoint and fail closed when an
@@ -588,9 +588,7 @@ impl BinanceClient {
             ("quantity".into(), decimal(quantity)),
             ("newOrderRespType".into(), "RESULT".into()),
         ];
-        if reduce_only {
-            params.push(("reduceOnly".into(), "true".into()));
-        }
+        append_reduce_only(&mut params, reduce_only);
         if let Some(id) = client_order_id {
             params.push(("newClientOrderId".into(), validate_id(id)?));
         }
@@ -625,9 +623,7 @@ impl BinanceClient {
             ("timeInForce".into(), tif),
             ("newOrderRespType".into(), "RESULT".into()),
         ];
-        if reduce_only {
-            params.push(("reduceOnly".into(), "true".into()));
-        }
+        append_reduce_only(&mut params, reduce_only);
         if let Some(id) = client_order_id {
             params.push(("newClientOrderId".into(), validate_id(id)?));
         }
@@ -647,16 +643,7 @@ impl BinanceClient {
         client_algo_id: Option<&str>,
     ) -> AppResult<AlgoOrderResponse> {
         validate_positive("trigger_price", trigger_price)?;
-        if !close_position && quantity.is_none() {
-            return Err(AppError::Invalid(
-                "quantity is required when close_position=false".into(),
-            ));
-        }
-        if close_position && quantity.is_some() {
-            return Err(AppError::Invalid(
-                "quantity must be omitted when close_position=true".into(),
-            ));
-        }
+        validate_conditional_quantity_shape(quantity, close_position)?;
         let working_type = working_type.trim().to_ascii_uppercase();
         if !matches!(working_type.as_str(), "MARK_PRICE" | "CONTRACT_PRICE") {
             return Err(AppError::Invalid(
@@ -717,7 +704,7 @@ impl BinanceClient {
             return Err(AppError::Invalid("order_id must be > 0".into()));
         }
 
-        // FIX: PUT /fapi/v1/order (Modify Order) does NOT accept a
+        // PUT /fapi/v1/order (Modify Order) does NOT accept a
         // timeInForce parameter at all - per Binance's own docs its
         // parameter list is orderId/origClientOrderId, symbol, side,
         // quantity, price, priceMatch, recvWindow, timestamp. The
@@ -792,7 +779,7 @@ impl BinanceClient {
             .await
     }
 
-    /// FEATURE: current-position realized PNL is only available on individual
+    /// current-position realized PNL is only available on individual
     /// fills, not account/positionRisk snapshots. Fetch the newest 1000 fills
     /// from Binance's default seven-day window for lifecycle reconstruction.
     pub async fn user_trades(&self, symbol: &str) -> AppResult<Vec<Value>> {
@@ -1012,7 +999,7 @@ fn parse_exchange_filters(info: ExchangeInfo) -> AppResult<HashMap<String, Symbo
 /// map, from a single pass over the same `/fapi/v1/leverageBracket`
 /// response - so nothing needs to be fetched twice or cloned.
 ///
-/// FIX: this replaces the old `parse_max_leverage`, which discarded
+/// this replaces the old `parse_max_leverage`, which discarded
 /// `notionalCap`/`maintMarginRatio` from each bracket entirely. See the
 /// comment on `LeverageBracket` in models.rs and on
 /// `theoretical_max_leverage` in api.rs for why that mattered.
@@ -1050,7 +1037,7 @@ fn parse_leverage_and_maintenance_data(
 
 pub(crate) fn normalize_symbol(raw: &str) -> AppResult<String> {
     let symbol = raw.trim().to_ascii_uppercase().replace(['/', '-', '_'], "");
-    // FIX: Binance has valid one-character base assets such as QUSDT. The old
+    // Binance has valid one-character base assets such as QUSDT. The old
     // six-character minimum rejected them and aborted startup while enforcing
     // ISOLATED margin; five still rejects a bare quote asset such as "USDT".
     if symbol.len() < 5 || !symbol.chars().all(|c| c.is_ascii_alphanumeric()) {
@@ -1096,6 +1083,29 @@ pub(crate) fn normalize_symbol(raw: &str) -> AppResult<String> {
 fn validate_positive(name: &str, value: f64) -> AppResult<()> {
     if !value.is_finite() || value <= 0.0 {
         return Err(AppError::Invalid(format!("{name} must be finite and > 0")));
+    }
+    Ok(())
+}
+
+fn append_reduce_only(params: &mut Vec<(String, String)>, reduce_only: bool) {
+    if reduce_only {
+        params.push(("reduceOnly".into(), "true".into()));
+    }
+}
+
+fn validate_conditional_quantity_shape(
+    quantity: Option<f64>,
+    close_position: bool,
+) -> AppResult<()> {
+    if !close_position && quantity.is_none() {
+        return Err(AppError::Invalid(
+            "quantity is required when close_position=false".into(),
+        ));
+    }
+    if close_position && quantity.is_some() {
+        return Err(AppError::Invalid(
+            "quantity must be omitted when close_position=true".into(),
+        ));
     }
     Ok(())
 }
@@ -1185,5 +1195,91 @@ fn env_bool(name: &str, default: bool) -> AppResult<bool> {
             _ => Err(AppError::Config(format!("{name} must be true or false"))),
         },
         Err(_) => Ok(default),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{
+        append_reduce_only, floor_to_step, parse_exchange_filters,
+        parse_leverage_and_maintenance_data, round_to_tick, validate_conditional_quantity_shape,
+    };
+    use crate::models::{ExchangeInfo, LeverageBracketSymbol};
+
+    #[test]
+    fn quantity_rounding_always_floors_to_the_exchange_step() {
+        assert_eq!(floor_to_step(1.239, 0.01), 1.23);
+        assert_eq!(floor_to_step(0.0099, 0.001), 0.009);
+        assert!(floor_to_step(1.239, 0.01) <= 1.239);
+    }
+
+    #[test]
+    fn price_rounding_uses_the_nearest_exchange_tick_without_float_noise() {
+        assert_eq!(round_to_tick(76_605.74, 0.1), 76_605.7);
+        assert_eq!(round_to_tick(0.512_345, 0.0001), 0.5123);
+    }
+
+    #[test]
+    fn exchange_filters_preserve_step_tick_quantity_and_notional_minimums() {
+        let info: ExchangeInfo = serde_json::from_value(json!({
+            "symbols": [{
+                "symbol": "BTCUSDT",
+                "status": "TRADING",
+                "filters": [
+                    { "filterType": "PRICE_FILTER", "tickSize": "0.10" },
+                    { "filterType": "LOT_SIZE", "stepSize": "0.001", "minQty": "0.002" },
+                    { "filterType": "MIN_NOTIONAL", "notional": "20" }
+                ]
+            }]
+        }))
+        .expect("exchange-info fixture must deserialize");
+
+        let filters = parse_exchange_filters(info).expect("valid filters");
+        let btc = filters.get("BTCUSDT").expect("BTC filters");
+        assert_eq!(btc.tick_size, 0.1);
+        assert_eq!(btc.step_size, 0.001);
+        assert_eq!(btc.min_qty, 0.002);
+        assert_eq!(btc.min_notional, 20.0);
+    }
+
+    #[test]
+    fn maintenance_brackets_are_sorted_and_keep_the_exchange_max_leverage() {
+        let response: Vec<LeverageBracketSymbol> = serde_json::from_value(json!([{
+            "symbol": "BTCUSDT",
+            "brackets": [
+                { "initialLeverage": 20, "notionalCap": 250000.0, "maintMarginRatio": 0.01, "cum": 100.0 },
+                { "initialLeverage": 125, "notionalCap": 50000.0, "maintMarginRatio": 0.004, "cum": 0.0 }
+            ]
+        }]))
+        .expect("leverage fixture must deserialize");
+
+        let (maximums, brackets) = parse_leverage_and_maintenance_data(response);
+        assert_eq!(maximums["BTCUSDT"], 125);
+        assert_eq!(brackets["BTCUSDT"][0].notional_cap, 50_000.0);
+        assert_eq!(brackets["BTCUSDT"][1].notional_cap, 250_000.0);
+    }
+
+    #[test]
+    fn reduce_only_is_emitted_only_for_exposure_reducing_orders() {
+        let mut close_params = Vec::new();
+        append_reduce_only(&mut close_params, true);
+        assert_eq!(
+            close_params,
+            vec![("reduceOnly".to_string(), "true".to_string())]
+        );
+
+        let mut entry_params = Vec::new();
+        append_reduce_only(&mut entry_params, false);
+        assert!(entry_params.is_empty());
+    }
+
+    #[test]
+    fn full_position_protection_cannot_also_submit_a_quantity() {
+        assert!(validate_conditional_quantity_shape(None, true).is_ok());
+        assert!(validate_conditional_quantity_shape(Some(0.01), true).is_err());
+        assert!(validate_conditional_quantity_shape(None, false).is_err());
+        assert!(validate_conditional_quantity_shape(Some(0.01), false).is_ok());
     }
 }

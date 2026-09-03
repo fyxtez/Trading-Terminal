@@ -44,19 +44,11 @@ describe("DesktopSetupGate", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
     fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
-    expect(
-      screen.getByText("Confirm that Mainnet orders use real funds."),
-    ).toBeVisible();
+    expect(screen.getByText("Confirm that Mainnet orders use real funds.")).toBeVisible();
 
-    fireEvent.click(
-      screen.getByLabelText(
-        "I understand that this connection can use real funds.",
-      ),
-    );
+    fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
     fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
-    expect(
-      await screen.findByRole("heading", { name: "Connect ntfy" }),
-    ).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Connect ntfy" })).toBeVisible();
   });
 
   it("finishes in chart-only mode when every connection is skipped", async () => {
@@ -82,6 +74,27 @@ describe("DesktopSetupGate", () => {
         telegramBotToken: null,
         telegramChatId: null,
       },
+    });
+  });
+
+  it("accepts an ntfy topic without requiring the complete publish URL", async () => {
+    render(
+      <DesktopSetupGate>
+        <div>Terminal</div>
+      </DesktopSetupGate>,
+    );
+
+    await screen.findByRole("heading", { name: "Connect Binance" });
+    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
+    fireEvent.change(screen.getByLabelText("Private ntfy topic"), {
+      target: { value: "fyxtez_private-42" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
+    fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
+
+    await waitFor(() => expect(screen.getByText("Terminal")).toBeVisible());
+    expect(invokeMock).toHaveBeenCalledWith("save_credentials", {
+      input: expect.objectContaining({ ntfyUrl: "fyxtez_private-42" }),
     });
   });
 });

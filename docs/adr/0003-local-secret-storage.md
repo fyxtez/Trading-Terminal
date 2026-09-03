@@ -5,13 +5,17 @@
 
 ## Context
 
-Binance API secrets, Telegram bot tokens and private ntfy topic URLs must not be compiled into Vite, stored in localStorage, committed in `.env`, written to SQLite as plaintext or returned from Rust to the WebView. A desktop installation has access to the user's native credential manager.
+Binance API secrets, Telegram bot tokens and private ntfy topics must not be compiled into Vite, stored in localStorage, committed in `.env`, written to SQLite as plaintext or returned from Rust to the WebView. A desktop installation has access to the user's native credential manager.
 
 ## Decision
 
 Tauri Rust commands store credentials under service `com.fyxtez.terminal` using the cross-platform `keyring` crate. Keys are `binance-api-key`, `binance-api-secret`, `ntfy-url`, `telegram-bot-token` and `telegram-chat-id`.
 
 The WebView can request boolean configuration status, save replacement values, or clear credentials. It cannot read secret values. Sensitive Rust strings used during saving are zeroized on drop. Binance onboarding requires a dedicated API key with withdrawals disabled.
+
+The ntfy step accepts a short public-service topic and expands it to
+`https://ntfy.sh/<topic>` in native Rust before storage. Complete HTTP(S)
+publish URLs remain supported for existing and self-hosted configurations.
 
 Onboarding has independent Binance, ntfy and Telegram steps. Every step is
 optional and can be reopened from Settings. Completion of the wizard is a

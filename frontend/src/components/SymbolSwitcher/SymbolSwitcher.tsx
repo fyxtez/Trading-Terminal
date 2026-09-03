@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSymbolInfo } from "../../config/symbols";
-import {
-  getSymbolConfig,
-  type ExchangeSource,
-  type TradingSymbol,
-} from "../../config/constants";
+import { getSymbolConfig, type ExchangeSource, type TradingSymbol } from "../../config/constants";
 import { addSymbol, deleteSymbol } from "../../trading/api/symbols";
 import { clearSymbolLocalMetadata } from "../../utils/symbolMetadata";
 import { useViewportClampOffset } from "../../hooks/useViewportClampOffset";
@@ -35,14 +31,25 @@ const SOURCE_LABELS: Record<ExchangeSource, string> = {
   mexc: "MEXC Futures",
 };
 
-function ExchangeLogo({ source, executionEnabled }: { source: ExchangeSource; executionEnabled: boolean }) {
+function ExchangeLogo({
+  source,
+  executionEnabled,
+}: {
+  source: ExchangeSource;
+  executionEnabled: boolean;
+}) {
   const exchange = SOURCE_LABELS[source];
   const explanation = executionEnabled
     ? `${exchange} market data. Orders execute on ${exchange}.`
     : `${exchange} market data. View only — trading is disabled for this chart.`;
 
   return (
-    <span className={`symbol-exchange-logo ${source}`} title={explanation} aria-label={explanation} role="img">
+    <span
+      className={`symbol-exchange-logo ${source}`}
+      title={explanation}
+      aria-label={explanation}
+      role="img"
+    >
       {source === "binance" ? (
         // Official Binance logomark (four-diamond "B"), per Binance/BNB Chain brand guidelines.
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -76,7 +83,13 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegistryChanged, onSymbolDeleted }: SymbolSwitcherProps) {
+export default function SymbolSwitcher({
+  symbol,
+  symbols,
+  onChangeSymbol,
+  onRegistryChanged,
+  onSymbolDeleted,
+}: SymbolSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -95,19 +108,21 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
   const info = getSymbolInfo(symbol);
   const activeConfig = getSymbolConfig(symbol);
 
-  useEffect(() => { saveSymbolCategories(categories); }, [categories]);
+  useEffect(() => {
+    saveSymbolCategories(categories);
+  }, [categories]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // FEATURE: focus the search field as soon as the symbol menu is mounted so
+    // focus the search field as soon as the symbol menu is mounted so
     // the user can open the switcher and immediately type without an extra click.
     const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
 
   const closeMenu = () => {
-    // FIX: every close path clears transient search/error state so reopening
+    // every close path clears transient search/error state so reopening
     // the switcher never shows a failed ticker or its stale backend error.
     setIsOpen(false);
     setNewSymbol("");
@@ -120,7 +135,9 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
     const handlePointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) closeMenu();
     };
-    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenu(); };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
     window.addEventListener("pointerdown", handlePointerDown, true);
     window.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -130,19 +147,20 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
   }, [isOpen]);
 
   const groupedSymbols = useMemo(() => {
-    // FEATURE: normalize the search once and match both the short ticker and
+    // normalize the search once and match both the short ticker and
     // full display name so typing e.g. "eth" or "ethereum" finds the same row.
     const normalizedSearch = newSymbol.trim().toLocaleLowerCase();
 
     return SYMBOL_CATEGORY_ORDER.map((category) => ({
       ...category,
-      // FEATURE: grouping filters the registry in-place, preserving its order and
+      // grouping filters the registry in-place, preserving its order and
       // removing the previous user-selectable sorting behavior entirely.
       symbols: symbols.filter((candidate) => {
         const candidateInfo = getSymbolInfo(candidate);
-        const matchesSearch = !normalizedSearch
-          || candidateInfo.label.toLocaleLowerCase().includes(normalizedSearch)
-          || candidateInfo.name.toLocaleLowerCase().includes(normalizedSearch);
+        const matchesSearch =
+          !normalizedSearch ||
+          candidateInfo.label.toLocaleLowerCase().includes(normalizedSearch) ||
+          candidateInfo.name.toLocaleLowerCase().includes(normalizedSearch);
         if (!matchesSearch) return false;
         if (getSymbolConfig(candidate).protected) return category.value === "primary";
         return symbolCategory(candidate, categories) === category.value;
@@ -154,7 +172,7 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
     () => groupedSymbols.flatMap((group) => group.symbols),
     [groupedSymbols],
   );
-  // FIX: Add used to be enabled only when the search had zero partial matches.
+  // Add used to be enabled only when the search had zero partial matches.
   // That made one-letter tickers such as D impossible to add whenever an
   // existing symbol (DOGE, MOODENG, ...) happened to contain that letter.
   // Adding is now blocked only by an exact registered base-symbol match.
@@ -170,13 +188,13 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
   const canAddSymbol = normalizedNewBase.length > 0 && !exactRegisteredSymbol && pending === null;
 
   useEffect(() => {
-    // FEATURE: a changed query starts keyboard navigation at the first visible
+    // a changed query starts keyboard navigation at the first visible
     // match, matching the predictable behaviour of native search comboboxes.
     setHighlightedIndex(0);
   }, [newSymbol]);
 
   useEffect(() => {
-    // FEATURE: keep the arrow-key selection visible in long categorized lists.
+    // keep the arrow-key selection visible in long categorized lists.
     highlightedOptionRef.current?.scrollIntoView({ block: "nearest" });
   }, [highlightedIndex]);
 
@@ -192,19 +210,20 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
 
   const toggleWatchlist = (candidate: TradingSymbol) => {
     if (getSymbolConfig(candidate).protected) return;
-    // FEATURE: the familiar star remains a one-click Watchlist shortcut; a
+    // the familiar star remains a one-click Watchlist shortcut; a
     // second click returns the symbol to its inferred default category.
     setCategories((current) => ({
       ...current,
-      [candidate]: (current[candidate] ?? defaultSymbolCategory(candidate)) === "watchlist"
-        ? defaultSymbolCategory(candidate)
-        : "watchlist",
+      [candidate]:
+        (current[candidate] ?? defaultSymbolCategory(candidate)) === "watchlist"
+          ? defaultSymbolCategory(candidate)
+          : "watchlist",
     }));
   };
 
   const handleAdd = async () => {
     const value = newSymbol.trim();
-    // FIX: partial search matches no longer block registration; only an exact
+    // partial search matches no longer block registration; only an exact
     // existing ticker does. This is what permits one-letter symbols like D.
     if (!value || exactRegisteredSymbol || pending) return;
     setPending("add");
@@ -216,7 +235,9 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
       onChangeSymbol(`${result.symbol.symbol}USDT`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add symbol");
-    } finally { setPending(null); }
+    } finally {
+      setPending(null);
+    }
   };
 
   const handleDelete = async (candidate: TradingSymbol) => {
@@ -231,7 +252,7 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
       }
       await deleteSymbol(candidateInfo.label);
       clearSymbolLocalMetadata(candidate);
-      // FIX: remove deleted-symbol category metadata so re-adding the ticker
+      // remove deleted-symbol category metadata so re-adding the ticker
       // later starts with the current default instead of stale UI state.
       setCategories((current) => {
         const next = { ...current };
@@ -248,16 +269,31 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
       onSymbolDeleted(candidate);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete symbol");
-    } finally { setPending(null); }
+    } finally {
+      setPending(null);
+    }
   };
 
   return (
     <div className="symbol-switcher" ref={rootRef}>
-      <button className={`symbol-switcher-trigger ${isOpen ? "open" : ""}`} title="Switch chart market" onClick={(event) => { event.stopPropagation(); if (isOpen) closeMenu(); else setIsOpen(true); }}>
+      <button
+        className={`symbol-switcher-trigger ${isOpen ? "open" : ""}`}
+        title="Switch chart market"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isOpen) closeMenu();
+          else setIsOpen(true);
+        }}
+      >
         <SymbolIcon symbol={symbol} className="symbol-switcher-symbol-icon" />
         <span>{info.label}</span>
-        <ExchangeLogo source={activeConfig.source} executionEnabled={activeConfig.executionEnabled} />
-        <span className="symbol-switcher-caret" aria-hidden="true">▾</span>
+        <ExchangeLogo
+          source={activeConfig.source}
+          executionEnabled={activeConfig.executionEnabled}
+        />
+        <span className="symbol-switcher-caret" aria-hidden="true">
+          ▾
+        </span>
       </button>
 
       {isOpen && (
@@ -281,85 +317,119 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
 
           <div className="symbol-switcher-list">
             {groupedSymbols.map((group) => (
-              <section className="symbol-category-group" key={group.value} aria-labelledby={`symbol-category-${group.value}`}>
+              <section
+                className="symbol-category-group"
+                key={group.value}
+                aria-labelledby={`symbol-category-${group.value}`}
+              >
                 <h3 id={`symbol-category-${group.value}`} className="symbol-category-heading">
-                  <span>{group.label}</span><span aria-hidden="true" />
+                  <span>{group.label}</span>
+                  <span aria-hidden="true" />
                 </h3>
                 {group.symbols.map((candidate) => {
-              const candidateInfo = getSymbolInfo(candidate);
-              const config = getSymbolConfig(candidate);
-              const isActive = candidate === symbol;
-              const category = symbolCategory(candidate, categories);
-              const isWatchlisted = category === "watchlist";
-              const candidateIndex = matchingSymbols.indexOf(candidate);
-              const isHighlighted = candidateIndex === highlightedIndex;
-              return (
-                <div
-                  key={candidate}
-                  ref={isHighlighted ? highlightedOptionRef : undefined}
-                  className={`symbol-switcher-option ${isActive ? "active" : ""} ${isHighlighted ? "keyboard-highlighted" : ""}`}
-                >
-                  {config.protected ? (
-                    <span
-                      className="symbol-pin-button locked"
-                      title="Primary market — category locked"
-                      aria-label={`${candidateInfo.label} is a primary market`}
+                  const candidateInfo = getSymbolInfo(candidate);
+                  const config = getSymbolConfig(candidate);
+                  const isActive = candidate === symbol;
+                  const category = symbolCategory(candidate, categories);
+                  const isWatchlisted = category === "watchlist";
+                  const candidateIndex = matchingSymbols.indexOf(candidate);
+                  const isHighlighted = candidateIndex === highlightedIndex;
+                  return (
+                    <div
+                      key={candidate}
+                      ref={isHighlighted ? highlightedOptionRef : undefined}
+                      className={`symbol-switcher-option ${isActive ? "active" : ""} ${isHighlighted ? "keyboard-highlighted" : ""}`}
                     >
-                      <StarIcon filled />
-                    </span>
-                  ) : (
-                    <button
-                      className="symbol-pin-button"
-                      title={isWatchlisted ? `Remove ${candidateInfo.label} from Watchlist` : `Add ${candidateInfo.label} to Watchlist`}
-                      aria-label={isWatchlisted ? `Remove ${candidateInfo.label} from Watchlist` : `Add ${candidateInfo.label} to Watchlist`}
-                      aria-pressed={isWatchlisted}
-                      onClick={(event) => { event.stopPropagation(); toggleWatchlist(candidate); }}
-                    >
-                      <StarIcon filled={isWatchlisted} />
-                    </button>
-                  )}
-                  <button className="symbol-switcher-select" onClick={() => selectSymbol(candidate)}>
-                    <span className="symbol-switcher-option-symbol">
-                      <SymbolIcon symbol={candidate} />
-                      <span className="symbol-switcher-option-label">{candidateInfo.label}</span>
-                    </span>
-                    <span className="symbol-switcher-option-name">{candidateInfo.name}</span>
-                  </button>
-                  <div className="symbol-switcher-option-actions">
-                    {isEditingCategories && !config.protected && (
-                      <select
-                        className="symbol-category-select"
-                        value={category}
-                        aria-label={`Category for ${candidateInfo.label}`}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) => setCategory(candidate, event.target.value as EditableSymbolCategory)}
+                      {config.protected ? (
+                        <span
+                          className="symbol-pin-button locked"
+                          title="Primary market — category locked"
+                          aria-label={`${candidateInfo.label} is a primary market`}
+                        >
+                          <StarIcon filled />
+                        </span>
+                      ) : (
+                        <button
+                          className="symbol-pin-button"
+                          title={
+                            isWatchlisted
+                              ? `Remove ${candidateInfo.label} from Watchlist`
+                              : `Add ${candidateInfo.label} to Watchlist`
+                          }
+                          aria-label={
+                            isWatchlisted
+                              ? `Remove ${candidateInfo.label} from Watchlist`
+                              : `Add ${candidateInfo.label} to Watchlist`
+                          }
+                          aria-pressed={isWatchlisted}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleWatchlist(candidate);
+                          }}
+                        >
+                          <StarIcon filled={isWatchlisted} />
+                        </button>
+                      )}
+                      <button
+                        className="symbol-switcher-select"
+                        onClick={() => selectSymbol(candidate)}
                       >
-                        {SYMBOL_CATEGORY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                    )}
-                    <ExchangeLogo source={config.source} executionEnabled={config.executionEnabled} />
-                    {!config.protected && (
-                      <button className="symbol-delete-button" title={`Delete ${candidateInfo.label}`} aria-label={`Delete ${candidateInfo.label}`} disabled={pending !== null} onClick={() => void handleDelete(candidate)}>
-                        <span aria-hidden="true">×</span>
+                        <span className="symbol-switcher-option-symbol">
+                          <SymbolIcon symbol={candidate} />
+                          <span className="symbol-switcher-option-label">
+                            {candidateInfo.label}
+                          </span>
+                        </span>
+                        <span className="symbol-switcher-option-name">{candidateInfo.name}</span>
                       </button>
-                    )}
-                  </div>
-                </div>
-              );
+                      <div className="symbol-switcher-option-actions">
+                        {isEditingCategories && !config.protected && (
+                          <select
+                            className="symbol-category-select"
+                            value={category}
+                            aria-label={`Category for ${candidateInfo.label}`}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setCategory(candidate, event.target.value as EditableSymbolCategory)
+                            }
+                          >
+                            {SYMBOL_CATEGORY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <ExchangeLogo
+                          source={config.source}
+                          executionEnabled={config.executionEnabled}
+                        />
+                        {!config.protected && (
+                          <button
+                            className="symbol-delete-button"
+                            title={`Delete ${candidateInfo.label}`}
+                            aria-label={`Delete ${candidateInfo.label}`}
+                            disabled={pending !== null}
+                            onClick={() => void handleDelete(candidate)}
+                          >
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
                 })}
               </section>
             ))}
             {groupedSymbols.length === 0 && (
-              // FEATURE: explain an empty filtered list instead of leaving the
+              // explain an empty filtered list instead of leaving the
               // menu visually blank when no registered symbol contains the text.
               <div className="symbol-search-empty">No matching symbols — ready to add</div>
             )}
           </div>
 
           <div className="symbol-add-row">
-            {/* FEATURE: one field now searches registered symbols as the user
+            {/* one field now searches registered symbols as the user
                 types and becomes an Add-symbol input only when nothing matches. */}
             <input
               ref={searchInputRef}
@@ -369,7 +439,7 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
               aria-label="Search or add symbol"
               onChange={(event) => {
                 setNewSymbol(event.target.value.toUpperCase());
-                // FIX: editing after a failed Add immediately removes the old
+                // editing after a failed Add immediately removes the old
                 // message because it no longer describes the current query.
                 setError(null);
               }}
@@ -379,10 +449,12 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
                   setHighlightedIndex((index) => (index + 1) % matchingSymbols.length);
                 } else if (event.key === "ArrowUp" && matchingSymbols.length > 0) {
                   event.preventDefault();
-                  setHighlightedIndex((index) => (index - 1 + matchingSymbols.length) % matchingSymbols.length);
+                  setHighlightedIndex(
+                    (index) => (index - 1 + matchingSymbols.length) % matchingSymbols.length,
+                  );
                 } else if (event.key === "Enter") {
                   event.preventDefault();
-                  // FIX: when the typed ticker is not already registered, Enter
+                  // when the typed ticker is not already registered, Enter
                   // means Add even if partial search results are visible. Exact existing
                   // tickers still open normally; arrows can be used for partial matches.
                   if (exactRegisteredSymbol) selectSymbol(exactRegisteredSymbol);
@@ -390,9 +462,19 @@ export default function SymbolSwitcher({ symbol, symbols, onChangeSymbol, onRegi
                 }
               }}
             />
-            <button className="symbol-add-button" disabled={!canAddSymbol} onClick={() => void handleAdd()}>{pending === "add" ? "…" : "Add"}</button>
+            <button
+              className="symbol-add-button"
+              disabled={!canAddSymbol}
+              onClick={() => void handleAdd()}
+            >
+              {pending === "add" ? "…" : "Add"}
+            </button>
           </div>
-          {error && <div className="symbol-switcher-error" title={error}>{error}</div>}
+          {error && (
+            <div className="symbol-switcher-error" title={error}>
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>

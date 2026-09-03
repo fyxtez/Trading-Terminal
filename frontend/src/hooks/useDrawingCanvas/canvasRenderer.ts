@@ -25,11 +25,7 @@ import {
   drawPendingOrderEditButton,
   drawPendingOrderLabel,
 } from "./canvasPrimitives";
-import {
-  clampToEditablePane,
-  getTextRect,
-  isOrderDrawing,
-} from "./drawingGeometry";
+import { clampToEditablePane, getTextRect, isOrderDrawing } from "./drawingGeometry";
 import {
   REDUCE_ORDER_EDITOR_GAP,
   REDUCE_ORDER_EDITOR_HEIGHT,
@@ -72,7 +68,7 @@ export function drawCanvasFrame({
     return;
   }
 
-  // FIX: candle-specific conversion becomes null in an all-future viewport.
+  // candle-specific conversion becomes null in an all-future viewport.
   // The invisible future series shares the same right scale and therefore
   // provides an equivalent coordinate fallback for every canvas drawing.
   const priceToY = (price: number) =>
@@ -101,7 +97,7 @@ export function drawCanvasFrame({
   }
 
   /*
-   * FIX: everything from here down used to run unguarded. A single bad
+   * everything from here down used to run unguarded. A single bad
    * frame - a stale/NaN coordinate right after the tab or the whole
    * laptop wakes from sleep, the chart briefly not fully laid out yet
    * mid-symbol-switch, etc. - threw an uncaught exception straight out
@@ -120,14 +116,8 @@ export function drawCanvasFrame({
 
     const paneSize = chart.paneSize();
 
-    wrap.style.setProperty(
-      "--pane-inset-right",
-      `${Math.max(0, width - paneSize.width)}px`,
-    );
-    wrap.style.setProperty(
-      "--pane-inset-bottom",
-      `${Math.max(0, height - paneSize.height)}px`,
-    );
+    wrap.style.setProperty("--pane-inset-right", `${Math.max(0, width - paneSize.width)}px`);
+    wrap.style.setProperty("--pane-inset-bottom", `${Math.max(0, height - paneSize.height)}px`);
 
     context.save();
     context.beginPath();
@@ -158,20 +148,20 @@ export function drawCanvasFrame({
       context.save();
       context.strokeStyle = color;
       context.lineWidth = 1;
-      // FIX: multiply by the inherited order opacity so cancelling an order dims
+      // multiply by the inherited order opacity so cancelling an order dims
       // its EST. LIQ connector/level together with the label and eye control.
       const inheritedAlpha = context.globalAlpha;
       context.globalAlpha = inheritedAlpha * 0.4;
       context.setLineDash([6, 5]);
 
-      // FEATURE: the EST. LIQ boundary is intentionally softer than the real
+      // the EST. LIQ boundary is intentionally softer than the real
       // resting order line because it is a projection, not a Binance position.
       context.beginPath();
       context.moveTo(0, liquidationY);
       context.lineTo(width, liquidationY);
       context.stroke();
 
-      // FEATURE: connector starts at the EST. LIQ rectangle and points directly
+      // connector starts at the EST. LIQ rectangle and points directly
       // toward the projected level, matching the visual relationship requested.
       context.beginPath();
       context.moveTo(connectorX, orderY + direction * 11);
@@ -181,27 +171,17 @@ export function drawCanvasFrame({
       context.setLineDash([]);
       context.globalAlpha = inheritedAlpha * 0.72;
       context.beginPath();
-      context.moveTo(
-        connectorX - arrowSize,
-        liquidationY - direction * arrowSize,
-      );
+      context.moveTo(connectorX - arrowSize, liquidationY - direction * arrowSize);
       context.lineTo(connectorX, liquidationY);
-      context.lineTo(
-        connectorX + arrowSize,
-        liquidationY - direction * arrowSize,
-      );
+      context.lineTo(connectorX + arrowSize, liquidationY - direction * arrowSize);
       context.stroke();
       context.restore();
     };
 
-    const drawTradeMarker = (
-      anchor: ScreenPoint,
-      side: TradeMarker["side"],
-      color: string,
-    ) => {
+    const drawTradeMarker = (anchor: ScreenPoint, side: TradeMarker["side"], color: string) => {
       const isBuy = side === "BUY";
 
-      // FIX: this was a plain object literal, which only has the 6 keys
+      // this was a plain object literal, which only has the 6 keys
       // actually written out here - indexing it with the full Interval
       // union (which also includes "12h" and "1w") was a type error, even
       // though the runtime behavior was always correct: a missing key
@@ -209,30 +189,20 @@ export function drawCanvasFrame({
       // below. Marking it Partial<Record<Interval, number>> tells
       // TypeScript what was already true at runtime - not every interval
       // needs its own entry here, unlisted ones use the default 1 scale.
-      const markerScaleByInterval: Partial<
-        Record<typeof refs.intervalRef.current, number>
-      > = {
+      const markerScaleByInterval: Partial<Record<typeof refs.intervalRef.current, number>> = {
         "1m": 0.9,
         "5m": 0.7,
         "15m": 0.6,
         "1h": 0.5,
         "4h": 0.5,
         "1d": 0.45,
-    };
+      };
 
-      const intervalScale =
-        markerScaleByInterval[refs.intervalRef.current] ?? 1;
+      const intervalScale = markerScaleByInterval[refs.intervalRef.current] ?? 1;
 
-      const visibleRange = refs.chartRef.current
-        ?.timeScale()
-        .getVisibleLogicalRange();
-      const visibleBars = visibleRange
-        ? Math.max(1, visibleRange.to - visibleRange.from)
-        : 245;
-      const zoomScale = Math.min(
-        1.8,
-        Math.max(0.55, Math.sqrt(245 / visibleBars)),
-      );
+      const visibleRange = refs.chartRef.current?.timeScale().getVisibleLogicalRange();
+      const visibleBars = visibleRange ? Math.max(1, visibleRange.to - visibleRange.from) : 245;
+      const zoomScale = Math.min(1.8, Math.max(0.55, Math.sqrt(245 / visibleBars)));
       const markerScale = intervalScale * zoomScale;
 
       const badgeWidth = 20 * markerScale;
@@ -254,20 +224,8 @@ export function drawCanvasFrame({
 
       context.beginPath();
       context.moveTo(left + radius, top);
-      context.arcTo(
-        left + badgeWidth,
-        top,
-        left + badgeWidth,
-        top + badgeHeight,
-        radius,
-      );
-      context.arcTo(
-        left + badgeWidth,
-        top + badgeHeight,
-        left,
-        top + badgeHeight,
-        radius,
-      );
+      context.arcTo(left + badgeWidth, top, left + badgeWidth, top + badgeHeight, radius);
+      context.arcTo(left + badgeWidth, top + badgeHeight, left, top + badgeHeight, radius);
       context.arcTo(left, top + badgeHeight, left, top, radius);
       context.arcTo(left, top, left + badgeWidth, top, radius);
       context.closePath();
@@ -296,7 +254,7 @@ export function drawCanvasFrame({
     };
 
     for (const drawing of refs.drawingsRef.current) {
-      // FIX: "Show drawings" controls only user-created chart annotations.
+      // "Show drawings" controls only user-created chart annotations.
       // Pending Binance order lines (including TP/reduce lines) share this canvas,
       // so hiding the whole canvas also hid trading controls. Keep order drawings
       // rendered while filtering only regular drawings from the paint pass.
@@ -311,14 +269,7 @@ export function drawCanvasFrame({
 
         if (x === null) continue;
 
-        drawLine(
-          context,
-          { x, y: 0 },
-          { x, y: height },
-          drawing.color,
-          selected,
-          true,
-        );
+        drawLine(context, { x, y: 0 }, { x, y: height }, drawing.color, selected, true);
         continue;
       }
 
@@ -333,13 +284,12 @@ export function drawCanvasFrame({
           drawing.orderId !== undefined &&
           refs.highlightedOrderIdRef.current === drawing.orderId &&
           Date.now() < refs.highlightedOrderUntilRef.current;
-        const blinkOn =
-          isHighlighted && Math.floor(Date.now() / 180) % 2 === 0;
+        const blinkOn = isHighlighted && Math.floor(Date.now() / 180) % 2 === 0;
         const renderColor = blinkOn ? "#fff3b0" : drawing.color;
         const isCancelling = cancellingOrderIds.has(drawing.id);
 
         /*
-         * FEATURE (instant cancel acknowledgement): Binance may need a few seconds
+         * Binance may need a few seconds
          * to confirm a limit-order cancellation. Keep the order visible as the
          * source-of-truth pending state, but dim the ENTIRE line/label/buttons as
          * soon as X is clicked so the user gets immediate visual confirmation.
@@ -370,11 +320,7 @@ export function drawCanvasFrame({
             );
             drawEstimatedLiquidationGuide(drawing, rects, renderColor);
             if (rects.estimated) {
-              drawEstimatedLiquidationButton(
-                context,
-                rects.estimated,
-                renderColor,
-              );
+              drawEstimatedLiquidationButton(context, rects.estimated, renderColor);
             }
             if (rects.estimatedHide) {
               drawEstimatedLiquidationHideButton(
@@ -385,42 +331,28 @@ export function drawCanvasFrame({
               );
             }
             if (rects.chase) {
-              drawPendingOrderChaseButton(
-                context,
-                rects.chase,
-                renderColor,
-                drawing.orderChasing,
-              );
+              drawPendingOrderChaseButton(context, rects.chase, renderColor, drawing.orderChasing);
             }
             if (rects.edit) {
               drawPendingOrderEditButton(context, rects.edit, renderColor);
             }
 
             const activeReduceEditor = reduceOrderEditorRef.current;
-            if (
-              activeReduceEditor?.drawingId === drawing.id &&
-              rects.edit
-            ) {
+            if (activeReduceEditor?.drawingId === drawing.id && rects.edit) {
               /*
-               * FIX: the old TP editor stored one click-time x/y coordinate, so
+               * the old TP editor stored one click-time x/y coordinate, so
                * panning/zooming/resizing the chart left the popover floating in
                * its old screen position. Recalculate a clamped anchor from the
                * live TP line geometry during the canvas paint loop. Prefer below
                * the line, but flip above it near the bottom edge.
                */
-              const preferredLeft =
-                rects.edit.x + rects.edit.width - REDUCE_ORDER_EDITOR_WIDTH;
+              const preferredLeft = rects.edit.x + rects.edit.width - REDUCE_ORDER_EDITOR_WIDTH;
               const nextLeft = Math.max(
                 8,
-                Math.min(
-                  preferredLeft,
-                  Math.max(8, width - REDUCE_ORDER_EDITOR_WIDTH - 8),
-                ),
+                Math.min(preferredLeft, Math.max(8, width - REDUCE_ORDER_EDITOR_WIDTH - 8)),
               );
-              const belowTop =
-                rects.edit.y + rects.edit.height + REDUCE_ORDER_EDITOR_GAP;
-              const aboveTop =
-                rects.edit.y - REDUCE_ORDER_EDITOR_HEIGHT - REDUCE_ORDER_EDITOR_GAP;
+              const belowTop = rects.edit.y + rects.edit.height + REDUCE_ORDER_EDITOR_GAP;
+              const aboveTop = rects.edit.y - REDUCE_ORDER_EDITOR_HEIGHT - REDUCE_ORDER_EDITOR_GAP;
               const nextTop = Math.max(
                 8,
                 belowTop + REDUCE_ORDER_EDITOR_HEIGHT <= height - 8
@@ -461,29 +393,13 @@ export function drawCanvasFrame({
         // A persistent, one-quadrant crosshair: horizontal ray runs from
         // the anchor to the price scale, vertical ray from the anchor down
         // to the time axis. Clipping above keeps both rays inside the plot.
-        drawLine(
-          context,
-          { x, y },
-          { x: paneSize.width, y },
-          drawing.color,
-          selected,
-          true,
-        );
-        drawLine(
-          context,
-          { x, y },
-          { x, y: paneSize.height },
-          drawing.color,
-          selected,
-          true,
-        );
+        drawLine(context, { x, y }, { x: paneSize.width, y }, drawing.color, selected, true);
+        drawLine(context, { x, y }, { x, y: paneSize.height }, drawing.color, selected, true);
 
         context.save();
         context.beginPath();
         context.arc(x, y, selected ? 4.5 : 3.5, 0, Math.PI * 2);
-        context.fillStyle = selected
-          ? brightenColor(drawing.color)
-          : drawing.color;
+        context.fillStyle = selected ? brightenColor(drawing.color) : drawing.color;
         context.fill();
         context.restore();
         continue;
@@ -498,7 +414,11 @@ export function drawCanvasFrame({
         const activeEditor = editingTextRef.current;
         if (activeEditor?.drawingId === drawing.id) {
           const editableRect = clampToEditablePane(rect, refs);
-          const fontSize = getTextFontSize(editableRect.width, editableRect.height, activeEditor.value);
+          const fontSize = getTextFontSize(
+            editableRect.width,
+            editableRect.height,
+            activeEditor.value,
+          );
           if (
             Math.abs(activeEditor.left - editableRect.left) > 0.5 ||
             Math.abs(activeEditor.top - editableRect.top) > 0.5 ||
@@ -573,23 +493,14 @@ export function drawCanvasFrame({
 
         context.save();
         context.beginPath();
-        context.strokeStyle = selected
-          ? brightenColor(drawing.color)
-          : drawing.color;
+        context.strokeStyle = selected ? brightenColor(drawing.color) : drawing.color;
         context.lineWidth = selected ? 3 : 2;
         context.lineCap = "round";
         context.lineJoin = "round";
         context.moveTo(screenPoints[0].x, screenPoints[0].y);
 
-        for (
-          let pointIndex = 1;
-          pointIndex < screenPoints.length;
-          pointIndex += 1
-        ) {
-          context.lineTo(
-            screenPoints[pointIndex].x,
-            screenPoints[pointIndex].y,
-          );
+        for (let pointIndex = 1; pointIndex < screenPoints.length; pointIndex += 1) {
+          context.lineTo(screenPoints[pointIndex].x, screenPoints[pointIndex].y);
         }
 
         context.stroke();
@@ -606,12 +517,7 @@ export function drawCanvasFrame({
         drawLine(context, start, end, drawing.color, selected);
 
         if (selected) {
-          drawEndpointHandles(
-            context,
-            start,
-            end,
-            brightenColor(drawing.color),
-          );
+          drawEndpointHandles(context, start, end, brightenColor(drawing.color));
         }
 
         continue;
@@ -624,9 +530,7 @@ export function drawCanvasFrame({
 
       context.save();
       context.fillStyle = hexToRgba(drawing.color, 0.18);
-      context.strokeStyle = selected
-        ? brightenColor(drawing.color)
-        : drawing.color;
+      context.strokeStyle = selected ? brightenColor(drawing.color) : drawing.color;
       context.lineWidth = selected ? 2.5 : 2;
 
       context.fillRect(left, top, boxWidth, boxHeight);
@@ -635,20 +539,12 @@ export function drawCanvasFrame({
       context.restore();
 
       if (selected) {
-        drawBoxHandles(
-          context,
-          start,
-          end,
-          brightenColor(drawing.color),
-        );
+        drawBoxHandles(context, start, end, brightenColor(drawing.color));
       }
     }
 
     for (const marker of refs.tradeMarkersRef.current) {
-      const alignedTime = alignTimeToInterval(
-        marker.time,
-        refs.intervalRef.current,
-      );
+      const alignedTime = alignTimeToInterval(marker.time, refs.intervalRef.current);
 
       const loadedCandle = refs.loadedCandlesRef.current.find(
         (candle) => Number(candle.time) === Number(alignedTime),
@@ -657,9 +553,7 @@ export function drawCanvasFrame({
       const latestCandle = refs.lastCandleRef.current;
       const candle =
         loadedCandle ??
-        (latestCandle && Number(latestCandle.time) === Number(alignedTime)
-          ? latestCandle
-          : null);
+        (latestCandle && Number(latestCandle.time) === Number(alignedTime) ? latestCandle : null);
 
       if (!candle) continue;
 
@@ -677,9 +571,7 @@ export function drawCanvasFrame({
       drawTradeMarker(
         anchor,
         marker.side,
-        marker.side === "BUY"
-          ? PENDING_LIMIT_LONG_COLOR
-          : PENDING_LIMIT_SHORT_COLOR,
+        marker.side === "BUY" ? PENDING_LIMIT_LONG_COLOR : PENDING_LIMIT_SHORT_COLOR,
       );
     }
 
@@ -719,7 +611,7 @@ export function drawCanvasFrame({
 
     const groupBox = refs.groupSelectionBoxRef.current;
     if (groupBox) {
-      // FEATURE: transient marquee UI only - it is rendered by the canvas but
+      // transient marquee UI only - it is rendered by the canvas but
       // never enters drawingsRef/localStorage/history as a real drawing.
       const left = Math.min(groupBox.start.x, groupBox.end.x);
       const top = Math.min(groupBox.start.y, groupBox.end.y);
@@ -753,21 +645,27 @@ export function drawCanvasFrame({
         const label = `${positive ? "+" : ""}${percentage.toFixed(2)}%`;
 
         context.save();
-        context.fillStyle = positive
-          ? "rgba(52, 211, 153, 0.14)"
-          : "rgba(240, 69, 98, 0.14)";
+        context.fillStyle = positive ? "rgba(52, 211, 153, 0.14)" : "rgba(240, 69, 98, 0.14)";
         context.strokeStyle = color;
         context.lineWidth = 1.5;
         context.setLineDash([5, 4]);
         context.fillRect(left, top, rulerWidth, rulerHeight);
-        context.strokeRect(left + 0.5, top + 0.5, Math.max(0, rulerWidth - 1), Math.max(0, rulerHeight - 1));
+        context.strokeRect(
+          left + 0.5,
+          top + 0.5,
+          Math.max(0, rulerWidth - 1),
+          Math.max(0, rulerHeight - 1),
+        );
         context.setLineDash([]);
 
         context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
         const textWidth = context.measureText(label).width;
         const labelWidth = textWidth + 14;
         const labelHeight = 24;
-        const labelX = Math.max(4, Math.min((left + rulerWidth / 2) - labelWidth / 2, paneSize.width - labelWidth - 4));
+        const labelX = Math.max(
+          4,
+          Math.min(left + rulerWidth / 2 - labelWidth / 2, paneSize.width - labelWidth - 4),
+        );
         const preferredY = top + rulerHeight / 2 - labelHeight / 2;
         const labelY = Math.max(4, Math.min(preferredY, paneSize.height - labelHeight - 4));
 
@@ -808,9 +706,7 @@ export function drawCanvasFrame({
       context.textBaseline = "middle";
 
       if (y >= 0 && y <= paneSize.height && width > paneSize.width) {
-        const priceText = drawing.price.toFixed(
-          pricePrecision,
-        );
+        const priceText = drawing.price.toFixed(pricePrecision);
         const labelX = paneSize.width;
         const labelHeight = 20;
         const labelY = Math.max(0, Math.min(y - labelHeight / 2, height - labelHeight));
@@ -827,33 +723,21 @@ export function drawCanvasFrame({
         );
         context.fillStyle = color;
         /*
-         * UX FIX: the coordinate-marker price used to be right-aligned five
+         * the coordinate-marker price used to be right-aligned five
          * pixels from the outer canvas edge, which made it look detached from
          * its badge and cramped against the viewport border. Center it inside
          * the actual price-scale gutter, matching a normal axis price label.
          */
         context.textAlign = "center";
-        context.fillText(
-          priceText,
-          labelX + (width - labelX) / 2,
-          labelY + labelHeight / 2 + 0.5,
-        );
+        context.fillText(priceText, labelX + (width - labelX) / 2, labelY + labelHeight / 2 + 0.5);
       }
 
       if (x >= 0 && x <= paneSize.width && height > paneSize.height) {
-        const timeText = localDateTimeFormatter.format(
-          new Date(Number(drawing.time) * 1000),
-        );
+        const timeText = localDateTimeFormatter.format(new Date(Number(drawing.time) * 1000));
         const labelHeight = height - paneSize.height;
         const textWidth = context.measureText(timeText).width;
-        const labelWidth = Math.min(
-          paneSize.width,
-          Math.max(116, textWidth + 16),
-        );
-        const labelX = Math.max(
-          0,
-          Math.min(x - labelWidth / 2, paneSize.width - labelWidth),
-        );
+        const labelWidth = Math.min(paneSize.width, Math.max(116, textWidth + 16));
+        const labelX = Math.max(0, Math.min(x - labelWidth / 2, paneSize.width - labelWidth));
 
         context.fillStyle = "rgba(11, 14, 20, 0.96)";
         context.fillRect(labelX, paneSize.height, labelWidth, labelHeight);
@@ -877,9 +761,6 @@ export function drawCanvasFrame({
       context.restore();
     }
   } catch (error) {
-    console.error(
-      "[useDrawingCanvas] drawCanvas frame failed, retrying next frame:",
-      error,
-    );
+    console.error("[useDrawingCanvas] drawCanvas frame failed, retrying next frame:", error);
   }
 }

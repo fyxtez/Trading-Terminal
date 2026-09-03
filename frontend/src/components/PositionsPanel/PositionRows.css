@@ -71,7 +71,7 @@
 }
 
 /*
- * FEATURE: Open Orders rows for other symbols stay dimmed as context, but
+ * Open Orders rows for other symbols stay dimmed as context, but
  * their symbol is still a real navigation control so the user can jump to
  * that chart directly without re-enabling Cancel/Chase/Edit on the row.
  */
@@ -145,7 +145,10 @@
   font-size: 14px;
   font-weight: 600;
   text-align: center;
-  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+  transition:
+    background 100ms ease,
+    border-color 100ms ease,
+    opacity 100ms ease;
 }
 
 .open-order-cancel:hover:not(:disabled) {
@@ -200,7 +203,10 @@
   cursor: pointer;
   font-size: 13.5px;
   font-weight: 700;
-  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+  transition:
+    background 100ms ease,
+    border-color 100ms ease,
+    opacity 100ms ease;
 }
 
 .close-everything-button:hover:not(:disabled) {
@@ -214,8 +220,12 @@
 }
 
 @keyframes close-everything-pulse {
-  from { box-shadow: 0 0 0 0 rgba(240, 69, 98, 0); }
-  to { box-shadow: 0 0 0 3px rgba(240, 69, 98, 0.12); }
+  from {
+    box-shadow: 0 0 0 0 rgba(240, 69, 98, 0);
+  }
+  to {
+    box-shadow: 0 0 0 3px rgba(240, 69, 98, 0.12);
+  }
 }
 
 .close-everything-wrap {
@@ -250,7 +260,10 @@
   font-weight: 700;
   text-align: left;
   white-space: nowrap;
-  transition: background 100ms ease, border-color 100ms ease, opacity 100ms ease;
+  transition:
+    background 100ms ease,
+    border-color 100ms ease,
+    opacity 100ms ease;
 }
 
 .close-everything-option:hover:not(:disabled) {
@@ -276,7 +289,7 @@
 }
 
 .open-order-edit {
-  /* FIX: keep the action label on one line on narrower panels. The old
+  /* keep the action label on one line on narrower panels. The old
      98px minimum could squeeze "Edit Reduce" enough to wrap into two
      rows while Cancel stayed single-line, making the action row uneven. */
   min-width: 116px;
@@ -290,7 +303,7 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  /* FIX: wasn't explicitly set, so it could inherit left-alignment from
+  /* wasn't explicitly set, so it could inherit left-alignment from
      an ancestor instead of reliably centering. */
   text-align: center;
 }
@@ -317,7 +330,7 @@
   line-height: 1;
 
   /*
-   * FIX: on narrower layouts, this badge sits in a tight flex row
+   * on narrower layouts, this badge sits in a tight flex row
    * alongside the symbol name and other badges with no explicit sizing
    * of its own - "FULL SL" (longer than REDUCE/FULL TP) could get
    * squeezed and either wrap onto a second line or spill past its own
@@ -750,7 +763,7 @@
 }
 
 /*
- * FIX: Do not put opacity on the entire inactive row because that also
+ * Do not put opacity on the entire inactive row because that also
  * dims the clickable symbol and child opacity cannot override a parent's
  * opacity. Instead, dim the row contents individually while leaving the
  * symbol navigation link at full opacity.

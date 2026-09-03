@@ -32,8 +32,7 @@ import {
 } from "./marketDataPersistence";
 
 /*
- * FIX (chart freezing / endless WS reconnect loop):
- *
+ * *
  * This used to maintain a live WebSocket to fstream.binance.com for
  * kline + aggTrade updates, with a REST fallback watchdog for when that
  * socket went quiet. In practice, for at least this user, something at
@@ -66,7 +65,6 @@ const BACKFILL_TRIGGER_BARS = 300;
 /** Binance's own per-request cap - see fetchOlderKlines' own comment on why this isn't parallelized like the initial load. */
 const BACKFILL_CHUNK_SIZE = 1500;
 
-
 /**
  * Everything related to getting candles onto the chart: one initial
  * REST history load for the active symbol+interval, followed by a
@@ -80,9 +78,7 @@ const BACKFILL_CHUNK_SIZE = 1500;
  * for the new symbol, exactly like switching from 1m to 1h already did.
  */
 export function useMarketData(refs: ChartRefs, symbol: string, registryReady = true) {
-  const [interval, setIntervalState] = useState<Interval>(() =>
-    loadSavedInterval(symbol),
-  );
+  const [interval, setIntervalState] = useState<Interval>(() => loadSavedInterval(symbol));
   const intervalSymbolRef = useRef(symbol);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [isChartLoading, setIsChartLoading] = useState(true);
@@ -113,8 +109,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
   // first poll succeeds, "disconnected" if a poll fails (the next tick
   // will retry automatically), "connecting" only during the very first
   // poll after a fresh load.
-  const [marketConnection, setMarketConnection] =
-    useState<ConnectionState>("connecting");
+  const [marketConnection, setMarketConnection] = useState<ConnectionState>("connecting");
 
   useEffect(() => {
     refs.intervalRef.current = interval;
@@ -129,7 +124,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     intervalSymbolRef.current = symbol;
     const savedInterval = loadSavedInterval(symbol);
 
-    // FIX: never expose the previous market's quote under the newly-selected
+    // never expose the previous market's quote under the newly-selected
     // symbol. Besides showing stale UI, that old value used to look like a real
     // price jump to frontend-owned price alerts during the switch. The new
     // symbol stays price-less until its own first market-data update arrives.
@@ -208,19 +203,16 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     const step = intervalSeconds[selectedInterval];
     const futureBars = getFutureBarsForInterval(selectedInterval);
 
-    const futureData = Array.from(
-      { length: futureBars + 1 },
-      (_, index) => ({
-        time: (Number(lastTime) + index * step) as UTCTimestamp,
-        value: lastPriceValue,
-      }),
-    );
+    const futureData = Array.from({ length: futureBars + 1 }, (_, index) => ({
+      time: (Number(lastTime) + index * step) as UTCTimestamp,
+      value: lastPriceValue,
+    }));
 
     futureSeries.setData(futureData);
   };
 
   const updateLivePriceLine = (price: number) => {
-    // FIX: attach the live price line to the always-present future anchor
+    // attach the live price line to the always-present future anchor
     // series. A candle-owned price line disappears when all candles leave the
     // viewport, while this series shares the same right scale and stays visible.
     const series = refs.futureScaleRef.current ?? refs.candleRef.current;
@@ -253,7 +245,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
   };
 
   useEffect(() => {
-    // FIX: an optimistically restored dynamic symbol has a temporary Binance
+    // an optimistically restored dynamic symbol has a temporary Binance
     // placeholder until /api/symbols resolves. Starting its chart beforehand
     // sends an invalid Binance kline request for MEXC symbols after refresh;
     // wait for the authoritative venue, then let registryReady restart this
@@ -280,7 +272,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     refs.futureScaleRef.current?.setData([]);
     let livePollTimer: number | null = null;
     /*
-     * FIX (countdown restarting a few seconds "late"): the fixed
+     * the fixed
      * LIVE_POLL_INTERVAL_MS timer below only happens to notice a new
      * candle whenever it next fires, which - since it isn't aligned to
      * wall-clock candle boundaries at all - can be up to a full poll
@@ -310,7 +302,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     // future-time-scale overlay, and the live-price UI.
     const applyCandleUpdate = (candle: CandlestickData) => {
       /*
-       * FIX ("Cannot update oldest data" from pollLive): applyCandleUpdate
+       * applyCandleUpdate
        * is called both by the regular LIVE_POLL_INTERVAL_MS tick and by
        * the boundary-poke timer (see its own comment above) - which fires
        * an EXTRA poll deliberately timed for right around when a candle
@@ -333,16 +325,9 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
       }
 
       trackLatestCandle(candle);
-      refs.loadedCandlesRef.current = mergeLatestCandle(
-        refs.loadedCandlesRef.current,
-        candle,
-      );
+      refs.loadedCandlesRef.current = mergeLatestCandle(refs.loadedCandlesRef.current, candle);
       refs.candleRef.current?.update(candle);
-      updateFutureTimeScale(
-        candle.time as UTCTimestamp,
-        candle.close,
-        interval,
-      );
+      updateFutureTimeScale(candle.time as UTCTimestamp, candle.close, interval);
       updatePriceUi(candle.close, symbol);
 
       if (boundaryPokeTimer !== null) {
@@ -410,9 +395,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         const existingTimes = new Set(
           refs.loadedCandlesRef.current.map((candle) => Number(candle.time)),
         );
-        const newOlder = older.filter(
-          (candle) => !existingTimes.has(Number(candle.time)),
-        );
+        const newOlder = older.filter((candle) => !existingTimes.has(Number(candle.time)));
 
         if (newOlder.length === 0) {
           backfillState.hasMore = false;
@@ -446,8 +429,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         // backfill invisible to the user instead of jumping the view.
         if (timeScale && visibleRangeBeforeUpdate) {
           timeScale.setVisibleLogicalRange({
-            from: (visibleRangeBeforeUpdate.from +
-              newOlder.length) as Logical,
+            from: (visibleRangeBeforeUpdate.from + newOlder.length) as Logical,
             to: (visibleRangeBeforeUpdate.to + newOlder.length) as Logical,
           });
         }
@@ -473,7 +455,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     // Declared as `let` (not `const`) so applyCandleUpdate above can
     // reference it before its own definition further down - both live in
     // the same closure for the lifetime of this effect run.
-    let pollLive: () => Promise<void> = async () => { };
+    let pollLive: () => Promise<void> = async () => {};
 
     /**
      * Polls (via rAF, capped at ~30 frames / half a second) until the
@@ -505,9 +487,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         const latest = candles[candles.length - 1] ?? null;
 
         const baseCandles = latest
-          ? candles.filter(
-            (candle) => Number(candle.time) !== Number(latest.time),
-          )
+          ? candles.filter((candle) => Number(candle.time) !== Number(latest.time))
           : candles;
 
         refs.loadedCandlesRef.current = candles;
@@ -528,11 +508,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
           refs.lastLogicalIndexRef.current = candles.length - 1;
           refs.liveMarketPriceRef.current = latest.close;
 
-          updateFutureTimeScale(
-            latest.time as UTCTimestamp,
-            latest.close,
-            interval,
-          );
+          updateFutureTimeScale(latest.time as UTCTimestamp, latest.close, interval);
         }
 
         // Apply this symbol's real tick-size precision (pricePrecision/
@@ -564,10 +540,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
               setPricePrecision(filters.pricePrecision);
               pricePrecisionRef.current = filters.pricePrecision;
               setTickSize(filters.tickSize);
-              const chartPrecision = Math.max(
-                displayDecimals,
-                filters.pricePrecision,
-              );
+              const chartPrecision = Math.max(displayDecimals, filters.pricePrecision);
 
               refs.candleRef.current?.applyOptions({
                 priceFormat: {
@@ -594,10 +567,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
           const lastIndex = candles.length - 1;
           const savedViewport = loadSavedViewport(symbol, interval);
 
-          if (
-            savedViewport &&
-            savedViewportShowsCandles(savedViewport, candles)
-          ) {
+          if (savedViewport && savedViewportShowsCandles(savedViewport, candles)) {
             // Store X relative to the newest candle rather than as absolute logical
             // indexes. A symbol may receive new candles while it is hidden; using
             // offsets preserves both the user's horizontal zoom AND where the
@@ -616,10 +586,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
                 const savedSpan = savedViewport.yTo - savedViewport.yFrom;
                 const savedFrom = Math.max(0, savedViewport.yFrom);
-                const savedTo =
-                  savedViewport.yFrom < 0
-                    ? savedFrom + savedSpan
-                    : savedViewport.yTo;
+                const savedTo = savedViewport.yFrom < 0 ? savedFrom + savedSpan : savedViewport.yTo;
 
                 priceScale.applyOptions({ autoScale: false });
                 priceScale.setVisibleRange({
@@ -642,7 +609,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
             });
 
             /*
-             * FIX (mobile first-load price axis stuck at "1"): this used
+             * this used
              * to freeze autoScale off after a flat two-frame delay. On a
              * slower/mobile first paint the chart's container can still
              * be mid-layout (0x0 or not yet its final height) at that
@@ -671,16 +638,14 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
                 priceScale.applyOptions({ autoScale: false });
 
                 const fitted = priceScale.getVisibleRange();
-                const referencePrice =
-                  latest?.close ?? refs.liveMarketPriceRef.current;
+                const referencePrice = latest?.close ?? refs.liveMarketPriceRef.current;
 
                 const isDegenerate =
                   !fitted ||
                   !(fitted.to > fitted.from) ||
                   (referencePrice != null &&
                     referencePrice > 0 &&
-                    (referencePrice < fitted.from * 0.5 ||
-                      referencePrice > fitted.to * 1.5));
+                    (referencePrice < fitted.from * 0.5 || referencePrice > fitted.to * 1.5));
 
                 if (isDegenerate && referencePrice != null && referencePrice > 0) {
                   const padding = referencePrice * 0.05;
@@ -700,7 +665,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
           window.requestAnimationFrame(() => {
             if (!cancelled && myEpoch === refs.epochRef.current) {
               /*
-               * FIX ("Cannot update oldest data" thrown from here): this
+               * this
                * re-applies the same `latest` bar from earlier in load() on
                * the next animation frame (a lightweight-charts render
                * quirk workaround), but by the time this frame actually
@@ -720,10 +685,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
                */
               const currentLast = refs.lastDataTimeRef.current;
 
-              if (
-                currentLast === null ||
-                Number(latest.time) >= Number(currentLast)
-              ) {
+              if (currentLast === null || Number(latest.time) >= Number(currentLast)) {
                 refs.candleRef.current?.update(latest);
               }
             }
@@ -770,10 +732,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         };
 
         void pollLive();
-        livePollTimer = window.setInterval(
-          () => void pollLive(),
-          LIVE_POLL_INTERVAL_MS,
-        );
+        livePollTimer = window.setInterval(() => void pollLive(), LIVE_POLL_INTERVAL_MS);
       } catch (error) {
         refs.chartReadyRef.current = false;
         setIsChartLoading(false);
@@ -803,9 +762,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     };
 
     const timeScaleForBackfill = refs.chartRef.current?.timeScale();
-    timeScaleForBackfill?.subscribeVisibleLogicalRangeChange(
-      handleVisibleLogicalRangeChange,
-    );
+    timeScaleForBackfill?.subscribeVisibleLogicalRangeChange(handleVisibleLogicalRangeChange);
 
     // Persist the complete chart viewport per symbol+timeframe. X is saved
     // relative to the latest candle (so newly-arrived bars do not shift the
@@ -814,13 +771,10 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     let viewportSaveTimer: number | null = null;
 
     const saveCurrentViewport = () => {
-      // FIX: Symbol/interval changes temporarily clear the series before the
+      // Symbol/interval changes temporarily clear the series before the
       // next history request finishes. Never persist that transitional empty
       // state because it can overwrite a previously valid chart viewport.
-      if (
-        !refs.chartReadyRef.current ||
-        refs.loadedCandlesRef.current.length === 0
-      ) {
+      if (!refs.chartReadyRef.current || refs.loadedCandlesRef.current.length === 0) {
         return;
       }
 
@@ -857,9 +811,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     };
 
     const timeScaleForViewport = refs.chartRef.current?.timeScale();
-    timeScaleForViewport?.subscribeVisibleLogicalRangeChange(
-      scheduleViewportSave,
-    );
+    timeScaleForViewport?.subscribeVisibleLogicalRangeChange(scheduleViewportSave);
 
     const chartContainer = refs.containerRef.current;
     chartContainer?.addEventListener("pointerup", scheduleViewportSave);
@@ -875,12 +827,8 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
       saveCurrentViewport();
       cancelled = true;
 
-      timeScaleForBackfill?.unsubscribeVisibleLogicalRangeChange(
-        handleVisibleLogicalRangeChange,
-      );
-      timeScaleForViewport?.unsubscribeVisibleLogicalRangeChange(
-        scheduleViewportSave,
-      );
+      timeScaleForBackfill?.unsubscribeVisibleLogicalRangeChange(handleVisibleLogicalRangeChange);
+      timeScaleForViewport?.unsubscribeVisibleLogicalRangeChange(scheduleViewportSave);
       chartContainer?.removeEventListener("pointerup", scheduleViewportSave);
       chartContainer?.removeEventListener("wheel", scheduleViewportSave);
 

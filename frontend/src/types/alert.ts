@@ -7,13 +7,7 @@
  * as `side` below, it never affects the alert's price or firing.
  */
 export type AlertPattern =
-  | "none"
-  | "breakout"
-  | "breakdown"
-  | "support"
-  | "resistance"
-  | "retest"
-  | "sweep";
+  "none" | "breakout" | "breakdown" | "support" | "resistance" | "retest" | "sweep";
 
 /**
  * A price level the user wants to be notified about via a right-click
@@ -41,7 +35,7 @@ export type PriceAlert = {
   /** See AlertPattern above. Defaults to "none". */
   pattern: AlertPattern;
   /**
-   * FEATURE: optional user-written context shown in the alert-line editor and
+   * optional user-written context shown in the alert-line editor and
    * appended to the notification only when it contains non-whitespace text.
    */
   additionalInfo: string;

@@ -21,9 +21,7 @@ export default function LoadingIndicator({
       <span className="loading-indicator__spinner" aria-hidden="true" />
       <span className="loading-indicator__copy">
         <span className="loading-indicator__label">{label}</span>
-        {detail && (
-          <span className="loading-indicator__detail">{detail}</span>
-        )}
+        {detail && <span className="loading-indicator__detail">{detail}</span>}
       </span>
       <span className="loading-indicator__track" aria-hidden="true">
         <span />

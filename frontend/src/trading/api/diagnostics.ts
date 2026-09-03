@@ -1,7 +1,4 @@
-import {
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
 
 export type ServiceDiagnostic = {
   status: "connecting" | "connected" | "degraded" | "disabled";
@@ -36,9 +33,7 @@ export type BackendDiagnostics = {
   };
 };
 
-export async function getBackendDiagnostics(
-  signal?: AbortSignal,
-): Promise<BackendDiagnostics> {
+export async function getBackendDiagnostics(signal?: AbortSignal): Promise<BackendDiagnostics> {
   const response = await fetch(`${TRADING_API_BASE_URL}/api/diagnostics`, {
     headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
     cache: "no-store",

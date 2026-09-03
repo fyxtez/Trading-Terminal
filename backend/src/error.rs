@@ -58,7 +58,7 @@ impl IntoResponse for AppError {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Invalid(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
-            // FIX: this used to be StatusCode::BAD_GATEWAY, same as the
+            // this used to be StatusCode::BAD_GATEWAY, same as the
             // genuine network-failure variants below (Http/Json). But
             // AppError::Binance means we successfully reached Binance
             // and it sent back a well-formed, documented rejection (bad

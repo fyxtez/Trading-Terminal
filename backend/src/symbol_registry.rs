@@ -10,7 +10,7 @@ use crate::error::{AppError, AppResult};
 const BINANCE_EXCHANGE_INFO_URL: &str = "https://fapi.binance.com/fapi/v1/exchangeInfo";
 const MEXC_CONTRACT_DETAIL_URL: &str = "https://api.mexc.com/api/v1/contract/detail";
 const PROTECTED_BASE_SYMBOLS: &[&str] = &["BTC", "ETH", "SOL", "XRP"];
-// FIX: these built-ins were originally persisted as MEXC contracts. Limit the
+// these built-ins were originally persisted as MEXC contracts. Limit the
 // startup promotion to the requested symbols so unrelated user-added MEXC
 // entries do not silently change venue if Binance lists them later.
 const LEGACY_MEXC_SYMBOLS_TO_PROMOTE: &[&str] = &["PLUME", "ZEC"];
@@ -37,7 +37,7 @@ pub struct RegisteredSymbol {
     pub display_symbol: String,
     pub market_symbol: String,
     pub data_source: MarketDataSource,
-    /// FEATURE: Binance's asset class lets clients distinguish TradFi from
+    /// Binance's asset class lets clients distinguish TradFi from
     /// crypto without maintaining an incomplete ticker allow-list.
     #[serde(default)]
     pub market_kind: MarketKind,
@@ -89,16 +89,16 @@ impl SymbolRegistry {
             registry.persist().await?;
         }
 
-        // FEATURE: defaults must also reach existing installations whose
+        // defaults must also reach existing installations whose
         // symbols.json predates Binance's TradFi contracts.
         registry.seed_traditional_symbols().await?;
 
-        // FIX: migrate legacy PLUME/ZEC entries before serving requests.
+        // migrate legacy PLUME/ZEC entries before serving requests.
         // Changing default_symbols() alone would only fix fresh installs
         // because an existing symbols.json wins over the built-in defaults.
         registry.migrate_legacy_mexc_symbols().await?;
 
-        // FIX: registry files created before market_kind deserialize as crypto.
+        // registry files created before market_kind deserialize as crypto.
         // Refresh existing Binance entries so SNDK/PLTR-like contracts heal on
         // restart without requiring the user to delete and re-add each symbol.
         if let Err(error) = registry.refresh_binance_market_kinds().await {
@@ -236,7 +236,7 @@ impl SymbolRegistry {
                     continue;
                 }
 
-                // FIX: rewrite every venue-dependent field together; changing
+                // rewrite every venue-dependent field together; changing
                 // only data_source would still send PLUME_USDT/ZEC_USDT (MEXC
                 // notation) to Binance's market-data and order endpoints.
                 entry.market_symbol = format!("{base}USDT");
@@ -298,7 +298,7 @@ impl SymbolRegistry {
         let classifications: BTreeMap<&str, MarketKind> = symbols
             .iter()
             .filter_map(|item| {
-                // FIX: ignore delisted/non-trading contracts so stale exchange
+                // ignore delisted/non-trading contracts so stale exchange
                 // metadata cannot reclassify a symbol as actively Binance-backed.
                 if item.get("status").and_then(Value::as_str) != Some("TRADING") {
                     return None;
@@ -410,7 +410,7 @@ fn default_symbols() -> BTreeMap<String, RegisteredSymbol> {
         ("ETH", MarketDataSource::Binance, MarketKind::Crypto),
         ("SOL", MarketDataSource::Binance, MarketKind::Crypto),
         ("XRP", MarketDataSource::Binance, MarketKind::Crypto),
-        // FIX: Binance now exposes these USD-M perpetuals directly, so fresh
+        // Binance now exposes these USD-M perpetuals directly, so fresh
         // registries should never seed their old MEXC contract identifiers.
         ("PLUME", MarketDataSource::Binance, MarketKind::Crypto),
         ("ZEC", MarketDataSource::Binance, MarketKind::Crypto),
@@ -439,7 +439,7 @@ fn default_symbols() -> BTreeMap<String, RegisteredSymbol> {
 }
 
 fn market_kind_from_binance_symbol(symbol: &Value) -> MarketKind {
-    // FEATURE: regular crypto futures are marked COIN. Every other explicit
+    // regular crypto futures are marked COIN. Every other explicit
     // underlying type represents an equity, commodity, index, or another
     // traditional-market contract and belongs in Traditional Markets.
     match symbol.get("underlyingType").and_then(Value::as_str) {

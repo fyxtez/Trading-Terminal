@@ -19,9 +19,7 @@ function getTradeMarkerCreatedAt(marker: TradeMarker): number | null {
    */
   const fillTimeMs = Number(marker.time) * 1000;
 
-  return Number.isFinite(fillTimeMs) && fillTimeMs > 0
-    ? fillTimeMs
-    : null;
+  return Number.isFinite(fillTimeMs) && fillTimeMs > 0 ? fillTimeMs : null;
 }
 
 function isValidTradeMarker(value: unknown): value is TradeMarker {
@@ -38,20 +36,13 @@ function isValidTradeMarker(value: unknown): value is TradeMarker {
   );
 }
 
-export function filterActiveTradeMarkers(
-  markers: TradeMarker[],
-  now = Date.now(),
-): TradeMarker[] {
+export function filterActiveTradeMarkers(markers: TradeMarker[], now = Date.now()): TradeMarker[] {
   return markers
     .filter(isValidTradeMarker)
     .filter((marker) => {
       const createdAt = getTradeMarkerCreatedAt(marker);
 
-      return (
-        createdAt !== null &&
-        createdAt <= now &&
-        now - createdAt < TRADE_MARKER_LIFETIME_MS
-      );
+      return createdAt !== null && createdAt <= now && now - createdAt < TRADE_MARKER_LIFETIME_MS;
     })
     .map((marker) => ({
       ...marker,
@@ -113,7 +104,7 @@ export function saveTradeMarkers(storageKey: string, markers: TradeMarker[]) {
  * Records a marker for `symbol` directly in its own localStorage-backed
  * marker list, regardless of which symbol's chart is currently on screen.
  *
- * FIX: useTradeMarkers.ts's addMarkerNow only ever writes into whichever
+ * useTradeMarkers.ts's addMarkerNow only ever writes into whichever
  * symbol its own hook instance is bound to - the chart's *currently
  * displayed* symbol. So closing a position for a symbol you weren't
  * actively looking at (e.g. an ETH position closed via "Close Everything

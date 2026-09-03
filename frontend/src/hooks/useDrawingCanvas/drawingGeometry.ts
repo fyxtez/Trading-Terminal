@@ -1,11 +1,5 @@
 import type { UTCTimestamp } from "lightweight-charts";
-import type {
-  BoxDrawing,
-  DragState,
-  Drawing,
-  ScreenPoint,
-  TextDrawing,
-} from "../../types/drawing";
+import type { BoxDrawing, DragState, Drawing, ScreenPoint, TextDrawing } from "../../types/drawing";
 import { priceToCoordinateWithFutureFallback } from "../../utils/chartPriceCoordinates";
 import type { ChartRefs } from "../useChartRefs";
 import type { CoordinateMapping } from "../useCoordinateMapping";
@@ -58,10 +52,7 @@ export function computeBoxResize(
   start: { time: UTCTimestamp; price: number };
   end: { time: UTCTimestamp; price: number };
 } {
-  const leftTime = Math.min(
-    Number(original.start.time),
-    Number(original.end.time),
-  ) as UTCTimestamp;
+  const leftTime = Math.min(Number(original.start.time), Number(original.end.time)) as UTCTimestamp;
   const rightTime = Math.max(
     Number(original.start.time),
     Number(original.end.time),
@@ -106,13 +97,8 @@ export function computeBoxResize(
   };
 }
 
-export function translateDrawing(
-  drawing: Drawing,
-  timeDelta: number,
-  priceDelta: number,
-): Drawing {
-  const moveTime = (time: UTCTimestamp) =>
-    Math.round(Number(time) + timeDelta) as UTCTimestamp;
+export function translateDrawing(drawing: Drawing, timeDelta: number, priceDelta: number): Drawing {
+  const moveTime = (time: UTCTimestamp) => Math.round(Number(time) + timeDelta) as UTCTimestamp;
 
   if (drawing.type === "vertical") {
     return { ...drawing, time: moveTime(drawing.time) };
@@ -150,10 +136,7 @@ export function translateDrawing(
   };
 }
 
-export function getTextRect(
-  drawing: TextDrawing,
-  coord: CoordinateMapping,
-): ScreenRect | null {
+export function getTextRect(drawing: TextDrawing, coord: CoordinateMapping): ScreenRect | null {
   const minBoxSize = 18;
   const start = coord.chartPointToScreen(drawing.start);
   const end = coord.chartPointToScreen(drawing.end);
@@ -177,28 +160,18 @@ function drawingScreenBounds(
 
   if (drawing.type === "vertical") {
     const x = coord.timeToX(drawing.time);
-    return x == null
-      ? null
-      : { left: x, right: x, top: 0, bottom: pane.height };
+    return x == null ? null : { left: x, right: x, top: 0, bottom: pane.height };
   }
   if (drawing.type === "horizontal") {
     const series = refs.candleRef.current;
     const y = series
-      ? priceToCoordinateWithFutureFallback(
-          series,
-          refs.futureScaleRef.current,
-          drawing.price,
-        )
+      ? priceToCoordinateWithFutureFallback(series, refs.futureScaleRef.current, drawing.price)
       : null;
-    return y == null
-      ? null
-      : { left: 0, right: pane.width, top: y, bottom: y };
+    return y == null ? null : { left: 0, right: pane.width, top: y, bottom: y };
   }
   if (drawing.type === "coordinate-marker") {
     const point = coord.chartPointToScreen(drawing);
-    return point
-      ? { left: point.x, right: point.x, top: point.y, bottom: point.y }
-      : null;
+    return point ? { left: point.x, right: point.x, top: point.y, bottom: point.y } : null;
   }
   if (drawing.type === "pen") {
     const points = drawing.points
@@ -249,12 +222,7 @@ export function drawingIntersectsMarquee(
 
   const orientation = (a: ScreenPoint, b: ScreenPoint, c: ScreenPoint) =>
     (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  const segmentCrosses = (
-    a: ScreenPoint,
-    b: ScreenPoint,
-    c: ScreenPoint,
-    d: ScreenPoint,
-  ) => {
+  const segmentCrosses = (a: ScreenPoint, b: ScreenPoint, c: ScreenPoint, d: ScreenPoint) => {
     const abC = orientation(a, b, c);
     const abD = orientation(a, b, d);
     const cdA = orientation(c, d, a);
@@ -307,10 +275,7 @@ export function drawingIntersectsMarquee(
   );
 }
 
-export function clampToEditablePane(
-  rect: ScreenRect,
-  refs: ChartRefs,
-): ScreenRect {
+export function clampToEditablePane(rect: ScreenRect, refs: ChartRefs): ScreenRect {
   const paneSize = refs.chartRef.current?.paneSize();
   if (!paneSize) return rect;
 

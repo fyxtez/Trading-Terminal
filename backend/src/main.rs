@@ -86,7 +86,7 @@ async fn main() -> AppResult<()> {
     // too via this same list (if they're also registry entries) is
     // harmless, not a duplicate fetch.
     let registered_symbols = symbol_registry.list().await;
-    // FIX: the previous ISOLATED startup call was disabled and depended on a
+    // the previous ISOLATED startup call was disabled and depended on a
     // fixed BTC/ETH/SOL/XRP list, so dynamically registered contracts such as
     // TUT could remain in CROSS mode. Enforce the invariant from the persisted
     // registry itself and fail startup if any Binance-backed symbol cannot be
@@ -109,7 +109,7 @@ async fn main() -> AppResult<()> {
         }
     }
 
-    // FIX: purge token images cached before market_kind existed. Stock tickers
+    // purge token images cached before market_kind existed. Stock tickers
     // such as PLTR can collide with unrelated crypto tokens by symbol alone.
     for entry in registered_symbols
         .iter()
@@ -144,7 +144,7 @@ async fn main() -> AppResult<()> {
         .collect();
     let registered_mexc_symbol_refs: Vec<&str> =
         registered_mexc_symbols.iter().map(String::as_str).collect();
-    // FEATURE: self-heal MEXC symbols persisted by older builds that skipped
+    // self-heal MEXC symbols persisted by older builds that skipped
     // artwork entirely; the resolver no-ops cheaply when an icon is cached.
     info!(
         count = registered_mexc_symbol_refs.len(),
@@ -154,7 +154,7 @@ async fn main() -> AppResult<()> {
 
     let registered_binance_symbols: Vec<String> = registered_symbols
         .iter()
-        // FIX: startup token-icon backfill applies only to actual crypto.
+        // startup token-icon backfill applies only to actual crypto.
         .filter(|entry| {
             entry.data_source == MarketDataSource::Binance
                 && entry.market_kind == MarketKind::Crypto

@@ -55,16 +55,14 @@ export default function CandleCountdownBadge({
   }, [isOpen]);
 
   useEffect(() => {
-    // FEATURE: moving and the timeframe dropdown are mutually exclusive so
+    // moving and the timeframe dropdown are mutually exclusive so
     // pointer placement cannot accidentally leave a menu floating behind it.
     if (moveArmed) setIsOpen(false);
   }, [moveArmed]);
 
   return (
     <div
-      className={`candle-countdown ${moveArmed ? "move-armed" : ""} ${
-        moving ? "moving" : ""
-      }`}
+      className={`candle-countdown ${moveArmed ? "move-armed" : ""} ${moving ? "moving" : ""}`}
       ref={rootRef}
     >
       <button
@@ -79,7 +77,7 @@ export default function CandleCountdownBadge({
         onPointerDown={onPlacementPointerDown}
         onClick={(event) => {
           event.stopPropagation();
-          // FEATURE: while move mode is armed, timer clicks are reserved for
+          // while move mode is armed, timer clicks are reserved for
           // pick-up/drop placement instead of opening the timeframe dropdown.
           if (moveArmed) return;
           setIsOpen((open) => !open);
@@ -95,7 +93,7 @@ export default function CandleCountdownBadge({
         aria-pressed={moveArmed}
         onPointerDown={(event) => {
           /*
-           * FIX: pressing the move control now picks the timer up immediately.
+           * pressing the move control now picks the timer up immediately.
            * Previously the button only armed movement and required a second
            * click on the timer before pointer movement actually started.
            */
@@ -106,20 +104,13 @@ export default function CandleCountdownBadge({
       </button>
 
       {isOpen && (
-        <div
-          className="candle-countdown-menu"
-          onClick={(event) => event.stopPropagation()}
-        >
+        <div className="candle-countdown-menu" onClick={(event) => event.stopPropagation()}>
           {intervals.map((candidate) => (
             <div
               key={candidate}
-              className={`candle-countdown-option ${
-                candidate === interval ? "active" : ""
-              }`}
+              className={`candle-countdown-option ${candidate === interval ? "active" : ""}`}
             >
-              <span className="candle-countdown-option-interval">
-                {candidate}
-              </span>
+              <span className="candle-countdown-option-interval">{candidate}</span>
               <span className="candle-countdown-option-time">
                 {allLabels[candidate] ?? "--:--"}
               </span>

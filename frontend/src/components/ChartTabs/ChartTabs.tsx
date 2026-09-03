@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  getSymbolConfig,
-  type TradingSymbol,
-} from "../../config/constants";
+import { getSymbolConfig, type TradingSymbol } from "../../config/constants";
 import { getSymbolInfo } from "../../config/symbols";
 import { useViewportClampOffset } from "../../hooks/useViewportClampOffset";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
@@ -41,7 +38,11 @@ export default function ChartTabs({
   const [addHighlightedIndex, setAddHighlightedIndex] = useState(0);
   const [categories, setCategories] = useState(loadSymbolCategories);
   const [draggedSymbol, setDraggedSymbol] = useState<TradingSymbol | null>(null);
-  const [tabContextMenu, setTabContextMenu] = useState<{ symbol: TradingSymbol; x: number; y: number } | null>(null);
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    symbol: TradingSymbol;
+    x: number;
+    y: number;
+  } | null>(null);
   const [deletingSymbol, setDeletingSymbol] = useState<TradingSymbol | null>(null);
   const [deleteConfirmSymbol, setDeleteConfirmSymbol] = useState<TradingSymbol | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -56,22 +57,21 @@ export default function ChartTabs({
   const addMenuOffset = useViewportClampOffset(addMenuPopoverRef, isAddOpen);
 
   const groupedAvailableSymbols = useMemo(() => {
-    // FEATURE: the chart-tab picker now mirrors the main symbol switcher's
+    // the chart-tab picker now mirrors the main symbol switcher's
     // category order and saved assignments instead of presenting one flat list.
     const query = addSearch.trim().toLocaleLowerCase();
     return SYMBOL_CATEGORY_ORDER.map((category) => ({
       ...category,
-      symbols: availableToOpen.filter(
-        (symbol) => {
-          const info = getSymbolInfo(symbol);
-          // FEATURE: tab search matches both ticker and full display name so
-          // users can find e.g. ETH by typing either "ETH" or "Ethereum".
-          const matchesSearch = !query
-            || info.label.toLocaleLowerCase().includes(query)
-            || info.name.toLocaleLowerCase().includes(query);
-          return matchesSearch && symbolCategory(symbol, categories) === category.value;
-        },
-      ),
+      symbols: availableToOpen.filter((symbol) => {
+        const info = getSymbolInfo(symbol);
+        // tab search matches both ticker and full display name so
+        // users can find e.g. ETH by typing either "ETH" or "Ethereum".
+        const matchesSearch =
+          !query ||
+          info.label.toLocaleLowerCase().includes(query) ||
+          info.name.toLocaleLowerCase().includes(query);
+        return matchesSearch && symbolCategory(symbol, categories) === category.value;
+      }),
     })).filter((category) => category.symbols.length > 0);
   }, [availableToOpen, categories, addSearch]);
 
@@ -83,20 +83,20 @@ export default function ChartTabs({
   useEffect(() => {
     if (!isAddOpen) return;
 
-    // FIX: wait until the popover/input has actually mounted before focusing it.
+    // wait until the popover/input has actually mounted before focusing it.
     // This makes opening the + picker immediately keyboard-ready on every render.
     const frame = window.requestAnimationFrame(() => addSearchRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [isAddOpen]);
 
   useEffect(() => {
-    // FEATURE: every new filter starts arrow-key navigation at the first visible
+    // every new filter starts arrow-key navigation at the first visible
     // symbol, matching the main symbol switcher's predictable keyboard behavior.
     setAddHighlightedIndex(0);
   }, [addSearch]);
 
   useEffect(() => {
-    // FEATURE: keep the keyboard-selected symbol visible while navigating a long
+    // keep the keyboard-selected symbol visible while navigating a long
     // categorized list without moving focus away from the search input.
     addHighlightedOptionRef.current?.scrollIntoView({ block: "nearest" });
   }, [addHighlightedIndex]);
@@ -112,10 +112,7 @@ export default function ChartTabs({
     if (!isAddOpen) return;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (
-        addMenuRef.current &&
-        !addMenuRef.current.contains(event.target as Node)
-      ) {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
         setIsAddOpen(false);
         setAddSearch("");
         setAddHighlightedIndex(0);
@@ -137,12 +134,11 @@ export default function ChartTabs({
     };
   }, [isAddOpen]);
 
-
   useEffect(() => {
     if (!tabContextMenu) return;
 
     const closeContextMenu = (event: PointerEvent) => {
-      // FIX: this listener runs in capture phase, before React button handlers.
+      // this listener runs in capture phase, before React button handlers.
       // The old unconditional close unmounted the menu on pointer-down, so the
       // later Click for Close/Delete never existed. Ignore presses inside the
       // menu and only dismiss when the pointer really lands outside it.
@@ -159,7 +155,7 @@ export default function ChartTabs({
       }
     };
 
-    // FEATURE: the tab context menu acts like a native compact menu: clicking
+    // the tab context menu acts like a native compact menu: clicking
     // anywhere else or pressing Escape dismisses it without affecting charts.
     window.addEventListener("pointerdown", closeContextMenu, true);
     window.addEventListener("keydown", handleKeyDown);
@@ -204,7 +200,7 @@ export default function ChartTabs({
               onDragEnd={() => setDraggedSymbol(null)}
               onDoubleClick={() => onCloseOthers(symbol)}
               onContextMenu={(event) => {
-                // FEATURE: right-clicking a chart tab opens an app-owned menu
+                // right-clicking a chart tab opens an app-owned menu
                 // instead of the browser context menu, exposing Close vs Delete
                 // as two intentionally different operations.
                 event.preventDefault();
@@ -226,7 +222,11 @@ export default function ChartTabs({
               <button
                 className="chart-tab-close"
                 aria-label={`Close ${info.label} chart tab`}
-                title={tabs.length === 1 && availableToOpen.length === 0 ? "At least one chart tab must remain open" : `Close ${info.label}`}
+                title={
+                  tabs.length === 1 && availableToOpen.length === 0
+                    ? "At least one chart tab must remain open"
+                    : `Close ${info.label}`
+                }
                 disabled={tabs.length === 1 && availableToOpen.length === 0}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -249,7 +249,7 @@ export default function ChartTabs({
           onClick={(event) => {
             event.stopPropagation();
             setIsAddOpen((open) => {
-              // FIX: categories may have changed in the symbol switcher since
+              // categories may have changed in the symbol switcher since
               // this menu last rendered; reload them whenever it is opened.
               if (!open) {
                 setCategories(loadSymbolCategories());
@@ -280,17 +280,25 @@ export default function ChartTabs({
                   if (event.key === "ArrowDown" && availableSymbolsInDisplayOrder.length > 0) {
                     event.preventDefault();
                     event.stopPropagation();
-                    setAddHighlightedIndex((index) => (index + 1) % availableSymbolsInDisplayOrder.length);
+                    setAddHighlightedIndex(
+                      (index) => (index + 1) % availableSymbolsInDisplayOrder.length,
+                    );
                   } else if (event.key === "ArrowUp" && availableSymbolsInDisplayOrder.length > 0) {
                     event.preventDefault();
                     event.stopPropagation();
-                    setAddHighlightedIndex((index) => (index - 1 + availableSymbolsInDisplayOrder.length) % availableSymbolsInDisplayOrder.length);
+                    setAddHighlightedIndex(
+                      (index) =>
+                        (index - 1 + availableSymbolsInDisplayOrder.length) %
+                        availableSymbolsInDisplayOrder.length,
+                    );
                   } else if (event.key === "Enter" && availableSymbolsInDisplayOrder.length > 0) {
                     event.preventDefault();
                     event.stopPropagation();
-                    // FEATURE: Enter opens the currently highlighted search result
+                    // Enter opens the currently highlighted search result
                     // while focus stays in the input for fast keyboard-only tab creation.
-                    const highlighted = availableSymbolsInDisplayOrder[addHighlightedIndex] ?? availableSymbolsInDisplayOrder[0];
+                    const highlighted =
+                      availableSymbolsInDisplayOrder[addHighlightedIndex] ??
+                      availableSymbolsInDisplayOrder[0];
                     if (highlighted) openSymbolFromAddMenu(highlighted);
                   }
                 }}
@@ -301,7 +309,8 @@ export default function ChartTabs({
             {groupedAvailableSymbols.map((group) => (
               <section className="chart-tab-add-category" key={group.value}>
                 <h3 className="chart-tab-add-category-heading">
-                  <span>{group.label}</span><span aria-hidden="true" />
+                  <span>{group.label}</span>
+                  <span aria-hidden="true" />
                 </h3>
                 {group.symbols.map((symbol) => {
                   const info = getSymbolInfo(symbol);
@@ -330,90 +339,99 @@ export default function ChartTabs({
         )}
       </div>
 
-      {tabContextMenu && (() => {
-        const menuInfo = getSymbolInfo(tabContextMenu.symbol);
-        return (
-          <div
-            ref={tabContextMenuRef}
-            className="chart-tab-context-menu"
-            style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
-            onContextMenu={(event) => event.preventDefault()}
-          >
-            <button
-              type="button"
-              disabled={tabs.length === 1 && availableToOpen.length === 0}
-              onClick={() => {
-                // FEATURE: closing the only visible tab is still useful when
-                // other tracked symbols exist; useChartTabs swaps in a tracked
-                // fallback instead of leaving the workspace without a chart.
-                onClose(tabContextMenu.symbol);
-                setTabContextMenu(null);
-                setDeleteConfirmSymbol(null);
-              }}
+      {tabContextMenu &&
+        (() => {
+          const menuInfo = getSymbolInfo(tabContextMenu.symbol);
+          return (
+            <div
+              ref={tabContextMenuRef}
+              className="chart-tab-context-menu"
+              style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+              onContextMenu={(event) => event.preventDefault()}
             >
-              Close
-            </button>
-
-            {deleteConfirmSymbol === tabContextMenu.symbol ? (
-              <div className="chart-tab-delete-confirm" role="group" aria-label={`Delete ${menuInfo.label}?`}>
-                <div className="chart-tab-delete-confirm-label">Delete {menuInfo.label}?</div>
-                <div className="chart-tab-delete-confirm-actions">
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={deletingSymbol !== null}
-                    onClick={() => {
-                      const symbol = tabContextMenu.symbol;
-                      setDeletingSymbol(symbol);
-                      setDeleteError(null);
-                      // FEATURE: only the explicit Yes action may call the backend.
-                      // A successful DELETE also removes the chart tab in App.tsx;
-                      // failures leave the confirmation open so the user can retry.
-                      void onDeleteTracked(symbol)
-                        .then(() => {
-                          setTabContextMenu(null);
-                          setDeleteConfirmSymbol(null);
-                        })
-                        .catch((error: unknown) => {
-                          setDeleteError(error instanceof Error ? error.message : `Could not delete ${menuInfo.label}`);
-                        })
-                        .finally(() => setDeletingSymbol(null));
-                    }}
-                  >
-                    {deletingSymbol === tabContextMenu.symbol ? "Deleting…" : "Yes"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deletingSymbol !== null}
-                    onClick={() => {
-                      setDeleteConfirmSymbol(null);
-                      setDeleteError(null);
-                    }}
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
-            ) : (
               <button
                 type="button"
-                className="danger"
-                disabled={deletingSymbol !== null}
+                disabled={tabs.length === 1 && availableToOpen.length === 0}
                 onClick={() => {
-                  // FEATURE: Delete is intentionally two-step because it removes
-                  // the ticker from backend tracking, not just from this UI tab.
-                  setDeleteConfirmSymbol(tabContextMenu.symbol);
-                  setDeleteError(null);
+                  // closing the only visible tab is still useful when
+                  // other tracked symbols exist; useChartTabs swaps in a tracked
+                  // fallback instead of leaving the workspace without a chart.
+                  onClose(tabContextMenu.symbol);
+                  setTabContextMenu(null);
+                  setDeleteConfirmSymbol(null);
                 }}
               >
-                Delete
+                Close
               </button>
-            )}
 
-            {deleteError && <div className="chart-tab-context-error">{deleteError}</div>}
-          </div>
-        );
-      })()}
+              {deleteConfirmSymbol === tabContextMenu.symbol ? (
+                <div
+                  className="chart-tab-delete-confirm"
+                  role="group"
+                  aria-label={`Delete ${menuInfo.label}?`}
+                >
+                  <div className="chart-tab-delete-confirm-label">Delete {menuInfo.label}?</div>
+                  <div className="chart-tab-delete-confirm-actions">
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={deletingSymbol !== null}
+                      onClick={() => {
+                        const symbol = tabContextMenu.symbol;
+                        setDeletingSymbol(symbol);
+                        setDeleteError(null);
+                        // only the explicit Yes action may call the backend.
+                        // A successful DELETE also removes the chart tab in App.tsx;
+                        // failures leave the confirmation open so the user can retry.
+                        void onDeleteTracked(symbol)
+                          .then(() => {
+                            setTabContextMenu(null);
+                            setDeleteConfirmSymbol(null);
+                          })
+                          .catch((error: unknown) => {
+                            setDeleteError(
+                              error instanceof Error
+                                ? error.message
+                                : `Could not delete ${menuInfo.label}`,
+                            );
+                          })
+                          .finally(() => setDeletingSymbol(null));
+                      }}
+                    >
+                      {deletingSymbol === tabContextMenu.symbol ? "Deleting…" : "Yes"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingSymbol !== null}
+                      onClick={() => {
+                        setDeleteConfirmSymbol(null);
+                        setDeleteError(null);
+                      }}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={deletingSymbol !== null}
+                  onClick={() => {
+                    // Delete is intentionally two-step because it removes
+                    // the ticker from backend tracking, not just from this UI tab.
+                    setDeleteConfirmSymbol(tabContextMenu.symbol);
+                    setDeleteError(null);
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+
+              {deleteError && <div className="chart-tab-context-error">{deleteError}</div>}
+            </div>
+          );
+        })()}
     </div>
   );
 }

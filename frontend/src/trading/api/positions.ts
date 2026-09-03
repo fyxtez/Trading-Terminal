@@ -126,30 +126,27 @@ function mapPosition(position: AccountPosition): OpenPosition | null {
   const positionMargin = Math.abs(
     finite(position.positionInitialMargin ?? position.position_initial_margin),
   );
-  const accountMargin = Math.abs(
-    finite(position.initialMargin ?? position.initial_margin),
-  );
+  const accountMargin = Math.abs(finite(position.initialMargin ?? position.initial_margin));
   const providedLeverage = finite(position.leverage);
   const derivedMargin = providedLeverage > 0 ? notional / providedLeverage : 0;
   const margin =
-    positionMargin > 0
-      ? positionMargin
-      : accountMargin > 0
-        ? accountMargin
-        : derivedMargin;
+    positionMargin > 0 ? positionMargin : accountMargin > 0 ? accountMargin : derivedMargin;
   const unrealizedPnl = finite(position.unrealizedProfit);
   const markPrice = quantity > 0 ? notional / quantity : 0;
   const providedEntry = finite(position.entryPrice ?? position.entry_price);
   const calculatedEntry = markPrice - unrealizedPnl / signedQuantity;
-  const liquidation = finite(
-    position.liquidationPrice ?? position.liquidation_price,
-  );
+  const liquidation = finite(position.liquidationPrice ?? position.liquidation_price);
   return {
     symbol: position.symbol,
     side: signedQuantity > 0 ? "LONG" : "SHORT",
-    leverage: providedLeverage > 0 ? Math.round(providedLeverage) : margin > 0 ? Math.max(1, Math.round(notional / margin)) : 1,
+    leverage:
+      providedLeverage > 0
+        ? Math.round(providedLeverage)
+        : margin > 0
+          ? Math.max(1, Math.round(notional / margin))
+          : 1,
     quantity,
-    // FEATURE: preserve Binance's live absolute notional for the Positions
+    // preserve Binance's live absolute notional for the Positions
     // SIZE column; this is more accurate than recomputing margin × leverage.
     size: notional,
     entry_price: providedEntry > 0 ? providedEntry : calculatedEntry,
@@ -157,7 +154,7 @@ function mapPosition(position: AccountPosition): OpenPosition | null {
     liquidation_price: liquidation > 0 ? liquidation : null,
     margin,
     unrealized_pnl: unrealizedPnl,
-    // FEATURE: filled after account parsing by the separate userTrades lookup;
+    // filled after account parsing by the separate userTrades lookup;
     // null explicitly means the backend could not prove the lifecycle boundary.
     realized_pnl: null,
     roi_pct: margin > 0 ? (unrealizedPnl / margin) * 100 : 0,
@@ -165,7 +162,7 @@ function mapPosition(position: AccountPosition): OpenPosition | null {
 }
 
 /*
- * FIX (redundant polling): usePositions.ts, useChartPositionPnl.ts, and
+ * usePositions.ts, useChartPositionPnl.ts, and
  * PositionBracketOverlay.tsx each run their own independent 4-second
  * self-heal poll against this same endpoint, unsynchronized with each
  * other (each starts whenever its own component happened to mount). At
@@ -194,7 +191,7 @@ async function getRealizedPositionPnl(
   force = false,
 ): Promise<RealizedPnlResponse | null> {
   const now = Date.now();
-  // FIX: an older/not-yet-restarted backend returns 404 for the new endpoint.
+  // an older/not-yet-restarted backend returns 404 for the new endpoint.
   // Back off instead of filling DevTools and server logs every four seconds.
   if (now < realizedPnlRetryAfter) return null;
   if (!force && cachedRealizedPnl && now - cachedRealizedPnlAt < REALIZED_PNL_CACHE_TTL_MS) {
@@ -202,15 +199,17 @@ async function getRealizedPositionPnl(
   }
   if (!signal && realizedPnlInFlight) return realizedPnlInFlight;
 
-  // FIX: userTrades is materially heavier than account state. Cache this
+  // userTrades is materially heavier than account state. Cache this
   // enrichment independently so the 4s position self-heal does not repeatedly
   // reconstruct unchanged lifecycles; forced trade events still bypass it.
   const request = (async () => {
     try {
-      const response = await fetch(
-        `${TRADING_API_BASE_URL}${POSITION_REALIZED_PNL_ENDPOINT}`,
-        { method: "GET", headers: getHeaders(), signal, cache: "no-store" },
-      );
+      const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_REALIZED_PNL_ENDPOINT}`, {
+        method: "GET",
+        headers: getHeaders(),
+        signal,
+        cache: "no-store",
+      });
       if (!response.ok) {
         realizedPnlRetryAfter = Date.now() + (response.status === 404 ? 60_000 : 15_000);
         return null;
@@ -237,25 +236,18 @@ async function getRealizedPositionPnl(
 export function invalidatePositionsCache(): void {
   cachedPositions = null;
   cachedPositionsAt = 0;
-  // FIX: fills that changed position size may also have realized PNL, so the
+  // fills that changed position size may also have realized PNL, so the
   // lifecycle cache must be invalidated together with the account snapshot.
   cachedRealizedPnl = null;
   cachedRealizedPnlAt = 0;
 }
 
-export async function getPositions(
-  signal?: AbortSignal,
-  force = false,
-): Promise<OpenPosition[]> {
+export async function getPositions(signal?: AbortSignal, force = false): Promise<OpenPosition[]> {
   if (!canUseTradingAccount()) return [];
 
   const now = Date.now();
 
-  if (
-    !force &&
-    cachedPositions !== null &&
-    now - cachedPositionsAt < POSITIONS_CACHE_TTL_MS
-  ) {
+  if (!force && cachedPositions !== null && now - cachedPositionsAt < POSITIONS_CACHE_TTL_MS) {
     return cachedPositions;
   }
 
@@ -267,14 +259,14 @@ export async function getPositions(
   }
 
   const request = (async () => {
-    // FIX: enrichment is shared and cosmetic; one component unmounting must
+    // enrichment is shared and cosmetic; one component unmounting must
     // not abort the realized request used by every other positions consumer.
     const realizedRequest = getRealizedPositionPnl(undefined, force);
     const response = await fetch(`${TRADING_API_BASE_URL}${ACCOUNT_ENDPOINT}`, {
       method: "GET",
       headers: getHeaders(),
       signal,
-      // FIX: account/position state is safety-critical live exchange state. Even
+      // account/position state is safety-critical live exchange state. Even
       // when our own small JS cache is explicitly bypassed, the browser/proxy
       // must never satisfy this request from an HTTP cache.
       cache: "no-store",
@@ -285,14 +277,15 @@ export async function getPositions(
       .map(mapPosition)
       .filter((position): position is OpenPosition => position !== null);
 
-    // FIX: realized PNL is enrichment, not a prerequisite for safety-critical
+    // realized PNL is enrichment, not a prerequisite for safety-critical
     // position rendering. A history failure leaves `—` instead of hiding rows.
     const realized = await realizedRequest;
     if (realized) {
       for (const position of positions) {
         const match = (realized.positions ?? []).find(
-          (item) => item.symbol.toUpperCase() === position.symbol.toUpperCase()
-            && (item.position_side === "BOTH" || item.position_side === position.side),
+          (item) =>
+            item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
+            (item.position_side === "BOTH" || item.position_side === position.side),
         );
         if (match?.complete && match.realized_pnl !== null && Number.isFinite(match.realized_pnl)) {
           position.realized_pnl = match.realized_pnl;
@@ -355,8 +348,6 @@ export async function closePositionMarket(
   return parseOrderJsonText(await response.text());
 }
 
-
-
 export type CloseEverythingResponse = {
   completed: boolean;
   cancelled_symbols: string[];
@@ -381,22 +372,19 @@ export async function closeEverything(
   symbol?: string,
   signal?: AbortSignal,
 ): Promise<CloseEverythingResponse> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/account/close-everything`,
-    {
-      method: "POST",
-      headers: getHeaders(),
-      // FIX: the backend now takes a Json<CloseEverythingRequest> extractor
-      // (added to support scoping this down to one symbol - see its own
-      // comment in api.rs) instead of no body at all, so a request with no
-      // body/wrong content-type would now fail JSON extraction outright
-      // regardless of what's being closed. Always send a real (possibly
-      // empty) JSON object; omitting `symbol` entirely still means the
-      // original full-account behavior.
-      body: JSON.stringify(symbol ? { symbol } : {}),
-      signal,
-    },
-  );
+  const response = await fetch(`${TRADING_API_BASE_URL}/api/account/close-everything`, {
+    method: "POST",
+    headers: getHeaders(),
+    // the backend now takes a Json<CloseEverythingRequest> extractor
+    // (added to support scoping this down to one symbol - see its own
+    // comment in api.rs) instead of no body at all, so a request with no
+    // body/wrong content-type would now fail JSON extraction outright
+    // regardless of what's being closed. Always send a real (possibly
+    // empty) JSON object; omitting `symbol` entirely still means the
+    // original full-account behavior.
+    body: JSON.stringify(symbol ? { symbol } : {}),
+    signal,
+  });
 
   if (!response.ok) throw new Error(await readError(response));
   invalidatePositionsCache();

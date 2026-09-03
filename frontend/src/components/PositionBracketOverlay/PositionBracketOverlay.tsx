@@ -16,15 +16,8 @@ import {
   getPositions,
   type OpenPosition,
 } from "../../trading/api/positions";
-import {
-  cancelConditionalOrder,
-  placeFullStopLoss,
-} from "../../trading/api/orders";
-import {
-  loadSavedStop,
-  saveStop,
-  type SavedStop,
-} from "../../trading/stopLoss";
+import { cancelConditionalOrder, placeFullStopLoss } from "../../trading/api/orders";
+import { loadSavedStop, saveStop, type SavedStop } from "../../trading/stopLoss";
 import type { TradeMarker, TradeSide, TradeToastState } from "../../trading/types";
 import {
   areTpSlControlsVisible,
@@ -38,12 +31,10 @@ import {
   ENTRY_MARKER_LOOKBACK_SECONDS,
   MESSAGE_AUTO_DISMISS_MS,
   OPTIMISTIC_TAKE_PROFIT_TIMEOUT_MS,
-  STOP_LABEL_COLLISION_THRESHOLD_PX,
   ZONE_EDGE_HANDLE_WIDTH_PX,
   clamp,
   clearPositionAnchor,
   clearPositionZonePad,
-  formatRMultiple,
   getDefaultBracketPrices,
   loadPositionAnchor,
   loadPositionZonePad,
@@ -52,9 +43,13 @@ import {
   savePositionZonePad,
   type ZonePad,
 } from "./positionBracketModel";
+import {
+  deriveBracketPresentation,
+  type BracketCoordinates,
+  type DragKind,
+} from "./positionBracketPresentation";
 import "./PositionBracketOverlay.css";
 
-type DragKind = "TAKE_PROFIT" | "STOP_LOSS";
 // Only the right edge is resizable now - the zone's left edge is pinned
 // exactly to the entry anchor and can no longer be extended backward in
 // time (see the zone-edge-handle section below for why).
@@ -197,21 +192,20 @@ export default function PositionBracketOverlay({
 }: PositionBracketOverlayProps) {
   const [position, setPosition] = useState<OpenPosition | null>(null);
   const [isClosingPosition, setIsClosingPosition] = useState(false);
-  // FEATURE: The chart-side X used to submit a market close immediately, which
+  // The chart-side X used to submit a market close immediately, which
   // made an accidental click irreversible. Keep confirmation local to this
   // overlay so YES reuses the existing close flow while NO cancels without an
   // API request or any change to the live position.
-  const [isCloseConfirmationVisible, setIsCloseConfirmationVisible] =
-    useState(false);
+  const [isCloseConfirmationVisible, setIsCloseConfirmationVisible] = useState(false);
 
   useEffect(() => {
-    // FIX: Confirmation belongs only to the position/symbol where X was
+    // Confirmation belongs only to the position/symbol where X was
     // clicked; clear it when navigation or a position update changes that
     // context so a stale YES can never close a different trade.
     setIsCloseConfirmationVisible(false);
   }, [symbol, position?.side, position?.quantity, position?.entry_price]);
 
-  // FEATURE: Long-held positions can hide the chart-side TP FULL / STOP LOSS
+  // Long-held positions can hide the chart-side TP FULL / STOP LOSS
   // / quick-close controls together with the dashed entry line, while keeping
   // the position itself, liquidation line, and any already-placed TP/SL zones.
   // This preference is per-symbol and shared with PositionsPanel through the
@@ -220,7 +214,7 @@ export default function PositionBracketOverlay({
     areTpSlControlsVisible(symbol),
   );
 
-  // FEATURE: The whole chart-side position action row (HIDE / TP FULL /
+  // The whole chart-side position action row (HIDE / TP FULL /
   // STOP LOSS / X) can be picked up with its own arrow and repositioned like
   // the candle-close timer. Keep the offset relative to the entry-line origin
   // so the controls continue following the live chart while preserving the
@@ -239,16 +233,11 @@ export default function PositionBracketOverlay({
 
     window.addEventListener(TP_SL_CONTROLS_VISIBILITY_EVENT, handleVisibilityChange);
     return () =>
-      window.removeEventListener(
-        TP_SL_CONTROLS_VISIBILITY_EVENT,
-        handleVisibilityChange,
-      );
+      window.removeEventListener(TP_SL_CONTROLS_VISIBILITY_EVENT, handleVisibilityChange);
   }, [symbol]);
   const [dragKind, setDragKind] = useState<DragKind | null>(null);
   const [previewPrice, setPreviewPrice] = useState<number | null>(null);
-  const [savedStop, setSavedStop] = useState<SavedStop | null>(() =>
-    loadSavedStop(symbol),
-  );
+  const [savedStop, setSavedStop] = useState<SavedStop | null>(() => loadSavedStop(symbol));
 
   // Optimistic placements: set the instant a TP/SL submission starts, so
   // the zone/line stays visible through the network round-trip instead of
@@ -257,12 +246,8 @@ export default function PositionBracketOverlay({
   // since savedStop takes over at that point. For take-profit, cleared
   // once the real order price arrives via the fullTakeProfitPrice prop
   // (or the timeout above, as a safety net).
-  const [optimisticTakeProfit, setOptimisticTakeProfit] = useState<
-    number | null
-  >(null);
-  const [optimisticStopLoss, setOptimisticStopLoss] = useState<number | null>(
-    null,
-  );
+  const [optimisticTakeProfit, setOptimisticTakeProfit] = useState<number | null>(null);
+  const [optimisticStopLoss, setOptimisticStopLoss] = useState<number | null>(null);
 
   // Manually adjustable horizontal extent of the TP/SL zone, stored as real
   // elapsed seconds from the position entry. This keeps the selected right
@@ -283,7 +268,7 @@ export default function PositionBracketOverlay({
     intervalSeconds: number;
   } | null>(null);
 
-  const [coordinates, setCoordinates] = useState({
+  const [coordinates, setCoordinates] = useState<BracketCoordinates>({
     entryY: 0,
     previewY: 0,
     stopY: 0,
@@ -312,8 +297,7 @@ export default function PositionBracketOverlay({
   const savedStopRef = useRef<SavedStop | null>(savedStop);
 
   /*
-   * FIX (TP FULL / STOP LOSS / close-X reappearing for a few seconds
-   * after a successful close): closePositionNow optimistically calls
+   * closePositionNow optimistically calls
    * setPosition(null) the instant the market-close order confirms, but
    * refreshPosition below always trusts whatever getPositions() returns
    * - and Binance's own account/position data takes a beat to actually
@@ -382,7 +366,7 @@ export default function PositionBracketOverlay({
     };
   }, [symbol]);
 
-  // FIX (snap-back bug, take-profit): same root cause as the stop-loss fix
+  // same root cause as the stop-loss fix
   // below - `fullTakeProfitPrice ?? optimisticTakeProfit` meant that while
   // MOVING an already-placed take-profit, the `??` never reached
   // optimisticTakeProfit at all, since fullTakeProfitPrice was still the
@@ -396,17 +380,14 @@ export default function PositionBracketOverlay({
   // than waiting for it to actually match the moved-to price.
   const defaultBracketPrices = position ? getDefaultBracketPrices(position) : null;
 
-  // FEATURE: Missing protection orders are represented by non-submitted draft
+  // Missing protection orders are represented by non-submitted draft
   // prices instead of collapsing back to the entry-row TP FULL / STOP LOSS
   // buttons. As soon as the user confirms a draft move, the optimistic/confirmed
   // order price takes precedence and the draft automatically disappears.
   const displayedTakeProfitPrice =
-    optimisticTakeProfit ??
-    fullTakeProfitPrice ??
-    defaultBracketPrices?.takeProfit ??
-    null;
+    optimisticTakeProfit ?? fullTakeProfitPrice ?? defaultBracketPrices?.takeProfit ?? null;
 
-  // FIX (snap-back bug): previously this was
+  // previously this was
   //   savedStop?.triggerPrice ?? optimisticStopLoss
   // which meant that while MOVING an already-existing stop loss, the
   // `??` never reached optimisticStopLoss at all - savedStop was still
@@ -419,22 +400,16 @@ export default function PositionBracketOverlay({
   // over again once the optimistic value is cleared (on success or
   // failure - see finishDrag below).
   const displayedStopPrice =
-    optimisticStopLoss ??
-    savedStop?.triggerPrice ??
-    defaultBracketPrices?.stopLoss ??
-    null;
+    optimisticStopLoss ?? savedStop?.triggerPrice ?? defaultBracketPrices?.stopLoss ?? null;
 
   // These flags distinguish a purely visual 0.5% planning line from a real or
   // in-flight exchange order. They drive both the line controls and the moment
   // at which the normal yellow TP order drawing is allowed to take over.
   const isTakeProfitDraft =
-    position != null &&
-    optimisticTakeProfit == null &&
-    fullTakeProfitPrice == null;
-  const isStopDraft =
-    position != null && optimisticStopLoss == null && savedStop == null;
+    position != null && optimisticTakeProfit == null && fullTakeProfitPrice == null;
+  const isStopDraft = position != null && optimisticStopLoss == null && savedStop == null;
 
-  // FIX (snap-back bug, same pattern as isStopPending below): previously
+  // previously
   // `fullTakeProfitPrice == null && optimisticTakeProfit != null`, which
   // only ever counted as "pending" for a brand-new TP placement (no prior
   // fullTakeProfitPrice). Moving an existing TP also goes through the
@@ -442,7 +417,7 @@ export default function PositionBracketOverlay({
   // too - it's simply "is an optimistic TP currently in flight".
   const isTakeProfitPending = optimisticTakeProfit != null;
 
-  // FIX: previously `savedStop == null && optimisticStopLoss != null`,
+  // previously `savedStop == null && optimisticStopLoss != null`,
   // which only ever counted as "pending" for a brand-new stop-loss
   // placement (no prior savedStop). Moving an existing stop also goes
   // through the optimistic phase (cancel old -> place new), so the
@@ -471,18 +446,16 @@ export default function PositionBracketOverlay({
       // On a reload there may be several retained B/S markers. The original
       // entry fill is normally the marker whose fill price is closest to the
       // position's current average entry price. Use time as the tie-breaker.
-      return candidates
-        .slice()
-        .sort((left, right) => {
-          const leftDistance = Math.abs(left.price - currentPosition.entry_price);
-          const rightDistance = Math.abs(right.price - currentPosition.entry_price);
+      return candidates.slice().sort((left, right) => {
+        const leftDistance = Math.abs(left.price - currentPosition.entry_price);
+        const rightDistance = Math.abs(right.price - currentPosition.entry_price);
 
-          if (leftDistance !== rightDistance) {
-            return leftDistance - rightDistance;
-          }
+        if (leftDistance !== rightDistance) {
+          return leftDistance - rightDistance;
+        }
 
-          return Number(left.time) - Number(right.time);
-        })[0];
+        return Number(left.time) - Number(right.time);
+      })[0];
     },
     [tradeMarkersRef],
   );
@@ -496,9 +469,7 @@ export default function PositionBracketOverlay({
     [symbol],
   );
 
-  // FIX (stale close/reopen race - the actual bug behind "TP FULL / STOP
-  // LOSS buttons missing until page refresh"):
-  //
+  // //
   // refreshPosition is invoked from an "account-state-changed" listener
   // that debounces bursts of events into a single call 100ms later (see
   // the effect below) - but nothing here has EVER guarded against two
@@ -520,151 +491,144 @@ export default function PositionBracketOverlay({
   // more current, correct state.
   const positionRequestIdRef = useRef(0);
 
-  const refreshPosition = useCallback(async (force = false) => {
-    const requestId = ++positionRequestIdRef.current;
+  const refreshPosition = useCallback(
+    async (force = false) => {
+      const requestId = ++positionRequestIdRef.current;
 
-    try {
-      const positions = await getPositions(undefined, force);
+      try {
+        const positions = await getPositions(undefined, force);
 
-      if (requestId !== positionRequestIdRef.current) {
-        // A newer refreshPosition call has already started (or
-        // finished) since this one began - this response is stale and
-        // must not overwrite whatever more current state exists.
-        return;
-      }
-
-      const fetchedNext =
-        positions.find(
-          (item) => item.symbol.toUpperCase() === symbol.toUpperCase(),
-        ) ?? null;
-
-      const next =
-        fetchedNext && Date.now() < suppressReviveUntilRef.current
-          ? null
-          : fetchedNext;
-
-      if (next && !positionRef.current) {
-        // Restore the original entry candle after a page refresh. Previously
-        // this component always started with an empty ref, and if the marker
-        // was not available on that exact poll it permanently fell back to
-        // lastDataTimeRef (the newest candle), relocating both rectangles.
-        const persistedAnchor = loadPositionAnchor(symbol, next.side);
-        const entryMarker =
-          persistedAnchor == null ? findBestEntryMarker(next, true) : null;
-        const restoredMarker =
-          persistedAnchor == null && entryMarker == null
-            ? findBestEntryMarker(next, false)
-            : null;
-        const markerTime = entryMarker?.time ?? restoredMarker?.time ?? null;
-        const anchorTime =
-          persistedAnchor ??
-          (markerTime == null ? null : (markerTime as UTCTimestamp)) ??
-          lastDataTimeRef.current;
-
-        if (anchorTime != null) {
-          persistEntryAnchor(next, anchorTime);
+        if (requestId !== positionRequestIdRef.current) {
+          // A newer refreshPosition call has already started (or
+          // finished) since this one began - this response is stale and
+          // must not overwrite whatever more current state exists.
+          return;
         }
 
-        // FIX: a brand-new position must never inherit stale in-flight
-        // TP/SL placeholder state left over from whichever position
-        // previously occupied this symbol. Normally the `!next` branch
-        // below already clears these the moment the old position
-        // closes - but if that detection got raced/skipped (see the big
-        // comment above), these would otherwise sit non-null forever
-        // and keep the TP FULL / STOP LOSS buttons hidden. Reloading
-        // savedStop straight from localStorage (rather than trusting
-        // whatever this component's React state currently holds) is
-        // what actually self-heals the reported bug without requiring a
-        // page reload.
-        setOptimisticTakeProfit(null);
-        setOptimisticStopLoss(null);
-        setSavedStop(loadSavedStop(symbol));
+        const fetchedNext =
+          positions.find((item) => item.symbol.toUpperCase() === symbol.toUpperCase()) ?? null;
 
-        // FIX: a manual TP/SL zone width used to live only in React state, so
-        // every page reload rebuilt the default ~220px width and made a resized
-        // SL rectangle jump back to a different right edge. Restore the saved
-        // elapsed-time width only when it belongs to this exact position anchor;
-        // otherwise clear stale data so a later trade on the same symbol cannot
-        // inherit the previous trade's geometry.
-        const restoredZonePad = loadPositionZonePad(
-          symbol,
-          next.side,
-          entryAnchorTimeRef.current,
-        );
-        const nextZonePad = restoredZonePad ?? { rightSeconds: null };
-        zonePadRef.current = nextZonePad;
-        setZonePad(nextZonePad);
-        if (!restoredZonePad) {
+        const next =
+          fetchedNext && Date.now() < suppressReviveUntilRef.current ? null : fetchedNext;
+
+        if (next && !positionRef.current) {
+          // Restore the original entry candle after a page refresh. Previously
+          // this component always started with an empty ref, and if the marker
+          // was not available on that exact poll it permanently fell back to
+          // lastDataTimeRef (the newest candle), relocating both rectangles.
+          const persistedAnchor = loadPositionAnchor(symbol, next.side);
+          const entryMarker = persistedAnchor == null ? findBestEntryMarker(next, true) : null;
+          const restoredMarker =
+            persistedAnchor == null && entryMarker == null
+              ? findBestEntryMarker(next, false)
+              : null;
+          const markerTime = entryMarker?.time ?? restoredMarker?.time ?? null;
+          const anchorTime =
+            persistedAnchor ??
+            (markerTime == null ? null : (markerTime as UTCTimestamp)) ??
+            lastDataTimeRef.current;
+
+          if (anchorTime != null) {
+            persistEntryAnchor(next, anchorTime);
+          }
+
+          // a brand-new position must never inherit stale in-flight
+          // TP/SL placeholder state left over from whichever position
+          // previously occupied this symbol. Normally the `!next` branch
+          // below already clears these the moment the old position
+          // closes - but if that detection got raced/skipped (see the big
+          // comment above), these would otherwise sit non-null forever
+          // and keep the TP FULL / STOP LOSS buttons hidden. Reloading
+          // savedStop straight from localStorage (rather than trusting
+          // whatever this component's React state currently holds) is
+          // what actually self-heals the reported bug without requiring a
+          // page reload.
+          setOptimisticTakeProfit(null);
+          setOptimisticStopLoss(null);
+          setSavedStop(loadSavedStop(symbol));
+
+          // a manual TP/SL zone width used to live only in React state, so
+          // every page reload rebuilt the default ~220px width and made a resized
+          // SL rectangle jump back to a different right edge. Restore the saved
+          // elapsed-time width only when it belongs to this exact position anchor;
+          // otherwise clear stale data so a later trade on the same symbol cannot
+          // inherit the previous trade's geometry.
+          const restoredZonePad = loadPositionZonePad(
+            symbol,
+            next.side,
+            entryAnchorTimeRef.current,
+          );
+          const nextZonePad = restoredZonePad ?? { rightSeconds: null };
+          zonePadRef.current = nextZonePad;
+          setZonePad(nextZonePad);
+          if (!restoredZonePad) {
+            clearPositionZonePad(symbol);
+          }
+        }
+
+        setPosition(next);
+
+        if (!next) {
+          entryAnchorTimeRef.current = null;
+          lastKnownAnchorXRef.current = null;
+          lastKnownLatestXRef.current = null;
+          clearPositionAnchor(symbol);
+          // the persisted width belongs to one concrete open trade, not the
+          // symbol forever. Once the account is confirmed flat, discard it so the
+          // next position starts with the normal default width.
           clearPositionZonePad(symbol);
+
+          // TP/SL visibility used to persist only by symbol, so hiding one
+          // completed trade also hid every later trade opened on that symbol.
+          // Reset only after a flat position is confirmed; this preserves HIDE
+          // across refreshes while the same trade is still open, but guarantees
+          // the next newly opened trade starts with its controls visible.
+          if (!areTpSlControlsVisible(symbol)) {
+            setTpSlControlsVisible(symbol, true);
+          }
+
+          // A close can happen while a TP/SL placement is armed or while a
+          // success/error message is still visible. Clear every position-scoped
+          // interaction immediately so stale TP FULL / STOP LOSS controls and
+          // "no open position" errors cannot survive after the position is gone.
+          dragKindRef.current = null;
+          previewPriceRef.current = null;
+          setDragKind(null);
+          setPreviewPrice(null);
+          setMessage(null);
+          setIsSubmitting(false);
+
+          if (savedStopRef.current) {
+            setSavedStop(null);
+            // this used to be `saveStop(null)` with NO symbol
+            // argument - stopLoss.ts's old default parameter silently
+            // fell back to DEFAULT_SYMBOL ("BTCUSDT"), so closing a
+            // position on any OTHER symbol cleared BTCUSDT's saved stop
+            // instead of this symbol's. `symbol` is now required, so this
+            // must (and does) pass it explicitly.
+            saveStop(null, symbol);
+
+            // PositionsPanel keeps its own independent copy of the saved
+            // stop-loss (read from the same localStorage key). The native
+            // `storage` event does NOT fire in the tab that made the write,
+            // so without this, PositionsPanel would never learn the stop
+            // was cleared here and would keep showing a synthetic "ghost"
+            // SL row in Open Orders for a position that no longer exists.
+            // Guarded on savedStopRef.current so this only fires once, on
+            // the actual open->closed transition, not every poll tick.
+            window.dispatchEvent(new Event("trading-state-changed"));
+          }
+          // The position is gone (closed) - drop any leftover optimistic
+          // placements so they can't linger into a future position.
+          setOptimisticTakeProfit(null);
+          setOptimisticStopLoss(null);
         }
+      } catch {
+        // Connection indicators already surface backend failures.
       }
-
-      setPosition(next);
-
-      if (!next) {
-        entryAnchorTimeRef.current = null;
-        lastKnownAnchorXRef.current = null;
-        lastKnownLatestXRef.current = null;
-        clearPositionAnchor(symbol);
-        // FIX: the persisted width belongs to one concrete open trade, not the
-        // symbol forever. Once the account is confirmed flat, discard it so the
-        // next position starts with the normal default width.
-        clearPositionZonePad(symbol);
-
-        // FIX: TP/SL visibility used to persist only by symbol, so hiding one
-        // completed trade also hid every later trade opened on that symbol.
-        // Reset only after a flat position is confirmed; this preserves HIDE
-        // across refreshes while the same trade is still open, but guarantees
-        // the next newly opened trade starts with its controls visible.
-        if (!areTpSlControlsVisible(symbol)) {
-          setTpSlControlsVisible(symbol, true);
-        }
-
-        // A close can happen while a TP/SL placement is armed or while a
-        // success/error message is still visible. Clear every position-scoped
-        // interaction immediately so stale TP FULL / STOP LOSS controls and
-        // "no open position" errors cannot survive after the position is gone.
-        dragKindRef.current = null;
-        previewPriceRef.current = null;
-        setDragKind(null);
-        setPreviewPrice(null);
-        setMessage(null);
-        setIsSubmitting(false);
-
-        if (savedStopRef.current) {
-          setSavedStop(null);
-          // FIX: this used to be `saveStop(null)` with NO symbol
-          // argument - stopLoss.ts's old default parameter silently
-          // fell back to DEFAULT_SYMBOL ("BTCUSDT"), so closing a
-          // position on any OTHER symbol cleared BTCUSDT's saved stop
-          // instead of this symbol's. `symbol` is now required, so this
-          // must (and does) pass it explicitly.
-          saveStop(null, symbol);
-
-          // PositionsPanel keeps its own independent copy of the saved
-          // stop-loss (read from the same localStorage key). The native
-          // `storage` event does NOT fire in the tab that made the write,
-          // so without this, PositionsPanel would never learn the stop
-          // was cleared here and would keep showing a synthetic "ghost"
-          // SL row in Open Orders for a position that no longer exists.
-          // Guarded on savedStopRef.current so this only fires once, on
-          // the actual open->closed transition, not every poll tick.
-          window.dispatchEvent(new Event("trading-state-changed"));
-        }
-        // The position is gone (closed) - drop any leftover optimistic
-        // placements so they can't linger into a future position.
-        setOptimisticTakeProfit(null);
-        setOptimisticStopLoss(null);
-      }
-    } catch {
-      // Connection indicators already surface backend failures.
-    }
-  }, [
-    findBestEntryMarker,
-    lastDataTimeRef,
-    persistEntryAnchor,
-    symbol,
-  ]);
+    },
+    [findBestEntryMarker, lastDataTimeRef, persistEntryAnchor, symbol],
+  );
 
   useEffect(() => {
     void refreshPosition(true);
@@ -679,7 +643,7 @@ export default function PositionBracketOverlay({
     const handleTradingStateChanged = () => {
       clearRefreshTimers();
 
-      // FIX: one debounced read could land after account_state contained the
+      // one debounced read could land after account_state contained the
       // new fill but before the separate positionRisk refresh supplied its
       // liquidationPrice. Nothing retried until the 4-second safety poll, so
       // the position appeared immediately while its red boundary arrived
@@ -703,7 +667,7 @@ export default function PositionBracketOverlay({
     };
   }, [refreshPosition]);
 
-  // FIX: refreshPosition used to run ONLY in reaction to the
+  // refreshPosition used to run ONLY in reaction to the
   // "account-state-changed" event above - if that event (or whatever
   // upstream it depends on: the local trading websocket, or the
   // backend's own connection to Binance's user-data stream) is ever
@@ -733,7 +697,7 @@ export default function PositionBracketOverlay({
   // has served its purpose - drop it so displayedTakeProfitPrice reads
   // from the confirmed source only.
   //
-  // FIX (snap-back bug): previously this cleared as soon as
+  // previously this cleared as soon as
   // `fullTakeProfitPrice != null`, with no check that it matched. That's
   // fine for a brand-new placement (fullTakeProfitPrice starts null), but
   // when MOVING an existing take-profit, fullTakeProfitPrice is already
@@ -749,8 +713,7 @@ export default function PositionBracketOverlay({
 
     if (
       fullTakeProfitPrice != null &&
-      fullTakeProfitPrice.toFixed(pricePrecision) ===
-        optimisticTakeProfit.toFixed(pricePrecision)
+      fullTakeProfitPrice.toFixed(pricePrecision) === optimisticTakeProfit.toFixed(pricePrecision)
     ) {
       setOptimisticTakeProfit(null);
       return;
@@ -795,20 +758,16 @@ export default function PositionBracketOverlay({
     const currentPosition = positionRef.current;
 
     if (!wrap || !chart || !series || !currentPosition) {
-      setCoordinates((current) =>
-        current.ready ? { ...current, ready: false } : current,
-      );
+      setCoordinates((current) => (current.ready ? { ...current, ready: false } : current));
       return;
     }
 
     const entryY = series.priceToCoordinate(currentPosition.entry_price);
     const targetPreviewPrice = previewPriceRef.current;
     const previewY =
-      targetPreviewPrice == null
-        ? null
-        : series.priceToCoordinate(targetPreviewPrice);
+      targetPreviewPrice == null ? null : series.priceToCoordinate(targetPreviewPrice);
 
-    // FIX (snap-back bug, take 2): this is the ACTUAL calculation that
+    // this is the ACTUAL calculation that
     // drives the rectangle's on-screen top/height (via coordinates.stopY
     // below) - the `displayedStopPrice` fix elsewhere in this file only
     // controls label text / show-hide, not positioning. This had its own
@@ -824,12 +783,9 @@ export default function PositionBracketOverlay({
       optimisticStopLossRef.current ??
       savedStopRef.current?.triggerPrice ??
       draftBracketPrices.stopLoss;
-    const stopY =
-      effectiveStopPrice == null
-        ? null
-        : series.priceToCoordinate(effectiveStopPrice);
+    const stopY = effectiveStopPrice == null ? null : series.priceToCoordinate(effectiveStopPrice);
 
-    // FIX (snap-back bug, take 2 - take-profit): same stale-priority bug
+    // same stale-priority bug
     // as effectiveStopPrice above, just on the take-profit side. While
     // moving an existing TP, fullTakeProfitPriceRef.current is still the
     // OLD confirmed price for the whole cancel+replace round-trip, so `??`
@@ -840,11 +796,9 @@ export default function PositionBracketOverlay({
       fullTakeProfitPriceRef.current ??
       draftBracketPrices.takeProfit;
     const takeProfitY =
-      effectiveTakeProfitPrice == null
-        ? null
-        : series.priceToCoordinate(effectiveTakeProfitPrice);
+      effectiveTakeProfitPrice == null ? null : series.priceToCoordinate(effectiveTakeProfitPrice);
 
-    // FEATURE: liquidation comes from the live position snapshot, not a
+    // liquidation comes from the live position snapshot, not a
     // draggable/saved drawing. Calculating it in the same render loop as
     // entry/TP/SL keeps the danger line aligned while zooming or panning.
     const liquidationY =
@@ -882,8 +836,7 @@ export default function PositionBracketOverlay({
     // successfully-resolved position instead of defaulting to pane
     // center in that gap - otherwise the zone visibly flashes to the
     // middle of the screen for a frame during every timeframe switch.
-    const anchorX =
-      resolvedAnchorX ?? lastKnownAnchorXRef.current ?? paneWidth * 0.5;
+    const anchorX = resolvedAnchorX ?? lastKnownAnchorXRef.current ?? paneWidth * 0.5;
 
     if (resolvedAnchorX != null) {
       lastKnownAnchorXRef.current = resolvedAnchorX;
@@ -893,14 +846,13 @@ export default function PositionBracketOverlay({
     const currentIntervalSeconds = intervalSeconds[interval];
     const pad = zonePadRef.current;
 
-    // FIX (timeframe-switch width bug): a logical BAR count is not a stable
+    // a logical BAR count is not a stable
     // duration when the timeframe changes. Convert the initial 220px default
     // to elapsed seconds once, then convert seconds -> bars -> pixels using the
     // CURRENT timeframe on every render. The same SL/TP zone therefore keeps
     // the exact same real-world duration on 1m, 1h, 4h, etc.
     const rightSeconds =
-      pad.rightSeconds ??
-      (DEFAULT_ZONE_RIGHT_PAD_PX / currentBarSpacing) * currentIntervalSeconds;
+      pad.rightSeconds ?? (DEFAULT_ZONE_RIGHT_PAD_PX / currentBarSpacing) * currentIntervalSeconds;
 
     if (pad.rightSeconds == null) {
       const initializedPad = { rightSeconds };
@@ -913,8 +865,7 @@ export default function PositionBracketOverlay({
     // never extend backward past the candle the trade actually opened on.
     const rawLeft = anchoredX;
     const rightBarsOnCurrentTimeframe = rightSeconds / currentIntervalSeconds;
-    const rawRight =
-      anchoredX + rightBarsOnCurrentTimeframe * currentBarSpacing;
+    const rawRight = anchoredX + rightBarsOnCurrentTimeframe * currentBarSpacing;
 
     // Deliberately NOT clamped into [0, paneWidth]. Zooming/panning can
     // legitimately move the anchor candle off either edge of the visible
@@ -935,10 +886,8 @@ export default function PositionBracketOverlay({
     // across a transient resolve miss" pattern as anchorX above, so a
     // timeframe switch doesn't collapse/flicker the line for a frame.
     const latestTime = lastDataTimeRef.current;
-    const resolvedLatestX =
-      latestTime != null ? coordTimeToX(latestTime) : null;
-    const latestX =
-      resolvedLatestX ?? lastKnownLatestXRef.current ?? rawRight;
+    const resolvedLatestX = latestTime != null ? coordTimeToX(latestTime) : null;
+    const latestX = resolvedLatestX ?? lastKnownLatestXRef.current ?? rawRight;
 
     if (resolvedLatestX != null) {
       lastKnownLatestXRef.current = resolvedLatestX;
@@ -972,7 +921,7 @@ export default function PositionBracketOverlay({
     // this isn't tied to any specific order id - a position has no
     // single Binance orderId, so it's matched by "SYMBOL-SIDE" instead.
     //
-    // FIX: this used to be `Date.now() < highlightedPositionUntilRef.current`
+    // this used to be `Date.now() < highlightedPositionUntilRef.current`
     // with no symbol/side check at all - so clicking ANY position row in
     // the (now account-wide) Positions panel, for ANY symbol, blinked
     // whichever chart happened to be open, regardless of whether that
@@ -981,8 +930,7 @@ export default function PositionBracketOverlay({
     // "SYMBOL-SIDE") is what scopes the blink to the position it
     // actually belongs to.
     const isPositionHighlighted =
-      highlightedPositionKeyRef.current ===
-        `${symbol}-${currentPosition.side}` &&
+      highlightedPositionKeyRef.current === `${symbol}-${currentPosition.side}` &&
       Date.now() < highlightedPositionUntilRef.current;
 
     const nextCoordinates = {
@@ -991,13 +939,13 @@ export default function PositionBracketOverlay({
       stopY: stopY ?? entryY,
       takeProfitY: takeProfitY ?? entryY,
       liquidationY,
-      // FIX: the overlay wrapper also covers Lightweight Charts' right-hand
+      // the overlay wrapper also covers Lightweight Charts' right-hand
       // price scale. Restrict the danger line to the actual pane width so its
       // label can never cover the exchange price marker on that scale.
       liquidationLineWidth: paneWidth,
       paneLeft,
       paneWidth: bracketWidth,
-      // FIX: the DOM overlay used to cover the complete chart widget,
+      // the DOM overlay used to cover the complete chart widget,
       // including Lightweight Charts' time scale. Keeping the real plot-pane
       // height in state lets the wrapper clip TP/SL zones and lines before
       // they can paint over the X-axis labels.
@@ -1019,11 +967,8 @@ export default function PositionBracketOverlay({
         (current.liquidationY === nextCoordinates.liquidationY ||
           (current.liquidationY != null &&
             nextCoordinates.liquidationY != null &&
-            Math.abs(current.liquidationY - nextCoordinates.liquidationY) <=
-              0.25)) &&
-        Math.abs(
-          current.liquidationLineWidth - nextCoordinates.liquidationLineWidth,
-        ) <= 0.25 &&
+            Math.abs(current.liquidationY - nextCoordinates.liquidationY) <= 0.25)) &&
+        Math.abs(current.liquidationLineWidth - nextCoordinates.liquidationLineWidth) <= 0.25 &&
         Math.abs(current.paneLeft - nextCoordinates.paneLeft) <= 0.25 &&
         Math.abs(current.paneWidth - nextCoordinates.paneWidth) <= 0.25 &&
         Math.abs(current.paneHeight - nextCoordinates.paneHeight) <= 0.25 &&
@@ -1094,9 +1039,7 @@ export default function PositionBracketOverlay({
       const currentPosition = positionRef.current;
       if (!currentPosition) return "No open position";
 
-      const market =
-        marketPriceRef.current ??
-        currentPosition.mark_price;
+      const market = marketPriceRef.current ?? currentPosition.mark_price;
       const liquidation = currentPosition.liquidation_price;
 
       if (currentPosition.side === "LONG") {
@@ -1106,11 +1049,7 @@ export default function PositionBracketOverlay({
         if (kind === "STOP_LOSS" && price >= market) {
           return "LONG stop loss must be below current price";
         }
-        if (
-          kind === "STOP_LOSS" &&
-          liquidation != null &&
-          price <= liquidation
-        ) {
+        if (kind === "STOP_LOSS" && liquidation != null && price <= liquidation) {
           return "LONG stop loss must stay above liquidation price";
         }
       } else {
@@ -1120,11 +1059,7 @@ export default function PositionBracketOverlay({
         if (kind === "STOP_LOSS" && price <= market) {
           return "SHORT stop loss must be above current price";
         }
-        if (
-          kind === "STOP_LOSS" &&
-          liquidation != null &&
-          price >= liquidation
-        ) {
+        if (kind === "STOP_LOSS" && liquidation != null && price >= liquidation) {
           return "SHORT stop loss must stay below liquidation price";
         }
       }
@@ -1169,9 +1104,7 @@ export default function PositionBracketOverlay({
 
     // Let React paint the confirmed state before starting the network call.
     // This keeps the chart feeling immediate even when the backend is slow.
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     try {
       if (kind === "TAKE_PROFIT") {
@@ -1199,14 +1132,8 @@ export default function PositionBracketOverlay({
         // updates without requiring a page reload. These are user-action-only
         // refreshes, not polling.
         window.dispatchEvent(new Event("orders-state-changed"));
-        window.setTimeout(
-          () => window.dispatchEvent(new Event("orders-state-changed")),
-          350,
-        );
-        window.setTimeout(
-          () => window.dispatchEvent(new Event("orders-state-changed")),
-          900,
-        );
+        window.setTimeout(() => window.dispatchEvent(new Event("orders-state-changed")), 350);
+        window.setTimeout(() => window.dispatchEvent(new Event("orders-state-changed")), 900);
       } else {
         // This same path handles both a brand-new stop-loss placement
         // (savedStop is null, so there's nothing to cancel) and moving an
@@ -1216,17 +1143,13 @@ export default function PositionBracketOverlay({
         const oldStop = savedStopRef.current;
         if (oldStop?.algoId) {
           try {
-            await cancelConditionalOrder(
-              oldStop.symbol,
-              oldStop.algoId,
-            );
+            await cancelConditionalOrder(oldStop.symbol, oldStop.algoId);
           } catch {
             // Continue: Binance may already have removed/triggered it.
           }
         }
 
-        const closeSide =
-          currentPosition.side === "LONG" ? "SELL" : "BUY";
+        const closeSide = currentPosition.side === "LONG" ? "SELL" : "BUY";
         const response = await placeFullStopLoss({
           symbol: currentPosition.symbol,
           side: closeSide,
@@ -1234,17 +1157,13 @@ export default function PositionBracketOverlay({
         });
 
         const algoId = response.algo.algoId;
-        // FIX: this used to be `Number(response.algo.algoId)` - converting
+        // this used to be `Number(response.algo.algoId)` - converting
         // the (now correctly string-typed) algoId through JS's Number()
         // would silently reintroduce the exact precision loss this whole
         // fix exists to prevent (see safeJson.ts's big comment). Validate
         // it's a well-formed positive integer string without ever
         // actually converting it to a number for storage.
-        if (
-          typeof algoId !== "string" ||
-          !/^\d+$/.test(algoId) ||
-          algoId === "0"
-        ) {
+        if (typeof algoId !== "string" || !/^\d+$/.test(algoId) || algoId === "0") {
           throw new Error("Binance did not return a valid stop-loss algo id");
         }
 
@@ -1256,7 +1175,7 @@ export default function PositionBracketOverlay({
         };
 
         setSavedStop(nextStop);
-        // FIX: this used to be `saveStop(nextStop)` with no symbol
+        // this used to be `saveStop(nextStop)` with no symbol
         // argument. With `stop` truthy this happened to still work
         // (the implementation keys off `stop.symbol`, not the missing
         // param), but stopLoss.ts's `symbol` is now a required
@@ -1286,9 +1205,7 @@ export default function PositionBracketOverlay({
       setMessage(null);
 
       const rawMessage =
-        error instanceof Error
-          ? error.message
-          : "Unable to create protection order";
+        error instanceof Error ? error.message : "Unable to create protection order";
       /*
        * Same translation as useDrawingCanvas.ts's reprice-reduce catch -
        * see the comment there for the full explanation. Binance rejects
@@ -1347,7 +1264,7 @@ export default function PositionBracketOverlay({
         const liquidation = currentPosition.liquidation_price;
         const boundaryEpsilon = priceBoundaryEpsilon(pricePrecision);
 
-        // FEATURE: while moving/creating a stop loss, snap it exactly onto the
+        // while moving/creating a stop loss, snap it exactly onto the
         // entry line when the pointer is close. The snap is recalculated on
         // every move (rather than stored as a locked mode), so an SL placed at
         // break-even can later be grabbed and moved back to any other valid
@@ -1362,9 +1279,7 @@ export default function PositionBracketOverlay({
           if (entryY != null && wrap) {
             const pointerY = event.clientY - wrap.getBoundingClientRect().top;
             if (Math.abs(pointerY - entryY) <= BREAK_EVEN_SNAP_THRESHOLD_PX) {
-              nextPrice = Number(
-                currentPosition.entry_price.toFixed(pricePrecision),
-              );
+              nextPrice = Number(currentPosition.entry_price.toFixed(pricePrecision));
             }
           }
         }
@@ -1375,7 +1290,7 @@ export default function PositionBracketOverlay({
               ? Math.max(nextPrice, market + boundaryEpsilon)
               : Math.min(nextPrice, market - boundaryEpsilon);
 
-          // FEATURE: a LONG stop below liquidation cannot protect the trade.
+          // a LONG stop below liquidation cannot protect the trade.
           // Clamp the preview one visible price increment above liquidation
           // so the cursor physically cannot cross the danger boundary.
           if (kind === "STOP_LOSS" && liquidation != null) {
@@ -1387,7 +1302,7 @@ export default function PositionBracketOverlay({
               ? Math.min(nextPrice, market - boundaryEpsilon)
               : Math.max(nextPrice, market + boundaryEpsilon);
 
-          // FEATURE: SHORT liquidation sits above market, so its stop is
+          // SHORT liquidation sits above market, so its stop is
           // clamped one visible increment below that boundary instead.
           if (kind === "STOP_LOSS" && liquidation != null) {
             nextPrice = Math.min(nextPrice, liquidation - boundaryEpsilon);
@@ -1416,7 +1331,7 @@ export default function PositionBracketOverlay({
      * Escape or a right-click cancels instead of confirming.
      */
     const handleConfirmClick = (event: PointerEvent) => {
-      // FIX: a right-click used to consume the one-shot pointerdown listener
+      // a right-click used to consume the one-shot pointerdown listener
       // without confirming or cancelling the TP/SL placement. If the chart's
       // context-menu handler then stopped the later `contextmenu` event, the
       // placement stayed active but had no left-click listener anymore, so it
@@ -1430,7 +1345,7 @@ export default function PositionBracketOverlay({
 
       if (event.button !== 0) return;
 
-      // FIX: TP/SL confirmation owns this pointerdown exclusively. This
+      // TP/SL confirmation owns this pointerdown exclusively. This
       // listener runs on window in capture phase (before the chart wrapper's
       // drawing hit-test), then stops the event so a trendline, chart pan, or
       // trade control underneath the cursor cannot consume the same click and
@@ -1448,14 +1363,14 @@ export default function PositionBracketOverlay({
     };
 
     const handleCancelContextMenu = (_event: MouseEvent) => {
-      // FIX: keep `contextmenu` as a fallback cancellation path, but do not
+      // keep `contextmenu` as a fallback cancellation path, but do not
       // prevent its default behavior here. Right-click is meant to both abort
       // TP/SL placement and continue into the app/browser context menu.
       cancelDrag();
     };
 
     window.addEventListener("pointermove", handlePointerMove);
-    // FIX: do not use `once` here. A non-left pointerdown (especially the
+    // do not use `once` here. A non-left pointerdown (especially the
     // right-click that opens the chart context menu) must never silently
     // remove the future left-click confirmation handler. The effect cleanup
     // removes this listener as soon as finishDrag/cancelDrag clears dragKind.
@@ -1472,14 +1387,7 @@ export default function PositionBracketOverlay({
       window.removeEventListener("contextmenu", handleCancelContextMenu);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    dragKind,
-    finishDrag,
-    cancelDrag,
-    getPriceFromClientY,
-    validatePrice,
-    pricePrecision,
-  ]);
+  }, [dragKind, finishDrag, cancelDrag, getPriceFromClientY, validatePrice, pricePrecision]);
 
   /**
    * The X next to the TP FULL / STOP LOSS buttons - a shortcut to the
@@ -1506,7 +1414,7 @@ export default function PositionBracketOverlay({
       // we just successfully closed, before Binance's own account data
       // has caught up to reflect it.
       suppressReviveUntilRef.current = Date.now() + 5_000;
-      // FIX: HIDE is a preference for the position that was just closed, not
+      // HIDE is a preference for the position that was just closed, not
       // for every future trade on this symbol. Restore the shared chart/panel
       // controls immediately so a quickly reopened position cannot inherit
       // the old trade's hidden TP/SL state before the next account poll runs.
@@ -1523,7 +1431,7 @@ export default function PositionBracketOverlay({
 
       onToast({ kind: "success", message: "Position closed" });
 
-      // FIX: this only ever dispatched "trading-state-changed", which
+      // this only ever dispatched "trading-state-changed", which
       // useOpenOrders.ts listens for - but usePositions.ts (the hook
       // behind PositionsPanel's own Positions table) listens for
       // "account-state-changed" specifically, a different event. So the
@@ -1536,24 +1444,21 @@ export default function PositionBracketOverlay({
     } catch (error) {
       onToast({
         kind: "error",
-        message:
-          error instanceof Error ? error.message : "Unable to close position",
+        message: error instanceof Error ? error.message : "Unable to close position",
       });
     } finally {
       setIsClosingPosition(false);
     }
   };
 
-  const handleEntryControlsMovePointerDown = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
+  const handleEntryControlsMovePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (isSubmitting || dragKind !== null) return;
 
     event.preventDefault();
     event.stopPropagation();
 
     if (isEntryControlsMoving) {
-      // FIX: exactly like the candle timer move arrow, pressing this arrow a
+      // exactly like the candle timer move arrow, pressing this arrow a
       // second time drops the action row immediately instead of starting a new
       // placement cycle.
       setIsEntryControlsMoving(false);
@@ -1570,7 +1475,7 @@ export default function PositionBracketOverlay({
       y: event.clientY - controlsRect.top,
     };
 
-    // FEATURE: clicking the arrow is both the unlock and pick-up action, so
+    // clicking the arrow is both the unlock and pick-up action, so
     // the HIDE / TP FULL / STOP LOSS / X row starts following the pointer
     // immediately without requiring another click on the controls themselves.
     setIsEntryControlsMoving(true);
@@ -1584,36 +1489,28 @@ export default function PositionBracketOverlay({
       if (wrap === null) return;
 
       const rect = wrap.getBoundingClientRect();
-      const desiredLeft =
-        event.clientX - rect.left - entryControlsGrabOffsetRef.current.x;
-      const desiredTop =
-        event.clientY - rect.top - entryControlsGrabOffsetRef.current.y;
+      const desiredLeft = event.clientX - rect.left - entryControlsGrabOffsetRef.current.x;
+      const desiredTop = event.clientY - rect.top - entryControlsGrabOffsetRef.current.y;
 
       /*
-       * FEATURE: keep the position controls close to their entry-line anchor,
+       * keep the position controls close to their entry-line anchor,
        * mirroring the candle timer's constrained movement. This gives enough
        * room to clear candles/labels without letting trade actions get lost
        * elsewhere on the chart.
        */
       setEntryControlsOffset({
         x: Math.max(-120, Math.min(120, Math.round(desiredLeft - coordinates.paneLeft))),
-        y: Math.max(
-          -80,
-          Math.min(80, Math.round(desiredTop - (coordinates.entryY - 11))),
-        ),
+        y: Math.max(-80, Math.min(80, Math.round(desiredTop - (coordinates.entryY - 11)))),
       });
     };
 
     const handlePlacementPointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(".position-entry-controls-move-button")
-      ) {
+      if (target instanceof Element && target.closest(".position-entry-controls-move-button")) {
         return;
       }
 
-      // FIX: the first click after picking the row up is reserved for dropping
+      // the first click after picking the row up is reserved for dropping
       // it. Consuming the event prevents an accidental TP/SL/close/chart action
       // from firing underneath the placement click.
       event.preventDefault();
@@ -1627,12 +1524,7 @@ export default function PositionBracketOverlay({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerdown", handlePlacementPointerDown, true);
     };
-  }, [
-    chartWrapRef,
-    coordinates.entryY,
-    coordinates.paneLeft,
-    isEntryControlsMoving,
-  ]);
+  }, [chartWrapRef, coordinates.entryY, coordinates.paneLeft, isEntryControlsMoving]);
 
   const beginDrag = (
     event: ReactPointerEvent<HTMLElement>,
@@ -1653,7 +1545,7 @@ export default function PositionBracketOverlay({
     setDragKind(kind);
     setMessage(null);
 
-    // FEATURE: Draft TP/SL lines begin at their visible 0.5% boundary rather than
+    // Draft TP/SL lines begin at their visible 0.5% boundary rather than
     // snapping back to entry on the first click. Existing callers can still omit
     // the seed and retain the historical entry-price behavior.
     const seedPrice = initialPrice ?? position.entry_price;
@@ -1669,31 +1561,24 @@ export default function PositionBracketOverlay({
   const beginMoveStop = (event: ReactPointerEvent<HTMLElement>) => {
     if (isSubmitting || !position || displayedStopPrice == null) return;
 
-    // FEATURE: The same red boundary is now usable before an SL exists and
+    // The same red boundary is now usable before an SL exists and
     // after one exists. A draft click creates the first STOP_MARKET order; a
     // confirmed-stop click reuses the existing cancel-and-replace move flow.
     beginDrag(event, "STOP_LOSS", displayedStopPrice);
   };
 
   const beginMoveTakeProfitDraft = (event: ReactPointerEvent<HTMLElement>) => {
-    if (
-      isSubmitting ||
-      !position ||
-      !isTakeProfitDraft ||
-      displayedTakeProfitPrice == null
-    ) {
+    if (isSubmitting || !position || !isTakeProfitDraft || displayedTakeProfitPrice == null) {
       return;
     }
 
-    // FEATURE: TP starts as a green planning boundary. Its first confirmed move
+    // TP starts as a green planning boundary. Its first confirmed move
     // submits the real 100%-reduce LIMIT order; after Binance exposes that order,
     // the existing yellow open-order drawing becomes the authoritative TP line.
     beginDrag(event, "TAKE_PROFIT", displayedTakeProfitPrice);
   };
 
-  const cancelStop = async (
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
+  const cancelStop = async (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -1706,9 +1591,7 @@ export default function PositionBracketOverlay({
 
     // Let React paint the released drag state before starting the network call.
     // This keeps the chart feeling immediate even when the backend is slow.
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     try {
       await cancelConditionalOrder(stop.symbol, stop.algoId);
@@ -1721,8 +1604,7 @@ export default function PositionBracketOverlay({
       setMessage(null);
       onToast({
         kind: "error",
-        message:
-          error instanceof Error ? error.message : "Unable to cancel stop loss",
+        message: error instanceof Error ? error.message : "Unable to cancel stop loss",
       });
     } finally {
       setIsSubmitting(false);
@@ -1763,10 +1645,7 @@ export default function PositionBracketOverlay({
 
     edgeDragRef.current = "ZONE_RIGHT";
     setEdgeDrag("ZONE_RIGHT");
-    const barSpacing = Math.max(
-      0.01,
-      chartRef.current?.timeScale().options().barSpacing ?? 1,
-    );
+    const barSpacing = Math.max(0.01, chartRef.current?.timeScale().options().barSpacing ?? 1);
     const currentIntervalSeconds = intervalSeconds[interval];
     const padSeconds =
       zonePadRef.current.rightSeconds ??
@@ -1807,7 +1686,7 @@ export default function PositionBracketOverlay({
       const deltaSeconds = deltaBars * start.intervalSeconds;
       const nextPadSeconds = Math.max(0, start.padSeconds + deltaSeconds);
 
-      // FIX: keep the ref in sync in the same pointermove tick. The confirm
+      // keep the ref in sync in the same pointermove tick. The confirm
       // click can arrive before React commits the state update, and persistence
       // must store the final cursor position rather than the previous frame.
       const nextPad = {
@@ -1821,7 +1700,7 @@ export default function PositionBracketOverlay({
     const handleConfirmClick = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
-      // FIX: persist the manually chosen width when click-move-click finishes.
+      // persist the manually chosen width when click-move-click finishes.
       // The width is stored as elapsed seconds and tied to the position's saved
       // entry anchor, so reloads preserve the same real right-edge time without
       // leaking that geometry into a future trade on the same symbol.
@@ -1865,131 +1744,30 @@ export default function PositionBracketOverlay({
     };
   }, [edgeDrag, cancelEdgeDrag, symbol]);
 
-  const preview = useMemo(() => {
-    if (!position || !dragKind || previewPrice == null) return null;
-
-    const top = Math.min(coordinates.entryY, coordinates.previewY);
-    const height = Math.abs(coordinates.previewY - coordinates.entryY);
-    const distancePct =
-      position.entry_price > 0
-        ? ((previewPrice - position.entry_price) /
-            position.entry_price) *
-          100
-        : 0;
-
-    return {
-      top,
-      height,
-      // FIX: keep the live label attached to the actual dragged price line.
-      // The old fixed `top: 5px` placed it at the zone's upper edge, so a
-      // stop below entry appeared to jump all the way up when move mode began
-      // even though its numeric price had not changed.
-      labelTop: coordinates.previewY - top,
-      distancePct,
-      valid: validatePrice(dragKind, previewPrice) == null,
-    };
-  }, [
-    position,
-    dragKind,
-    previewPrice,
-    coordinates.entryY,
-    coordinates.previewY,
-    validatePrice,
-  ]);
-
-  // FEATURE: R is always normalized against the current SL distance. The SL
-  // rectangle itself is therefore -1R by definition, while TP expands/contracts
-  // live as either boundary is moved. During an active move we use previewPrice
-  // so the number changes under the cursor before the backend request is sent.
-  const rStopPrice =
-    dragKind === "STOP_LOSS" && previewPrice != null
-      ? previewPrice
-      : displayedStopPrice;
-  const rTakeProfitPrice =
-    dragKind === "TAKE_PROFIT" && previewPrice != null
-      ? previewPrice
-      : displayedTakeProfitPrice;
-  const riskDistance =
-    position != null && rStopPrice != null
-      ? Math.abs(position.entry_price - rStopPrice)
-      : 0;
-  const takeProfitR =
-    position != null &&
-    rTakeProfitPrice != null &&
-    riskDistance > priceBoundaryEpsilon(pricePrecision)
-      ? Math.abs(rTakeProfitPrice - position.entry_price) / riskDistance
-      : null;
-  const takeProfitRLabel = formatRMultiple(takeProfitR);
-
-  // FEATURE: a stop-loss that has crossed the entry into locked-in profit is
-  // no longer pure downside risk. Mark that SL zone separately so the chart can
-  // render it with a neutral/profit-protection color between the normal red SL
-  // and green TP themes (LONG: stop > entry, SHORT: stop < entry).
-  const isStopProtectingProfit =
-    position != null &&
-    displayedStopPrice != null &&
-    (position.side === "LONG"
-      ? displayedStopPrice > position.entry_price
-      : displayedStopPrice < position.entry_price);
-
-  // FIX: when the saved stop-loss line is close to entry, push its badge/X
-  // AWAY from the entry controls instead of always pushing them downward.
-  // A profitable LONG stop sits above entry, so the old `controls-below`
-  // behavior moved `SL FULL · price` directly into HIDE/TP/X at some zoom
-  // levels. Stops above entry now move their controls above the SL line;
-  // stops below entry move them below it.
-  const stopControlsNearEntry =
-    coordinates.ready &&
-    displayedStopPrice != null &&
-    Math.abs(coordinates.stopY - coordinates.entryY) <
-      STOP_LABEL_COLLISION_THRESHOLD_PX;
-  const stopControlsAbove =
-    stopControlsNearEntry && coordinates.stopY < coordinates.entryY;
-  const stopControlsBelow =
-    stopControlsNearEntry && coordinates.stopY >= coordinates.entryY;
-
-  // Hide the confirmed/optimistic/draft zone and stop-line while that same kind
-  // is actively being placed - the live preview below already shows the
-  // in-progress position, so showing both at once would just be two
-  // overlapping rectangles/lines for the same bracket.
-  const showTakeProfitZone =
-    displayedTakeProfitPrice != null && dragKind !== "TAKE_PROFIT";
-  const showStopZone = displayedStopPrice != null && dragKind !== "STOP_LOSS";
-  const showStopLine = displayedStopPrice != null && dragKind !== "STOP_LOSS";
-  const showTakeProfitDraftLine =
-    isTakeProfitDraft &&
-    displayedTakeProfitPrice != null &&
-    dragKind !== "TAKE_PROFIT";
-
-  // FEATURE: TP FULL / STOP LOSS no longer live as creation buttons on the
-  // entry line. Missing orders are represented by their 0.5% draft boundaries,
-  // while the entry row retains only position-level actions (HIDE / quick close).
-  const hasDraftProtection = isTakeProfitDraft || isStopDraft;
-
-  // Edge handles are only meaningful once at least one zone actually has
-  // width to resize.
-  const showEdgeHandles =
-    coordinates.ready && (showTakeProfitZone || showStopZone);
-
-  const edgeHandleBounds = useMemo(() => {
-    if (!showEdgeHandles) return null;
-
-    const ys = [coordinates.entryY];
-    if (showTakeProfitZone) ys.push(coordinates.takeProfitY);
-    if (showStopZone) ys.push(coordinates.stopY);
-
-    const top = Math.min(...ys);
-    const bottom = Math.max(...ys);
-
-    return { top, height: Math.max(2, bottom - top) };
-  }, [
-    showEdgeHandles,
+  const {
+    preview,
+    takeProfitRLabel,
+    isStopProtectingProfit,
+    stopControlsAbove,
+    stopControlsBelow,
     showTakeProfitZone,
     showStopZone,
-    coordinates.entryY,
-    coordinates.takeProfitY,
-    coordinates.stopY,
-  ]);
+    showStopLine,
+    showTakeProfitDraftLine,
+    hasDraftProtection,
+    showEdgeHandles,
+    edgeHandleBounds,
+  } = deriveBracketPresentation({
+    position,
+    coordinates,
+    dragKind,
+    previewPrice,
+    displayedStopPrice,
+    displayedTakeProfitPrice,
+    isTakeProfitDraft,
+    isStopDraft,
+    pricePrecision,
+  });
 
   if (!position || !coordinates.ready) return null;
 
@@ -1997,7 +1775,7 @@ export default function PositionBracketOverlay({
     <div
       className="position-bracket-overlay"
       aria-hidden="false"
-      /* FIX: clip the DOM TP/SL overlay to Lightweight Charts' actual plot
+      /* clip the DOM TP/SL overlay to Lightweight Charts' actual plot
           pane, not the full chart wrapper. The wrapper also contains the
           right price scale, so wide SL lines/badges used to paint over the
           native price labels on that scale. */
@@ -2006,41 +1784,34 @@ export default function PositionBracketOverlay({
         height: coordinates.paneHeight,
       }}
     >
-      {/* FEATURE: liquidation is an account-risk boundary rather than a
+      {/* liquidation is an account-risk boundary rather than a
           movable order, so it spans the whole chart and has no pointer
           handler. This whole overlay unmounts when the position closes. */}
-      {coordinates.liquidationY != null &&
-        position.liquidation_price != null && (
-          <div
-            className="position-liquidation-line"
-            style={{
-              top: coordinates.liquidationY,
-              width: coordinates.liquidationLineWidth,
-            }}
-          >
-            <span>
-              LIQUIDATION · {position.liquidation_price.toFixed(pricePrecision)}
-            </span>
-          </div>
-        )}
+      {coordinates.liquidationY != null && position.liquidation_price != null && (
+        <div
+          className="position-liquidation-line"
+          style={{
+            top: coordinates.liquidationY,
+            width: coordinates.liquidationLineWidth,
+          }}
+        >
+          <span>LIQUIDATION · {position.liquidation_price.toFixed(pricePrecision)}</span>
+        </div>
+      )}
 
       {showTakeProfitZone && (
         <div
           className={`position-bracket-zone profit persistent ${
             isTakeProfitDraft ? "draft" : ""
           } ${isTakeProfitPending ? "pending" : ""} ${
-            coordinates.isTakeProfitHighlighted ||
-            coordinates.isPositionHighlighted
+            coordinates.isTakeProfitHighlighted || coordinates.isPositionHighlighted
               ? "highlighted"
               : ""
           }`}
           style={{
             left: coordinates.paneLeft,
             top: Math.min(coordinates.entryY, coordinates.takeProfitY),
-            height: Math.max(
-              2,
-              Math.abs(coordinates.takeProfitY - coordinates.entryY),
-            ),
+            height: Math.max(2, Math.abs(coordinates.takeProfitY - coordinates.entryY)),
             width: coordinates.paneWidth,
           }}
         >
@@ -2052,20 +1823,13 @@ export default function PositionBracketOverlay({
         <div
           className={`position-bracket-zone loss persistent ${
             isStopDraft ? "draft" : ""
-          } ${isStopProtectingProfit ? "profit-protected" : ""} ${
-            isStopPending ? "pending" : ""
-          } ${
-            coordinates.isStopHighlighted || coordinates.isPositionHighlighted
-              ? "highlighted"
-              : ""
+          } ${isStopProtectingProfit ? "profit-protected" : ""} ${isStopPending ? "pending" : ""} ${
+            coordinates.isStopHighlighted || coordinates.isPositionHighlighted ? "highlighted" : ""
           }`}
           style={{
             left: coordinates.paneLeft,
             top: Math.min(coordinates.entryY, coordinates.stopY),
-            height: Math.max(
-              2,
-              Math.abs(coordinates.stopY - coordinates.entryY),
-            ),
+            height: Math.max(2, Math.abs(coordinates.stopY - coordinates.entryY)),
             width: coordinates.paneWidth,
           }}
         >
@@ -2075,10 +1839,8 @@ export default function PositionBracketOverlay({
 
       {preview && (
         <div
-          className={`position-bracket-zone ${
-            dragKind === "TAKE_PROFIT" ? "profit" : "loss"
-          } ${
-            // FEATURE: mirror the saved-zone profit-protection color while the
+          className={`position-bracket-zone ${dragKind === "TAKE_PROFIT" ? "profit" : "loss"} ${
+            // mirror the saved-zone profit-protection color while the
             // stop is being positioned, so the user sees the state before commit.
             dragKind === "STOP_LOSS" &&
             position &&
@@ -2098,8 +1860,7 @@ export default function PositionBracketOverlay({
         >
           <span style={{ top: preview.labelTop - 11 }}>
             {dragKind === "TAKE_PROFIT" ? "FULL TP" : "STOP LOSS"}{" "}
-            {previewPrice?.toFixed(pricePrecision)} ·{" "}
-            {Math.abs(preview.distancePct).toFixed(2)}%
+            {previewPrice?.toFixed(pricePrecision)} · {Math.abs(preview.distancePct).toFixed(2)}%
           </span>
           <div className="position-bracket-r-multiple">
             {dragKind === "TAKE_PROFIT" ? takeProfitRLabel : "-1R"}
@@ -2125,12 +1886,12 @@ export default function PositionBracketOverlay({
             onPointerDown={beginMoveTakeProfitDraft}
             title="Click, move the mouse, then click again to place full take profit"
           >
-            TP FULL · {displayedTakeProfitPrice.toFixed(pricePrecision)}
+            TP FULL · {displayedTakeProfitPrice!.toFixed(pricePrecision)}
           </span>
         </div>
       )}
 
-      {/* FIX: Hide the dashed entry line together with the TP/SL controls.
+      {/* Hide the dashed entry line together with the TP/SL controls.
           Previously only the buttons were gated by areEntryControlsVisible,
           which left a stray dashed horizontal line on an otherwise-clean chart. */}
       {areEntryControlsVisible && (
@@ -2147,15 +1908,13 @@ export default function PositionBracketOverlay({
           {hasDraftProtection && (
             <div
               ref={entryControlsRef}
-              className={`position-entry-controls ${
-                isEntryControlsMoving ? "moving" : ""
-              }`}
+              className={`position-entry-controls ${isEntryControlsMoving ? "moving" : ""}`}
               style={{
                 transform: `translate(${entryControlsOffset.x}px, ${entryControlsOffset.y}px)`,
               }}
             >
               <div className="position-bracket-handles">
-                {/* FEATURE: The chart itself only exposes HIDE. Once hidden, no
+                {/* The chart itself only exposes HIDE. Once hidden, no
                     SHOW control remains on-chart; restoring these controls is
                     intentionally done from the Positions panel so long-held
                     positions can keep the chart completely clean. */}
@@ -2219,7 +1978,7 @@ export default function PositionBracketOverlay({
                     </button>
                   ))}
 
-                {/* FEATURE: Keep the move affordance at the far-right edge of
+                {/* Keep the move affordance at the far-right edge of
                     the action row. Placing it after the destructive close
                     control makes the stable order HIDE → X → MOVE and keeps
                     the arrow from visually leading the primary actions. */}
@@ -2232,9 +1991,7 @@ export default function PositionBracketOverlay({
                   aria-pressed={isEntryControlsMoving}
                   onPointerDown={handleEntryControlsMovePointerDown}
                   title={
-                    isEntryControlsMoving
-                      ? "Place position controls"
-                      : "Move position controls"
+                    isEntryControlsMoving ? "Place position controls" : "Move position controls"
                   }
                 >
                   ↗
@@ -2248,17 +2005,9 @@ export default function PositionBracketOverlay({
       {showStopLine && (
         <div
           className={`position-stop-line ${isStopDraft ? "draft" : ""} ${
-            stopControlsAbove
-              ? "controls-above"
-              : stopControlsBelow
-                ? "controls-below"
-                : ""
-          } ${isStopPending ? "pending" : ""} ${
-            savedStop ? "draggable" : ""
-          } ${
-            coordinates.isStopHighlighted || coordinates.isPositionHighlighted
-              ? "highlighted"
-              : ""
+            stopControlsAbove ? "controls-above" : stopControlsBelow ? "controls-below" : ""
+          } ${isStopPending ? "pending" : ""} ${savedStop ? "draggable" : ""} ${
+            coordinates.isStopHighlighted || coordinates.isPositionHighlighted ? "highlighted" : ""
           }`}
           style={{
             left: coordinates.paneLeft,
@@ -2278,22 +2027,14 @@ export default function PositionBracketOverlay({
             />
           )}
 
-          {/* FEATURE: the visible SL badge is now the primary move handle.
+          {/* the visible SL badge is now the primary move handle.
               Previously only the thin invisible strip across the price line
               was interactive, so clicking the obvious "SL FULL · price"
               control did nothing. Both targets start the same cancel-and-
               replace flow, and the adjacent X remains cancel-only. */}
           <span
-            className={
-              (savedStop || isStopDraft) && !isSubmitting
-                ? "move-handle"
-                : undefined
-            }
-            onPointerDown={
-              (savedStop || isStopDraft) && !isSubmitting
-                ? beginMoveStop
-                : undefined
-            }
+            className={(savedStop || isStopDraft) && !isSubmitting ? "move-handle" : undefined}
+            onPointerDown={(savedStop || isStopDraft) && !isSubmitting ? beginMoveStop : undefined}
             title={
               savedStop
                 ? "Click, move the mouse, then click again to move the stop loss"
@@ -2302,15 +2043,11 @@ export default function PositionBracketOverlay({
                   : undefined
             }
           >
-            SL FULL · {displayedStopPrice.toFixed(pricePrecision)}
+            SL FULL · {displayedStopPrice!.toFixed(pricePrecision)}
           </span>
 
           {savedStop && (
-            <button
-              disabled={isSubmitting}
-              onPointerDown={cancelStop}
-              title="Cancel stop loss"
-            >
+            <button disabled={isSubmitting} onPointerDown={cancelStop} title="Cancel stop loss">
               ×
             </button>
           )}
@@ -2323,10 +2060,7 @@ export default function PositionBracketOverlay({
             edgeDrag === "ZONE_RIGHT" ? "active" : ""
           }`}
           style={{
-            left:
-              coordinates.paneLeft +
-              coordinates.paneWidth -
-              ZONE_EDGE_HANDLE_WIDTH_PX / 2,
+            left: coordinates.paneLeft + coordinates.paneWidth - ZONE_EDGE_HANDLE_WIDTH_PX / 2,
             top: edgeHandleBounds.top,
             height: edgeHandleBounds.height,
           }}

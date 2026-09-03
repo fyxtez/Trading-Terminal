@@ -1,5 +1,5 @@
 /*
- * FIX: keep drawing notifications inside the actual candle plotting area.
+ * keep drawing notifications inside the actual candle plotting area.
  * Lightweight Charts renders the right price scale and bottom time scale
  * inside .chart-wrap, so anchoring at 16px covered both axes. These insets
  * deliberately reserve room for those scales while keeping the stack pinned
@@ -37,7 +37,7 @@
 }
 
 /*
- * FEATURE: compact glyphs identify drawing moves and triggered alerts while
+ * compact glyphs identify drawing moves and triggered alerts while
  * using almost no horizontal space, allowing the shared popup to stay short.
  */
 .drawing-move-toast-icon {
@@ -53,7 +53,7 @@
 }
 
 /*
- * FEATURE: triggered alerts use the same toast chrome as drawing moves, but
+ * triggered alerts use the same toast chrome as drawing moves, but
  * slightly emphasize the icon so navigation-worthy events scan immediately.
  */
 .drawing-move-toast.alert-triggered .drawing-move-toast-icon {
@@ -62,7 +62,7 @@
 }
 
 /*
- * FIX: price-alert navigation belongs to the full popup rather than a small
+ * price-alert navigation belongs to the full popup rather than a small
  * action button. Pointer/focus treatment makes that larger hit target obvious
  * while preserving keyboard access for the same action.
  */
@@ -125,7 +125,7 @@
 }
 
 /*
- * FEATURE: the muted track makes the remaining lifetime readable at a glance,
+ * the muted track makes the remaining lifetime readable at a glance,
  * while the amber fill drains right-to-left for each independent 3s timer.
  */
 .drawing-move-toast-progress-track {
@@ -150,9 +150,9 @@
 }
 
 /*
- * FIX: price alerts intentionally stay on screen for 10 seconds so a user
+ * price alerts intentionally stay on screen for 10 seconds so a user
  * watching another symbol has more time to notice the alert and open its chart.
- * FIX: match the new 10-second alert lifetime so the progress bar remains an
+ * match the new 10-second alert lifetime so the progress bar remains an
  * accurate visual countdown instead of disappearing halfway through the toast.
  */
 .drawing-move-toast-progress.alert-progress {
@@ -170,7 +170,7 @@
 }
 
 /*
- * FIX: on very narrow chart panes there may not be enough room to reserve the
+ * on very narrow chart panes there may not be enough room to reserve the
  * full desktop price-scale inset. Keep the toast usable without letting it
  * overflow the chart or cover most of the candle area.
  */
@@ -187,7 +187,7 @@
     padding-inline: 8px;
   }
 
-  /* FIX: keep the full-toast alert hit target layout on narrow chart panes too. */
+  /* keep the full-toast alert hit target layout on narrow chart panes too. */
   .drawing-move-toast.alert-triggered {
     grid-template-columns: 22px minmax(0, 1fr);
   }

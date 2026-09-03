@@ -33,9 +33,7 @@ export default function DiagnosticsSection({
 }: DiagnosticsSectionProps) {
   const backend = diagnostics.backend;
   const expanded = forceExpanded || isExpanded;
-  const sidecarStatus = diagnostics.isDesktop
-    ? diagnostics.backendConnection
-    : "browser-mode";
+  const sidecarStatus = diagnostics.isDesktop ? diagnostics.backendConnection : "browser-mode";
   const userStreamStatus =
     diagnostics.frontendStreamConnection === "disabled"
       ? "disabled"
@@ -50,27 +48,31 @@ export default function DiagnosticsSection({
     {
       label: "Exchange connectivity",
       status: backend?.exchange.status ?? "unavailable",
-      detail: backend?.exchange.lastError
-        ?? `Last success ${relativeTime(backend?.exchange.lastSuccessAtMs ?? null)}`,
+      detail:
+        backend?.exchange.lastError ??
+        `Last success ${relativeTime(backend?.exchange.lastSuccessAtMs ?? null)}`,
     },
     {
       label: "Market data",
       status: diagnostics.marketConnection,
-      detail: diagnostics.marketConnection === "connected"
-        ? "Live candle polling is current"
-        : "Chart may be showing the last known candle",
+      detail:
+        diagnostics.marketConnection === "connected"
+          ? "Live candle polling is current"
+          : "Chart may be showing the last known candle",
     },
     {
       label: "User stream",
       status: userStreamStatus,
-      detail: backend?.userStream.lastError
-        ?? `Last backend stream event ${relativeTime(backend?.userStream.lastEventAtMs ?? null)}`,
+      detail:
+        backend?.userStream.lastError ??
+        `Last backend stream event ${relativeTime(backend?.userStream.lastEventAtMs ?? null)}`,
     },
     {
       label: "Reconciliation",
       status: backend?.reconciliation.status ?? "unavailable",
-      detail: backend?.reconciliation.lastError
-        ?? `${backend?.reconciliation.driftCount ?? 0} cache drift repair(s) · last check ${relativeTime(backend?.reconciliation.lastSuccessAtMs ?? null)}`,
+      detail:
+        backend?.reconciliation.lastError ??
+        `${backend?.reconciliation.driftCount ?? 0} cache drift repair(s) · last check ${relativeTime(backend?.reconciliation.lastSuccessAtMs ?? null)}`,
     },
     {
       label: "Rejected requests",
@@ -112,9 +114,11 @@ export default function DiagnosticsSection({
         <>
           <div className="settings-diagnostics-toolbar">
             <small>
-              {diagnostics.isLoading && !backend
-                ? <LoadingIndicator variant="inline" label="Loading diagnostics" />
-                : `Updated ${relativeTime(diagnostics.refreshedAt)}`}
+              {diagnostics.isLoading && !backend ? (
+                <LoadingIndicator variant="inline" label="Loading diagnostics" />
+              ) : (
+                `Updated ${relativeTime(diagnostics.refreshedAt)}`
+              )}
             </small>
             <button type="button" onClick={() => void diagnostics.refresh()}>
               REFRESH
@@ -132,7 +136,8 @@ export default function DiagnosticsSection({
             ))}
           </div>
           <p className="settings-diagnostics-note">
-            Counters reset with the backend. Secrets, request bodies and private URLs are never included.
+            Counters reset with the backend. Secrets, request bodies and private URLs are never
+            included.
           </p>
         </>
       )}

@@ -45,11 +45,7 @@ export function TemporaryTradePriceLine({
   if (top === null) return null;
 
   return (
-    <div
-      className="temporary-trade-price-line"
-      style={{ top }}
-      aria-hidden="true"
-    >
+    <div className="temporary-trade-price-line" style={{ top }} aria-hidden="true">
       <span className="temporary-trade-price-label">
         {price.toLocaleString(undefined, {
           minimumFractionDigits: pricePrecision,
@@ -123,9 +119,7 @@ export function ReduceOrderEditor({
           }}
           aria-label="Take-profit percentage"
         />
-        <output className="chart-reduce-order-editor-value">
-          {editor.reducePct}%
-        </output>
+        <output className="chart-reduce-order-editor-value">{editor.reducePct}%</output>
       </div>
       <div className="chart-reduce-order-editor-actions">
         <button
@@ -136,12 +130,7 @@ export function ReduceOrderEditor({
         >
           Cancel
         </button>
-        <button
-          type="button"
-          className="primary"
-          disabled={editor.isSubmitting}
-          onClick={onSubmit}
-        >
+        <button type="button" className="primary" disabled={editor.isSubmitting} onClick={onSubmit}>
           {editor.isSubmitting ? "Updating…" : "Update TP"}
         </button>
       </div>
@@ -168,12 +157,7 @@ type ChartTextEditorProps = {
   onCancel: () => void;
 };
 
-export function ChartTextEditor({
-  editor,
-  onChange,
-  onCommit,
-  onCancel,
-}: ChartTextEditorProps) {
+export function ChartTextEditor({ editor, onChange, onCommit, onCancel }: ChartTextEditorProps) {
   // Keep the ref callback stable so typing does not refocus and reselect the
   // input on every render. preventScroll also avoids shifting a zoomed chart.
   const focusEditor = useCallback((element: HTMLInputElement | null) => {

@@ -59,9 +59,9 @@ export type HorizontalDrawing = {
   orderRemainingPct?: number;
   orderPricePending?: boolean;
   orderChasing?: boolean;
-  /** FEATURE: projected isolated liquidation while this entry LIMIT is resting. */
+  /** projected isolated liquidation while this entry LIMIT is resting. */
   estimatedLiquidationPrice?: number;
-  /** FEATURE: hides only the projected liquidation guide, never the order line. */
+  /** hides only the projected liquidation guide, never the order line. */
   estimatedLiquidationHidden?: boolean;
   timeframe?: Interval;
 };

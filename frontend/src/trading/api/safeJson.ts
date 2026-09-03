@@ -47,8 +47,6 @@ export function parseOrderJsonText(text: string): unknown {
  * the common case, since almost every call site just wants
  * `await response.json()` with this same precision-preserving behavior.
  */
-export async function parseOrderJsonResponse(
-  response: Response,
-): Promise<unknown> {
+export async function parseOrderJsonResponse(response: Response): Promise<unknown> {
   return parseOrderJsonText(await response.text());
 }

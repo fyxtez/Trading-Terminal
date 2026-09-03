@@ -24,9 +24,7 @@ type AlertToastItem = {
 };
 
 type ToastItem = DrawingToastItem | AlertToastItem;
-type ToastInput =
-  | Omit<DrawingToastItem, "id">
-  | Omit<AlertToastItem, "id">;
+type ToastInput = Omit<DrawingToastItem, "id"> | Omit<AlertToastItem, "id">;
 
 type DrawingMoveToastProps = {
   onOpenAlertSymbol: (symbol: string) => void;
@@ -36,7 +34,7 @@ const DRAWING_AUTO_HIDE_MS = 3000;
 const ALERT_AUTO_HIDE_MS = 10000;
 
 /**
- * FEATURE: use a tiny tool-shaped glyph so stacked move notifications are
+ * use a tiny tool-shaped glyph so stacked move notifications are
  * easier to scan without making the toast wider. The glyph is decorative;
  * the text remains the source of truth for accessibility.
  */
@@ -53,15 +51,13 @@ function drawingGlyph(label: string) {
 }
 
 /**
- * FEATURE: the existing drawing-move stack also surfaces backend price-alert
+ * the existing drawing-move stack also surfaces backend price-alert
  * triggers. Keeping both event types in one stack prevents overlapping toast
  * systems while letting an alert from another symbol provide a direct chart
  * navigation action. Drawing toasts keep the fast 3s lifetime, while alert
  * toasts stay visible for at least 10s so there is enough time to notice and open them.
  */
-export default function DrawingMoveToast({
-  onOpenAlertSymbol,
-}: DrawingMoveToastProps) {
+export default function DrawingMoveToast({ onOpenAlertSymbol }: DrawingMoveToastProps) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextToastIdRef = useRef(1);
   const hideTimersRef = useRef<Map<number, number>>(new Map());
@@ -70,15 +66,14 @@ export default function DrawingMoveToast({
     const appendToast = (toast: ToastInput) => {
       const id = nextToastIdRef.current++;
 
-      // FEATURE: append instead of replacing so rapid drawing edits and alert
+      // append instead of replacing so rapid drawing edits and alert
       // triggers remain independently actionable until their own timers expire.
       setToasts((current) => [...current, { ...toast, id } as ToastItem]);
 
-      // FIX: price-alert notifications now remain visible for 10 seconds because
+      // price-alert notifications now remain visible for 10 seconds because
       // 5 seconds was too easy to miss while watching another chart. Drawing
       // confirmations remain intentionally brief at 3 seconds.
-      const autoHideMs =
-        toast.kind === "alert" ? ALERT_AUTO_HIDE_MS : DRAWING_AUTO_HIDE_MS;
+      const autoHideMs = toast.kind === "alert" ? ALERT_AUTO_HIDE_MS : DRAWING_AUTO_HIDE_MS;
 
       const timer = window.setTimeout(() => {
         setToasts((current) => current.filter((item) => item.id !== id));
@@ -98,7 +93,7 @@ export default function DrawingMoveToast({
       const symbol = event.detail?.symbol?.trim().toUpperCase();
       if (!symbol) return;
 
-      // FEATURE: backend events use exchange pair symbols (for example LITUSDT)
+      // backend events use exchange pair symbols (for example LITUSDT)
       // while chart routes/tabs use the base ticker label. Resolve the same
       // display label used everywhere else so the clickable toast identifies LIT.
       const displaySymbol = getSymbolInfo(symbol).label;
@@ -133,7 +128,7 @@ export default function DrawingMoveToast({
 
   const undo = (id: number) => {
     /*
-     * FEATURE: simulate the exact Ctrl+Z hotkey rather than duplicating undo
+     * simulate the exact Ctrl+Z hotkey rather than duplicating undo
      * logic here. This keeps every drawing toast aligned with the existing
      * combined drawing + alert history stack.
      */
@@ -150,7 +145,7 @@ export default function DrawingMoveToast({
   };
 
   const openAlertSymbol = (toast: AlertToastItem) => {
-    // FEATURE: navigating through the app's tab API opens the alerted symbol
+    // navigating through the app's tab API opens the alerted symbol
     // exactly like the symbol switcher, preserving tab/category behavior and
     // avoiding a full page reload or hand-written route mutation here.
     onOpenAlertSymbol(toast.symbol);
@@ -158,7 +153,7 @@ export default function DrawingMoveToast({
   };
 
   /*
-   * FIX: alerts use the entire toast as the navigation target rather than a
+   * alerts use the entire toast as the navigation target rather than a
    * small Open button. The matching keyboard handlers keep the larger target
    * accessible without changing drawing-toast behavior.
    */
@@ -211,7 +206,7 @@ export default function DrawingMoveToast({
             </button>
           )}
 
-          {/* FIX: countdown duration mirrors each toast's actual lifetime: drawing
+          {/* countdown duration mirrors each toast's actual lifetime: drawing
               confirmations remain 3s, while alert notifications now stay visible 10s. */}
           <div className="drawing-move-toast-progress-track" aria-hidden="true">
             <div

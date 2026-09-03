@@ -28,7 +28,7 @@ function configFromBackend(entry: BackendSymbol): SymbolConfig {
     executionEnabled: entry.data_source === "binance",
     chartDecimals: existing?.chartDecimals ?? (entry.data_source === "mexc" ? 5 : 4),
     protected: entry.protected,
-    // FEATURE: retain Binance's underlying-asset classification so every UI
+    // retain Binance's underlying-asset classification so every UI
     // consumer uses the same answer instead of separate ticker guesses.
     marketKind: entry.market_kind ?? "crypto",
   };
@@ -50,7 +50,7 @@ function sortRegistry(entries: readonly BackendSymbol[]): BackendSymbol[] {
 function loadSavedSymbol(): TradingSymbol {
   try {
     const saved = localStorage.getItem(SYMBOL_STORAGE_KEY)?.toUpperCase();
-    // FIX: this used to gate on isTradingSymbol(saved), which reads the
+    // this used to gate on isTradingSymbol(saved), which reads the
     // live symbol registry - still just the static built-in list at this
     // point, since useSymbol()'s backend fetch for user-added symbols
     // hasn't resolved yet (this runs synchronously, before any effect
@@ -68,7 +68,9 @@ function loadSavedSymbol(): TradingSymbol {
 }
 
 function saveSymbol(symbol: TradingSymbol): void {
-  try { localStorage.setItem(SYMBOL_STORAGE_KEY, symbol); } catch {}
+  try {
+    localStorage.setItem(SYMBOL_STORAGE_KEY, symbol);
+  } catch {}
 }
 
 function parseSymbolFromPath(): TradingSymbol | null {
@@ -78,7 +80,9 @@ function parseSymbolFromPath(): TradingSymbol | null {
     const upper = segment.toUpperCase();
     if (isTradingSymbol(upper)) return upper;
     return getAvailableSymbols().find((s) => getSymbolInfo(s).label === upper) ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function writeSymbolToPath(symbol: TradingSymbol): void {
@@ -92,13 +96,17 @@ function writeSymbolToPath(symbol: TradingSymbol): void {
 
 function resolveInitialSymbol(): TradingSymbol {
   const fromUrl = parseSymbolFromPath();
-  if (fromUrl) { saveSymbol(fromUrl); return fromUrl; }
+  if (fromUrl) {
+    saveSymbol(fromUrl);
+    return fromUrl;
+  }
   return loadSavedSymbol();
 }
 
 export function useSymbol() {
   const [symbol, setSymbolState] = useState<TradingSymbol>(resolveInitialSymbol);
-  const [availableSymbols, setAvailableSymbols] = useState<readonly TradingSymbol[]>(getAvailableSymbols());
+  const [availableSymbols, setAvailableSymbols] =
+    useState<readonly TradingSymbol[]>(getAvailableSymbols());
   const [symbolRegistryError, setSymbolRegistryError] = useState<string | null>(null);
   /**
    * False until syncRegistry() succeeds for the first time. Before that,
@@ -130,7 +138,9 @@ export function useSymbol() {
 
       setSymbolState((current) => {
         if (next.includes(current)) return current;
-        const fallback = next.includes(DEFAULT_SYMBOL) ? DEFAULT_SYMBOL : next[0] ?? DEFAULT_SYMBOL;
+        const fallback = next.includes(DEFAULT_SYMBOL)
+          ? DEFAULT_SYMBOL
+          : (next[0] ?? DEFAULT_SYMBOL);
         saveSymbol(fallback);
         writeSymbolToPath(fallback);
         return fallback;
@@ -150,7 +160,9 @@ export function useSymbol() {
     }
   }, []);
 
-  useEffect(() => { void syncRegistry(); }, [syncRegistry]);
+  useEffect(() => {
+    void syncRegistry();
+  }, [syncRegistry]);
 
   const setSymbol = useCallback((next: TradingSymbol) => {
     setSymbolState((current) => {

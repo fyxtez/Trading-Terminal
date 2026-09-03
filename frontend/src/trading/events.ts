@@ -25,16 +25,14 @@ export async function getAuthenticatedTradingWebSocketUrl(): Promise<string> {
   if (typeof body.ticket !== "string" || !body.ticket) {
     throw new Error("WebSocket ticket response is invalid");
   }
-  const url = new URL(
-    `${websocketBaseUrl(TRADING_API_BASE_URL)}${TRADING_WEBSOCKET_ENDPOINT}`,
-  );
+  const url = new URL(`${websocketBaseUrl(TRADING_API_BASE_URL)}${TRADING_WEBSOCKET_ENDPOINT}`);
   url.searchParams.set("ticket", body.ticket);
   return url.toString();
 }
 
 export function parseTradingStreamEvent(raw: string): TradingStreamEvent | null {
   try {
-    // FIX: this used to be a plain JSON.parse(raw), which silently
+    // this used to be a plain JSON.parse(raw), which silently
     // corrupts order_id in ORDER_EXECUTED events the exact same way
     // every other place in this app was hit by it - see
     // parseOrderJsonText's own comment for the full story. This is a

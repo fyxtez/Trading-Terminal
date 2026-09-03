@@ -118,7 +118,7 @@ type ChartPanelProps = {
   /** Passed through to PositionBracketOverlay's own quick-close X button. */
   onPositionClosed: (side: TradeSide, symbol: string, price?: number) => void;
   /**
-   * FEATURE: triggered alerts can belong to a background symbol. The shared
+   * triggered alerts can belong to a background symbol. The shared
    * canvas toast uses this callback to open that symbol through App's normal
    * chart-tab path instead of navigating the browser directly.
    */
@@ -147,7 +147,7 @@ type ChartPanelProps = {
    * Null whenever nothing's been hovered long enough yet.
    */
   hoveredDrawingInfo: { drawing: Drawing; point: ScreenPoint } | null;
-  /** FEATURE: chart-local editor for an existing reduce-only TP order. */
+  /** chart-local editor for an existing reduce-only TP order. */
   reduceOrderEditor: {
     drawingId: string;
     left: number;
@@ -223,13 +223,13 @@ type ChartPanelProps = {
   chartTimeZoneLabel: string;
   cancelTooltip: ScreenPoint | null;
   chaseTooltip: ScreenPoint | null;
-  /** FEATURE: hover explanation for a pending order's projected liquidation preview. */
+  /** hover explanation for a pending order's projected liquidation preview. */
   estimatedLiquidationTooltip: ScreenPoint | null;
   positionPnl: number | null;
   positionRealizedPnl: number | null;
   totalPnl: number | null;
   showCandleCountdown: boolean;
-  /** FEATURE: local Settings preference controls whether chart branding is rendered. */
+  /** local Settings preference controls whether chart branding is rendered. */
   showWatermark: boolean;
   showDrawingSetBadge: boolean;
   activeDrawingSetName: string;
@@ -246,7 +246,6 @@ type ChartPanelProps = {
   onDoubleClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onMobileDoubleTap: (clientX: number, clientY: number) => void;
 };
-
 
 const DRAWING_TOOL_CURSOR_ICONS: Record<DrawingTool, string> = {
   cursor: "↖",
@@ -411,7 +410,7 @@ export default function ChartPanel({
       }
 
       /*
-       * FEATURE: anchor the candle-close timer to the live/latest candle
+       * anchor the candle-close timer to the live/latest candle
        * instead of the chart's top-left corner. The small right/up offset
        * keeps the badge visually attached to the candle without covering its
        * body, while the pane clamps stop it from leaking into the price scale.
@@ -421,17 +420,14 @@ export default function ChartPanel({
       candleCountdownBaseAnchorRef.current = { left: baseLeft, top: baseTop };
 
       /*
-       * FEATURE: keep the user's timer adjustment relative to the current
+       * keep the user's timer adjustment relative to the current
        * candle rather than converting it into a fixed screen position. This
        * means the timer still follows the live candle while preserving the
        * chosen small X/Y offset. The hard limits intentionally prevent the
        * badge from being moved so far away that it loses its candle context.
        */
       const nextLeft = Math.round(
-        Math.min(
-          Math.max(8, baseLeft + candleCountdownOffset.x),
-          Math.max(8, paneWidth - 102),
-        ),
+        Math.min(Math.max(8, baseLeft + candleCountdownOffset.x), Math.max(8, paneWidth - 102)),
       );
       const nextTop = Math.round(
         Math.min(
@@ -461,14 +457,13 @@ export default function ChartPanel({
     showCandleCountdown,
   ]);
 
-
   const handleCandleCountdownMovePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
 
       if (isCandleCountdownMoving) {
-        // FIX: pressing the move button again drops the timer immediately.
+        // pressing the move button again drops the timer immediately.
         setIsCandleCountdownMoving(false);
         setIsCandleCountdownMoveArmed(false);
         return;
@@ -485,7 +480,7 @@ export default function ChartPanel({
       };
 
       /*
-       * FIX: the move-arrow click is now both the unlock and pick-up action.
+       * the move-arrow click is now both the unlock and pick-up action.
        * Capturing the pointer-to-badge offset here prevents the timer from
        * jumping when it immediately starts following the cursor.
        */
@@ -503,7 +498,7 @@ export default function ChartPanel({
       event.stopPropagation();
 
       if (isCandleCountdownMoving) {
-        // FEATURE: the second click drops the timer and locks the chosen offset.
+        // the second click drops the timer and locks the chosen offset.
         setIsCandleCountdownMoving(false);
         setIsCandleCountdownMoveArmed(false);
         return;
@@ -518,12 +513,7 @@ export default function ChartPanel({
       };
       setIsCandleCountdownMoving(true);
     },
-    [
-      candleCountdownAnchor,
-      chartWrapRef,
-      isCandleCountdownMoveArmed,
-      isCandleCountdownMoving,
-    ],
+    [candleCountdownAnchor, chartWrapRef, isCandleCountdownMoveArmed, isCandleCountdownMoving],
   );
 
   useEffect(() => {
@@ -535,13 +525,11 @@ export default function ChartPanel({
       if (wrap === null || base === null) return;
 
       const rect = wrap.getBoundingClientRect();
-      const desiredLeft =
-        event.clientX - rect.left - candleCountdownGrabOffsetRef.current.x;
-      const desiredTop =
-        event.clientY - rect.top - candleCountdownGrabOffsetRef.current.y;
+      const desiredLeft = event.clientX - rect.left - candleCountdownGrabOffsetRef.current.x;
+      const desiredTop = event.clientY - rect.top - candleCountdownGrabOffsetRef.current.y;
 
       /*
-       * FEATURE: movement is deliberately constrained to a compact area
+       * movement is deliberately constrained to a compact area
        * around the candle origin (±80 px X / ±60 px Y). This keeps the timer
        * customizable without allowing it to become visually detached from
        * the candle it describes.
@@ -559,7 +547,7 @@ export default function ChartPanel({
       }
 
       /*
-       * FIX: after the arrow has picked the timer up, the very next click
+       * after the arrow has picked the timer up, the very next click
        * anywhere drops it. Consume that placement pointer-down so the same
        * click cannot accidentally interact with the chart underneath.
        */
@@ -615,7 +603,7 @@ export default function ChartPanel({
         const offset = 14;
 
         /*
-         * FEATURE: keep the active drawing-tool icon beside the pointer so the
+         * keep the active drawing-tool icon beside the pointer so the
          * user does not need to look back at the toolbar before drawing. It
          * normally sits above-right, flips left/below near chart edges, and is
          * moved through this ref instead of React state so pointer movement
@@ -626,9 +614,7 @@ export default function ChartPanel({
             ? localX + offset
             : localX - offset - indicatorSize;
         const top =
-          localY - offset - indicatorSize >= 0
-            ? localY - offset - indicatorSize
-            : localY + offset;
+          localY - offset - indicatorSize >= 0 ? localY - offset - indicatorSize : localY + offset;
 
         indicator.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
         indicator.style.opacity = "1";
@@ -752,7 +738,7 @@ export default function ChartPanel({
         />
       )}
 
-      {/* FIX: do not hide the entire shared canvas here. useDrawingCanvas now
+      {/* do not hide the entire shared canvas here. useDrawingCanvas now
           suppresses only user drawings, leaving TP/reduce order lines visible. */}
       <canvas ref={canvasRef} className="drawing-canvas" />
 
@@ -802,7 +788,7 @@ export default function ChartPanel({
       <PositionBracketOverlay
         key={symbol}
         symbol={symbol}
-        // FIX: pass the live timeframe so TP/SL zone width can be kept as an
+        // pass the live timeframe so TP/SL zone width can be kept as an
         // absolute time duration instead of reinterpreting the same bar count.
         interval={interval}
         chartWrapRef={chartWrapRef}
@@ -823,14 +809,9 @@ export default function ChartPanel({
         onToast={onSetTradeToast}
       />
 
-      {tradeToast && (
-        <TradeToast
-          tradeToast={tradeToast}
-          onDismiss={() => onSetTradeToast(null)}
-        />
-      )}
+      {tradeToast && <TradeToast tradeToast={tradeToast} onDismiss={() => onSetTradeToast(null)} />}
 
-      {/* FEATURE: render the watermark conditionally so Settings can hide it without changing chart behavior. */}
+      {/* render the watermark conditionally so Settings can hide it without changing chart behavior. */}
       {showWatermark && <ChartWatermark />}
 
       {isToolbarCollapsed && (
@@ -884,10 +865,9 @@ export default function ChartPanel({
 
       {/* <ChartIndicators /> */}
 
-      {!isChartLoading
-        && (positionPnl !== null || positionRealizedPnl !== null || totalPnl !== null)
-        && (
-          // FIX: flex collapses unavailable cards automatically; fixed offsets
+      {!isChartLoading &&
+        (positionPnl !== null || positionRealizedPnl !== null || totalPnl !== null) && (
+          // flex collapses unavailable cards automatically; fixed offsets
           // left an empty RPNL-sized gap whenever its backend lookup failed.
           <div className="chart-position-pnl-stack">
             {positionPnl !== null && <ChartPositionPnl pnl={positionPnl} />}
@@ -898,9 +878,7 @@ export default function ChartPanel({
           </div>
         )}
 
-      {!isChartLoading && (
-        <ChartTimezoneBadge label={chartTimeZoneLabel} />
-      )}
+      {!isChartLoading && <ChartTimezoneBadge label={chartTimeZoneLabel} />}
 
       {cancelTooltip && (
         <div
@@ -928,10 +906,10 @@ export default function ChartPanel({
             top: estimatedLiquidationTooltip.y,
           }}
         >
-          {/* FEATURE: make it explicit that EST. LIQ. is a pre-fill estimate,
+          {/* make it explicit that EST. LIQ. is a pre-fill estimate,
               not Binance's final liquidation price for an open position. */}
-          Estimated liquidation price if this limit order fills. Actual liquidation
-          can differ after execution.
+          Estimated liquidation price if this limit order fills. Actual liquidation can differ after
+          execution.
         </div>
       )}
 
@@ -943,7 +921,7 @@ export default function ChartPanel({
         />
       )}
 
-      {/* FEATURE: drawing-move feedback belongs to the chart workspace, not the
+      {/* drawing-move feedback belongs to the chart workspace, not the
           application viewport. Rendering it inside .chart-wrap keeps the toast
           anchored to the candle canvas bottom-right even when panels resize. */}
       <DrawingMoveToast onOpenAlertSymbol={onOpenAlertSymbol} />
@@ -955,7 +933,9 @@ export default function ChartPanel({
             <strong>MARKET DATA DEGRADED</strong>
             <span>{marketDataError}</span>
           </div>
-          <button type="button" onClick={onRetryMarketData}>RETRY</button>
+          <button type="button" onClick={onRetryMarketData}>
+            RETRY
+          </button>
         </div>
       )}
     </div>

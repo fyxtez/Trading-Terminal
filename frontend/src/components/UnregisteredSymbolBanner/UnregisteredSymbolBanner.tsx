@@ -22,7 +22,10 @@ type UnregisteredSymbolBannerProps = {
  * crashing the app), this offers a one-click fix: register the symbol on
  * whichever backend is active right now.
  */
-export default function UnregisteredSymbolBanner({ symbol, onRegistered }: UnregisteredSymbolBannerProps) {
+export default function UnregisteredSymbolBanner({
+  symbol,
+  onRegistered,
+}: UnregisteredSymbolBannerProps) {
   const [status, setStatus] = useState<"idle" | "pending" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const info = getSymbolInfo(symbol);

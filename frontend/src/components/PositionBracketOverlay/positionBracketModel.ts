@@ -39,10 +39,7 @@ function positionAnchorStorageKey(symbol: string): string {
   return `${POSITION_ANCHOR_STORAGE_PREFIX}${symbol.toUpperCase()}`;
 }
 
-export function loadPositionAnchor(
-  symbol: string,
-  side: "LONG" | "SHORT",
-): UTCTimestamp | null {
+export function loadPositionAnchor(symbol: string, side: "LONG" | "SHORT"): UTCTimestamp | null {
   try {
     const raw = localStorage.getItem(positionAnchorStorageKey(symbol));
     if (!raw) return null;
@@ -121,11 +118,7 @@ export function savePositionZonePad(
   anchorTime: UTCTimestamp | null,
   rightSeconds: number | null,
 ): void {
-  if (
-    anchorTime == null ||
-    rightSeconds == null ||
-    !Number.isFinite(rightSeconds)
-  ) {
+  if (anchorTime == null || rightSeconds == null || !Number.isFinite(rightSeconds)) {
     return;
   }
 
@@ -135,10 +128,7 @@ export function savePositionZonePad(
     anchorTime: Number(anchorTime),
     rightSeconds,
   };
-  localStorage.setItem(
-    positionZonePadStorageKey(symbol),
-    JSON.stringify(value),
-  );
+  localStorage.setItem(positionZonePadStorageKey(symbol), JSON.stringify(value));
 }
 
 export function clearPositionZonePad(symbol: string): void {

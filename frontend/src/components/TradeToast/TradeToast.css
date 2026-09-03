@@ -1,5 +1,5 @@
 .trade-toast {
-  /* FIX: unified with the canvas-centered notifications (AutoMarketOverlay's
+  /* unified with the canvas-centered notifications (AutoMarketOverlay's
    * .auto-market-error / .auto-market-instruction) instead of living as a
    * separate viewport-fixed toast pinned to the app's bottom-right corner -
    * having both meant two different notification systems could be visible
@@ -19,12 +19,12 @@
   box-shadow: var(--shadow-pop);
   color: var(--text);
   font-family: var(--font-mono);
-  /* FIX: bumped from 13.5px per request ("make font bigger size"). */
+  /* bumped from 13.5px per request ("make font bigger size"). */
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   /*
-   * FIX: this used to be `nowrap`, which was fine for the app's own
+   * this used to be `nowrap`, which was fine for the app's own
    * short, predictable success/pending messages ("Stop loss set @ X")
    * but broke the moment a longer message showed up - a raw passed-
    * through Binance error string (e.g. "Binance API error -2022:

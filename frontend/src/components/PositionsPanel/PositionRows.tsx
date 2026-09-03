@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
 import type { OpenPosition } from "../../trading/api/positions";
-import type {
-  OpenOrder,
-  UpdateReduceOrderResponse,
-} from "../../trading/api/orders";
+import type { OpenOrder, UpdateReduceOrderResponse } from "../../trading/api/orders";
 import { getCachedSymbolFilters } from "../../trading/api/exchangeInfo";
 import type { SavedStop } from "../../trading/stopLoss";
 import { parseReduceMetadata } from "../../trading/reduceMetadata";
@@ -15,10 +12,7 @@ import { parseReduceMetadata } from "../../trading/reduceMetadata";
 const SYNTHETIC_STOP_CLIENT_ORDER_ID_PREFIX = "fe-sl-full-";
 
 export function isSyntheticStopOrder(order: OpenOrder): boolean {
-  return (
-    order.clientOrderId?.startsWith(SYNTHETIC_STOP_CLIENT_ORDER_ID_PREFIX) ??
-    false
-  );
+  return order.clientOrderId?.startsWith(SYNTHETIC_STOP_CLIENT_ORDER_ID_PREFIX) ?? false;
 }
 
 export function isFullTakeProfitOrder(order: OpenOrder): boolean {
@@ -26,8 +20,7 @@ export function isFullTakeProfitOrder(order: OpenOrder): boolean {
     return false;
   }
 
-  const isReduce =
-    order.reduceOnly || order.clientOrderId?.startsWith("fe-red-") === true;
+  const isReduce = order.reduceOnly || order.clientOrderId?.startsWith("fe-red-") === true;
   if (!isReduce) return false;
 
   const metadata = parseReduceMetadata(order.clientOrderId);
@@ -74,7 +67,7 @@ function formatPriceForSymbol(value: number, symbol: string): string {
   const precision = getCachedSymbolFilters(symbol)?.pricePrecision;
 
   if (precision === undefined) {
-    // FIX: Positions can contain symbols that have never been opened on the
+    // Positions can contain symbols that have never been opened on the
     // chart, so their exchange filters may not be cached yet. Falling back to
     // two decimals turned prices such as PUMP 0.0029797 into a misleading 0.00.
     // Until the exact tick precision is known, preserve useful significant
@@ -137,9 +130,8 @@ export function PositionRow({
   isInteractive: boolean;
 }) {
   const isPositive = position.unrealized_pnl >= 0;
-  const realizedTone = position.realized_pnl === null
-    ? ""
-    : position.realized_pnl >= 0 ? "positive" : "negative";
+  const realizedTone =
+    position.realized_pnl === null ? "" : position.realized_pnl >= 0 ? "positive" : "negative";
 
   // Unlike Open Orders rows, a Positions row is always clickable - if
   // it's not for the currently active chart symbol, clicking it first
@@ -156,9 +148,7 @@ export function PositionRow({
 
   return (
     <div
-      className={`position-row focusable-order-row ${
-        isFocused ? "focused-order-row" : ""
-      }`}
+      className={`position-row focusable-order-row ${isFocused ? "focused-order-row" : ""}`}
       role="button"
       tabIndex={0}
       onClick={handleRowActivate}
@@ -177,16 +167,14 @@ export function PositionRow({
       <div className="position-symbol-cell">
         <strong>{position.symbol}</strong>
         <div>
-          <span className={`position-side ${position.side.toLowerCase()}`}>
-            {position.side}
-          </span>
+          <span className={`position-side ${position.side.toLowerCase()}`}>{position.side}</span>
           <span className="position-leverage">{position.leverage}x</span>
         </div>
       </div>
 
       <div className="position-value">
         <span>Size</span>
-        {/* FEATURE: SIZE is the current position notional, which tracks mark
+        {/* SIZE is the current position notional, which tracks mark
             price and is therefore more precise than margin × leverage. */}
         <strong>{moneyFormatter.format(position.size)} USDT</strong>
       </div>
@@ -215,9 +203,7 @@ export function PositionRow({
       <div className="position-value position-protection-value stop-loss">
         <span>Stop Loss</span>
         <strong>
-          {stopLossPrice === null
-            ? "—"
-            : formatPriceForSymbol(stopLossPrice, position.symbol)}
+          {stopLossPrice === null ? "—" : formatPriceForSymbol(stopLossPrice, position.symbol)}
         </strong>
       </div>
 
@@ -261,7 +247,7 @@ export function PositionRow({
 
       <div className="position-value">
         <span>Realized PNL</span>
-        {/* FEATURE: show only realized PNL proven to belong to this open
+        {/* show only realized PNL proven to belong to this open
             position lifecycle; incomplete Binance history is rendered as —. */}
         <strong className={realizedTone}>
           {position.realized_pnl === null
@@ -282,7 +268,6 @@ export function PositionRow({
           {isClosing ? "Closing…" : "Market"}
         </button>
       </div>
-
     </div>
   );
 }
@@ -309,9 +294,7 @@ export function OpenOrderRow({
   isUpdating: boolean;
   isChasing: boolean;
   onCancel: () => void;
-  onUpdateReduce: (
-    reducePct: number,
-  ) => Promise<UpdateReduceOrderResponse | undefined>;
+  onUpdateReduce: (reducePct: number) => Promise<UpdateReduceOrderResponse | undefined>;
   onChase: () => Promise<unknown>;
   isFocused: boolean;
   onFocus: () => void;
@@ -322,8 +305,7 @@ export function OpenOrderRow({
   const [isEditingReduce, setIsEditingReduce] = useState(false);
   const [reducePct, setReducePct] = useState(100);
   /**
-   * FIX (confusing mismatched percentages after editing a reduce order):
-   * when a requested reduce % computes to a quantity below the
+   * * when a requested reduce % computes to a quantity below the
    * exchange's minimum order size, the backend silently bumps the
    * quantity up to that minimum instead of rejecting it - which can make
    * the resulting percentage look completely disconnected from what was
@@ -335,9 +317,7 @@ export function OpenOrderRow({
   const [reduceBumpNotice, setReduceBumpNotice] = useState<string | null>(null);
   const isStopRow = isSyntheticStopOrder(order);
 
-  const isReduceLimit =
-    order.reduceOnly &&
-    (order.type === "LIMIT" || order.origType === "LIMIT");
+  const isReduceLimit = order.reduceOnly && (order.type === "LIMIT" || order.origType === "LIMIT");
 
   const reduceMath = useMemo(() => {
     if (!isReduceLimit || !position) {
@@ -358,27 +338,15 @@ export function OpenOrderRow({
           item.reduceOnly,
       )
       .reduce((sum, item) => {
-        const remaining = Math.max(
-          0,
-          Number(item.origQty) - Number(item.executedQty || 0),
-        );
+        const remaining = Math.max(0, Number(item.origQty) - Number(item.executedQty || 0));
         return sum + (Number.isFinite(remaining) ? remaining : 0);
       }, 0);
 
-    const currentQuantity = Math.max(
-      0,
-      Number(order.origQty) - Number(order.executedQty || 0),
-    );
-    const availableBefore = Math.max(
-      currentQuantity,
-      position.quantity - otherReserved,
-    );
+    const currentQuantity = Math.max(0, Number(order.origQty) - Number(order.executedQty || 0));
+    const availableBefore = Math.max(currentQuantity, position.quantity - otherReserved);
     const initialPct =
       availableBefore > 0
-        ? Math.max(
-            1,
-            Math.min(100, Math.round((currentQuantity / availableBefore) * 100)),
-          )
+        ? Math.max(1, Math.min(100, Math.round((currentQuantity / availableBefore) * 100)))
         : 100;
 
     return {
@@ -395,12 +363,8 @@ export function OpenOrderRow({
     setIsEditingReduce(true);
   };
 
-  const estimatedQuantity =
-    reduceMath.availableBefore * (reducePct / 100);
-  const estimatedRemaining = Math.max(
-    0,
-    reduceMath.availableBefore - estimatedQuantity,
-  );
+  const estimatedQuantity = reduceMath.availableBefore * (reducePct / 100);
+  const estimatedRemaining = Math.max(0, reduceMath.availableBefore - estimatedQuantity);
 
   const reduceDetailText = useMemo(() => {
     if (!isReduceLimit) return null;
@@ -409,10 +373,7 @@ export function OpenOrderRow({
     const quantityText = quantityFormatter.format(Number(order.origQty));
     const asset = baseAsset(order.symbol);
     const pctText = meta.reducePct != null ? `${meta.reducePct}%` : "REDUCE";
-    const leftText =
-      meta.remainingPct == null
-        ? ""
-        : ` · LEFT ${Math.max(0, meta.remainingPct)}%`;
+    const leftText = meta.remainingPct == null ? "" : ` · LEFT ${Math.max(0, meta.remainingPct)}%`;
 
     return `${pctText} · ${quantityText}${asset ? ` ${asset}` : ""}${leftText}`;
   }, [isReduceLimit, order.clientOrderId, order.origQty, order.symbol]);
@@ -445,7 +406,7 @@ export function OpenOrderRow({
         <div className="open-order-symbol-cell">
           <div className="open-order-symbol-top">
             {/*
-             * FEATURE: keep the symbol navigable even when this Open Orders
+             * keep the symbol navigable even when this Open Orders
              * row belongs to another chart symbol and is intentionally dimmed.
              * Stopping propagation prevents the symbol click from also firing
              * the row's focus/highlight action when the order is already active.
@@ -462,17 +423,11 @@ export function OpenOrderRow({
               {formatSymbolWithSlash(order.symbol)}
             </button>
             <span className={`position-side ${sideClass}`}>{order.side}</span>
-            {isReduceLimit && (
-              <span className="open-order-reduce-badge">REDUCE</span>
-            )}
-            {isStopRow && (
-              <span className="open-order-reduce-badge">FULL SL</span>
-            )}
+            {isReduceLimit && <span className="open-order-reduce-badge">REDUCE</span>}
+            {isStopRow && <span className="open-order-reduce-badge">FULL SL</span>}
           </div>
 
-          {reduceDetailText && (
-            <div className="open-order-reduce-detail">{reduceDetailText}</div>
-          )}
+          {reduceDetailText && <div className="open-order-reduce-detail">{reduceDetailText}</div>}
         </div>
 
         <div className="open-order-value">
@@ -542,8 +497,8 @@ export function OpenOrderRow({
           <div className="reduce-order-editor-copy">
             <strong>Update Limit Reduce</strong>
             <span>
-              {quantityFormatter.format(reduceMath.availableBefore)}{" "}
-              {baseAsset(order.symbol)} available after other TPs
+              {quantityFormatter.format(reduceMath.availableBefore)} {baseAsset(order.symbol)}{" "}
+              available after other TPs
             </span>
           </div>
 
@@ -555,15 +510,13 @@ export function OpenOrderRow({
             <div>
               <span>Order size</span>
               <strong>
-                {quantityFormatter.format(estimatedQuantity)}{" "}
-                {baseAsset(order.symbol)}
+                {quantityFormatter.format(estimatedQuantity)} {baseAsset(order.symbol)}
               </strong>
             </div>
             <div>
               <span>Left unreserved</span>
               <strong>
-                {quantityFormatter.format(estimatedRemaining)}{" "}
-                {baseAsset(order.symbol)}
+                {quantityFormatter.format(estimatedRemaining)} {baseAsset(order.symbol)}
               </strong>
             </div>
           </div>
@@ -605,17 +558,14 @@ export function OpenOrderRow({
                       setReduceBumpNotice(
                         `Requested ${Math.round(requested)}% was below the exchange's minimum order size, so it was bumped up to ${Math.round(actual)}%.`,
                       );
-                      window.setTimeout(
-                        () => setReduceBumpNotice(null),
-                        8_000,
-                      );
+                      window.setTimeout(() => setReduceBumpNotice(null), 8_000);
                     }
 
                     setIsEditingReduce(false);
                   })
                   .catch(() => {
                     /*
-                     * FIX: this had no .catch() at all - useOpenOrders.ts's
+                     * this had no .catch() at all - useOpenOrders.ts's
                      * updateReduceOrder deliberately re-throws after
                      * setting its own `error` state (see its own comment),
                      * expecting the caller to decide what to do with the
@@ -641,10 +591,7 @@ export function OpenOrderRow({
         </div>
       )}
 
-      {reduceBumpNotice && (
-        <p className="reduce-bump-notice">{reduceBumpNotice}</p>
-      )}
+      {reduceBumpNotice && <p className="reduce-bump-notice">{reduceBumpNotice}</p>}
     </>
   );
 }
-

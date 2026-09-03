@@ -6,11 +6,12 @@ import { publishSystemNotice } from "../diagnostics/events";
 const DEFAULT_PUBLIC_TERMINAL_URL = "https://demo.terminal.fyxtez.com";
 
 function alertChartUrl(symbol: string): string {
-  // FEATURE: use the same base-ticker route as App/useSymbol (`/BTC`, not
+  // use the same base-ticker route as App/useSymbol (`/BTC`, not
   // `/BTCUSDT`) so tapping an ntfy notification opens the intended chart.
-  const baseUrl = (
-    import.meta.env.VITE_PUBLIC_TERMINAL_URL ?? DEFAULT_PUBLIC_TERMINAL_URL
-  ).replace(/\/+$/, "");
+  const baseUrl = (import.meta.env.VITE_PUBLIC_TERMINAL_URL ?? DEFAULT_PUBLIC_TERMINAL_URL).replace(
+    /\/+$/,
+    "",
+  );
   return `${baseUrl}/${encodeURIComponent(getSymbolInfo(symbol).label)}`;
 }
 
@@ -44,7 +45,7 @@ export function loadStoredAlerts(storageKey: string): PriceAlert[] {
       ...alert,
       side: alert.side === "SHORT" ? "SHORT" : "LONG",
       pattern: VALID_PATTERNS.includes(alert.pattern) ? alert.pattern : "none",
-      // FIX: alerts saved before additionalInfo existed need an empty-string
+      // alerts saved before additionalInfo existed need an empty-string
       // default so the inline editor remains controlled after an upgrade.
       additionalInfo: typeof alert.additionalInfo === "string" ? alert.additionalInfo : "",
       locked: alert.locked === true,
@@ -89,21 +90,18 @@ export async function sendPriceAlertNotification(
   const displaySymbol = formatSymbolPair(symbol);
   const chartUrl = alertChartUrl(symbol);
 
-  const lines = [
-    `${displaySymbol} reached ${triggeredPrice}`,
-    `SETUP: ${side}`,
-  ];
+  const lines = [`${displaySymbol} reached ${triggeredPrice}`, `SETUP: ${side}`];
 
   if (pattern !== "none") {
     lines.push(`PATTERN: ${pattern.toUpperCase()}`);
   }
 
-  // FEATURE: match persistent backend alerts by appending user context only
+  // match persistent backend alerts by appending user context only
   // when supplied; blank notes add no empty line or placeholder text.
   const normalizedInfo = additionalInfo.trim();
   if (normalizedInfo) lines.push(normalizedInfo);
 
-  // FEATURE: keep a visible URL in the message for copy/share clients, while
+  // keep a visible URL in the message for copy/share clients, while
   // the Click header below makes tapping the notification open it directly.
   lines.push(chartUrl);
 
@@ -116,8 +114,7 @@ export async function sendPriceAlertNotification(
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Notification request failed";
+    const message = error instanceof Error ? error.message : "Notification request failed";
     publishSystemNotice({
       kind: "warning",
       title: "Notification delivery failed",

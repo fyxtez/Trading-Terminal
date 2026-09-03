@@ -47,10 +47,7 @@ export default function DrawingToolbar({
   };
 
   return (
-    <div
-      className={`drawing-panel ${isCollapsed ? "collapsed" : ""}`}
-      aria-hidden={isCollapsed}
-    >
+    <div className={`drawing-panel ${isCollapsed ? "collapsed" : ""}`} aria-hidden={isCollapsed}>
       <button
         className="tool-button"
         title="Hide toolbar"
@@ -107,12 +104,10 @@ export default function DrawingToolbar({
         ▭
       </button>
 
-      {/* FEATURE: dashed marquee selects every drawing whose on-screen bounds
+      {/* dashed marquee selects every drawing whose on-screen bounds
           intersect the user-drawn rectangle; Alt+G activates the same tool. */}
       <button
-        className={`tool-button group-select-tool ${
-          tool === "group-select" ? "active" : ""
-        }`}
+        className={`tool-button group-select-tool ${tool === "group-select" ? "active" : ""}`}
         title="Group selection marquee (click, move, click; Alt+G)"
         tabIndex={isCollapsed ? -1 : undefined}
         onClick={() => toggleTool("group-select")}

@@ -23,7 +23,8 @@ controls.
 - Drawing tools, drawing sets, trade markers, sessions, hotkeys, and chart alerts
 - Persistent SQLite-backed price alerts with optional ntfy/Telegram notifications
 - Explicit market-data degradation/retry UI and redacted runtime diagnostics
-- Dynamic symbol registry and locally cached symbol icons
+- Dynamic local symbol registry without an arbitrary account-wide limit, plus
+  best-effort locally cached symbol icons
 
 ## Repository layout
 
@@ -145,8 +146,7 @@ cargo test --locked
 
 cd ../frontend
 npm ci
-npm run test:run
-npm run build
+npm run check
 
 cd src-tauri
 cargo fmt --check
@@ -154,16 +154,19 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-GitHub Actions repeats the frontend build plus backend/Tauri formatting, Clippy
-and test checks on every push and pull request. The project still has very
-limited automated domain coverage, so a green build is necessary but not
-sufficient validation for trading flows.
+`npm run check` runs TypeScript and CSS lint guards, verifies Prettier formatting,
+runs the frontend tests, and creates a production build. Use `npm run format` to
+apply the repository's TS/TSX/CSS style. GitHub Actions repeats these checks plus
+backend/Tauri formatting, Clippy and tests on every push and pull request. A green
+build is necessary but not sufficient validation for real-money trading flows.
 
 ## Configuration
 
-Binance keys, the selected Binance network, private ntfy URLs and Telegram
+Binance keys, the selected Binance network, private ntfy topics and Telegram
 credentials belong only in the operating-system credential manager and are
-configured through the Tauri UI. Desktop Axum never falls back to `.env`. Tauri
+configured through the Tauri UI. A short ntfy topic is expanded to its
+`https://ntfy.sh/<topic>` publish URL before secure storage; complete URLs remain
+supported for self-hosted ntfy. Desktop Axum never falls back to `.env`. Tauri
 creates its API endpoint and capability in memory for each launch and passes
 the bootstrap payload to the sidecar over stdin, never through Vite, argv, a
 URL, or a file.
@@ -195,3 +198,4 @@ verified release targets, and v1 intentionally has no automatic updater.
 - [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
 - [Linux release procedure](docs/RELEASING.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
+- [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)

@@ -24,8 +24,7 @@ async function parseTradingResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json") ?? false;
 
-  // FIX (the actual cause behind every "-2011 Unknown order sent"/"order
-  // not found" mystery in this app): see parseOrderJsonText's own big
+  // see parseOrderJsonText's own big
   // comment - plain `response.json()` silently corrupts large Binance
   // order ids via JS's IEEE-754 number type.
   const body: any = isJson
@@ -43,10 +42,7 @@ async function parseTradingResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function postBinanceOrder<T>(
-  endpoint: string,
-  payload: unknown,
-): Promise<T> {
+async function postBinanceOrder<T>(endpoint: string, payload: unknown): Promise<T> {
   if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to trade");
 
   const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
@@ -75,7 +71,7 @@ export async function placeMarketOrder({
   const payload: MarketOrderRequest = {
     symbol: symbol.toUpperCase(),
     side,
-    // FIX: manual entries previously sent a fixed-$50 quantity with
+    // manual entries previously sent a fixed-$50 quantity with
     // auto_size=false, bypassing Settings -> Margin percentage. Let the
     // backend use its authoritative balance/config snapshot so the selected
     // percentage means the same thing for MARKET, LIMIT, and AUTO MARKET.
@@ -107,7 +103,7 @@ export async function placeLimitOrder({
     symbol: symbol.toUpperCase(),
     side,
     price,
-    // FIX: LIMIT entries use the same configured-margin backend path as
+    // LIMIT entries use the same configured-margin backend path as
     // MARKET entries; their rounded limit price becomes the sizing reference.
     quantity: null,
     auto_size: true,
@@ -116,14 +112,11 @@ export async function placeLimitOrder({
     reduce_only: false,
     time_in_force: "GTC",
     client_order_id:
-      side === "BUY"
-        ? `fe-entry-long-${Date.now()}`
-        : `fe-entry-short-${Date.now()}`,
+      side === "BUY" ? `fe-entry-long-${Date.now()}` : `fe-entry-short-${Date.now()}`,
   };
 
   return postBinanceOrder<PlaceLimitOrderResponse>(LIMIT_ORDER_ENDPOINT, payload);
 }
-
 
 export type PlaceAutoMarketOrderInput = {
   symbol: string;
@@ -142,12 +135,8 @@ export async function placeAutoMarketOrder({
     stop_loss: stopLoss,
   };
 
-  return postBinanceOrder<AutoMarketOrderResponse>(
-    AUTO_MARKET_ORDER_ENDPOINT,
-    payload,
-  );
+  return postBinanceOrder<AutoMarketOrderResponse>(AUTO_MARKET_ORDER_ENDPOINT, payload);
 }
-
 
 export async function modifyLimitOrder(
   symbol: string,
@@ -195,10 +184,7 @@ export async function repriceReduceOrder(
   return result;
 }
 
-export async function cancelOrder(
-  symbol: string,
-  orderId: string,
-): Promise<unknown> {
+export async function cancelOrder(symbol: string, orderId: string): Promise<unknown> {
   const response = await fetch(
     `${TRADING_API_BASE_URL}/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`,
     {
@@ -213,8 +199,6 @@ export async function cancelOrder(
   invalidateOpenOrdersCache();
   return result;
 }
-
-
 
 export type OpenOrder = {
   /** Kept as a string, not number - see safeJson.ts's parseOrderJsonText. */
@@ -244,7 +228,7 @@ export type OpenOrder = {
  * just whichever symbol happens to be selected on the chart right now).
  */
 /*
- * FIX (redundant polling): same reasoning as POSITIONS_CACHE_TTL_MS in
+ * same reasoning as POSITIONS_CACHE_TTL_MS in
  * positions.ts - widened from 1.5s so the self-heal poll in
  * useOpenOrders.ts (every 4s) actually benefits from this cache instead
  * of mostly missing it. Event-driven refreshes still pass force=true to
@@ -309,8 +293,6 @@ export async function getOpenOrders(
   }
 }
 
-
-
 export type UpdateReduceOrderResponse = {
   /** Kept as strings, not numbers - see safeJson.ts's parseOrderJsonText. */
   old_order_id: string;
@@ -347,7 +329,6 @@ export async function updateReduceOrder(
   invalidateOpenOrdersCache();
   return result;
 }
-
 
 export type ChaseLimitOrderResponse = {
   /** Kept as strings, not numbers - see safeJson.ts's parseOrderJsonText. */
@@ -386,7 +367,6 @@ export async function chaseLimitOrder(
   return result;
 }
 
-
 export type FullStopLossResponse = {
   symbol: string;
   side: OrderSide;
@@ -406,32 +386,24 @@ export async function placeFullStopLoss(input: {
   side: OrderSide;
   triggerPrice: number;
 }): Promise<FullStopLossResponse> {
-  return postBinanceOrder<FullStopLossResponse>(
-    "/api/orders/stop-market",
-    {
-      symbol: input.symbol.toUpperCase(),
-      side: input.side,
-      trigger_price: input.triggerPrice,
-      quantity: null,
-      close_position: true,
-      // FIX: our candles and stop-loss line are based on Binance contract/last price.
-      // Triggering the protective stop from MARK_PRICE could leave the visible price
-      // below the stop while Binance still considered the stop untouched, so use the
-      // same CONTRACT_PRICE source that the trader actually sees on the chart.
-      working_type: "CONTRACT_PRICE",
-      client_algo_id: `fe-sl-full-${Date.now()}`,
-    },
-  );
+  return postBinanceOrder<FullStopLossResponse>("/api/orders/stop-market", {
+    symbol: input.symbol.toUpperCase(),
+    side: input.side,
+    trigger_price: input.triggerPrice,
+    quantity: null,
+    close_position: true,
+    // our candles and stop-loss line are based on Binance contract/last price.
+    // Triggering the protective stop from MARK_PRICE could leave the visible price
+    // below the stop while Binance still considered the stop untouched, so use the
+    // same CONTRACT_PRICE source that the trader actually sees on the chart.
+    working_type: "CONTRACT_PRICE",
+    client_algo_id: `fe-sl-full-${Date.now()}`,
+  });
 }
 
-export async function cancelConditionalOrder(
-  symbol: string,
-  algoId: string,
-): Promise<unknown> {
+export async function cancelConditionalOrder(symbol: string, algoId: string): Promise<unknown> {
   const response = await fetch(
-    `${TRADING_API_BASE_URL}/api/orders/algo/${encodeURIComponent(
-      symbol.toUpperCase(),
-    )}/${algoId}`,
+    `${TRADING_API_BASE_URL}/api/orders/algo/${encodeURIComponent(symbol.toUpperCase())}/${algoId}`,
     {
       method: "DELETE",
       headers: {

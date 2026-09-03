@@ -1,10 +1,8 @@
-use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, Method, header},
-    middleware::{self, Next},
-    response::{IntoResponse, Response},
+    http::HeaderValue,
+    middleware,
     routing::{get, post, put},
 };
 use serde_json::{Value, json};
@@ -26,14 +24,14 @@ use crate::{
     account_state::AccountState,
     alerts::{AlertRuntime, AlertStore},
     binance::{BinanceClient, floor_to_step, normalize_symbol, round_to_tick},
-    diagnostics::{DiagnosticsSnapshot, DiagnosticsState},
-    error::{AppError, AppResult, ErrorClassification},
+    diagnostics::DiagnosticsState,
+    error::{AppError, AppResult},
     icons::IconStore,
     models::{
         AutoSizePreview, AutoSizeQuery, ClosePositionRequest, ConditionalOrderRequest,
-        FuturesAccountInfo, HealthResponse, IntentOrderType, LimitOrderRequest, MarginSizingConfig,
-        MarketOrderRequest, ModifyLimitOrderRequest, OptionalSymbolQuery, OrderSide,
-        PositionIntent, PositionIntentRequest, SetLeverageRequest, SymbolFilters, SymbolQuery,
+        FuturesAccountInfo, IntentOrderType, LimitOrderRequest, MarginSizingConfig,
+        MarketOrderRequest, OrderSide, PositionIntent, PositionIntentRequest, SetLeverageRequest,
+        SymbolFilters,
     },
     position_risk_state::PositionRiskState,
     sizing_store::SizingStore,
@@ -42,12 +40,21 @@ use crate::{
     trading_events::TradingEvent,
 };
 
+mod account_routes;
 mod alert_routes;
 mod catalog_routes;
+mod order_routes;
+mod system_routes;
 
+use account_routes::{account, balance, position_realized_pnl};
 use alert_routes::{create_alert, delete_alert, list_alerts, update_alert};
 use catalog_routes::{
     add_symbol, delete_symbol, get_icon_image, list_icons, list_symbols, mexc_klines,
+};
+use order_routes::{cancel_all_orders, cancel_order, modify_limit_order, open_orders, query_order};
+use system_routes::{
+    authorize, diagnostics, health, issue_websocket_ticket, record_request_diagnostics,
+    reload_desktop_credentials, server_time, trading_websocket,
 };
 
 #[derive(Clone)]
@@ -152,433 +159,6 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
-}
-
-async fn record_request_diagnostics(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: Next,
-) -> Response {
-    let is_mutation = matches!(
-        *request.method(),
-        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
-    );
-    let path = request.uri().path().to_owned();
-    let response = next.run(request).await;
-    let failed = response.status().is_client_error() || response.status().is_server_error();
-    let classification = response
-        .extensions()
-        .get::<ErrorClassification>()
-        .copied()
-        .unwrap_or(ErrorClassification {
-            duplicate_request: response.status() == axum::http::StatusCode::CONFLICT,
-            exchange_unavailable: false,
-        });
-
-    if is_mutation && failed {
-        state.diagnostics.request_rejected(
-            &path,
-            response.status().as_u16(),
-            classification.duplicate_request,
-        );
-    }
-    if failed && classification.exchange_unavailable {
-        state
-            .diagnostics
-            .exchange_failure("Exchange request failed or returned invalid data");
-    } else if response.status().is_success() && exchange_backed_path(&path) {
-        state.diagnostics.exchange_success();
-    }
-
-    response
-}
-
-fn exchange_backed_path(path: &str) -> bool {
-    path.starts_with("/api/account")
-        || path.starts_with("/api/balance")
-        || path.starts_with("/api/binance/")
-        || path.starts_with("/api/filters/")
-        || path.starts_with("/api/leverage")
-        || path.starts_with("/api/orders")
-        || path.starts_with("/api/positions")
-        || path.starts_with("/api/price/")
-}
-
-async fn authorize(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    request: axum::extract::Request,
-    next: Next,
-) -> AppResult<Response> {
-    let path = request.uri().path();
-
-    if matches!(path, "/health" | "/api/ws/trading") {
-        return Ok(next.run(request).await);
-    }
-
-    let supplied = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok());
-
-    let expected = format!("Bearer {}", state.service_token);
-
-    if supplied != Some(expected.as_str()) {
-        return Err(AppError::Unauthorized);
-    }
-
-    Ok(next.run(request).await)
-}
-
-async fn reload_desktop_credentials(State(state): State<AppState>) -> AppResult<Json<Value>> {
-    // Do not swap the credential/network snapshot while an order workflow is
-    // reading account state or submitting a Binance mutation.
-    let _guard = state.trade_lock.lock().await;
-    let changed = state.binance.reload_secure_credentials()?;
-    let configured = state.binance.is_configured();
-    state.diagnostics.set_binance_configured(configured);
-
-    if configured {
-        state.binance.sync_server_time().await?;
-        state.binance.refresh_reference_data().await?;
-        state.diagnostics.exchange_success();
-
-        let (account, position_risk) =
-            tokio::try_join!(state.binance.account_info(), state.binance.position_risk(),)?;
-        state.account_state.replace(account).await;
-        state.position_risk_state.replace(position_risk).await;
-    } else {
-        state
-            .account_state
-            .replace(crate::models::FuturesAccountInfo {
-                total_wallet_balance: "0".into(),
-                available_balance: "0".into(),
-                assets: Vec::new(),
-                positions: Vec::new(),
-                extra: json!({}),
-            })
-            .await;
-        state.position_risk_state.replace(Vec::new()).await;
-    }
-
-    Ok(Json(json!({
-        "configured": configured,
-        "changed": changed,
-    })))
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct TradingSocketQuery {
-    ticket: String,
-}
-
-async fn issue_websocket_ticket(State(state): State<AppState>) -> Json<Value> {
-    const TICKET_TTL: Duration = Duration::from_secs(30);
-    let now = tokio::time::Instant::now();
-    let ticket = uuid::Uuid::new_v4().simple().to_string();
-    let mut tickets = state.websocket_tickets.lock().await;
-    tickets.retain(|_, expires_at| *expires_at > now);
-    tickets.insert(ticket.clone(), now + TICKET_TTL);
-    Json(json!({ "ticket": ticket, "expires_in_ms": TICKET_TTL.as_millis() }))
-}
-
-async fn trading_websocket(
-    State(state): State<AppState>,
-    Query(query): Query<TradingSocketQuery>,
-    upgrade: WebSocketUpgrade,
-) -> AppResult<Response> {
-    let expires_at = state.websocket_tickets.lock().await.remove(&query.ticket);
-    if expires_at.is_none_or(|expires_at| expires_at <= tokio::time::Instant::now()) {
-        return Err(AppError::Unauthorized);
-    }
-
-    Ok(upgrade
-        .on_upgrade(move |socket| stream_trading_events(socket, state.trading_events.subscribe()))
-        .into_response())
-}
-
-async fn stream_trading_events(
-    mut socket: WebSocket,
-    mut receiver: broadcast::Receiver<TradingEvent>,
-) {
-    loop {
-        match receiver.recv().await {
-            Ok(event) => {
-                let Ok(payload) = serde_json::to_string(&event) else {
-                    continue;
-                };
-                if socket.send(WsMessage::Text(payload.into())).await.is_err() {
-                    break;
-                }
-            }
-            Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                let event = TradingEvent::SnapshotRequired {
-                    reason: format!("browser event stream lagged by {skipped} messages"),
-                };
-                let Ok(payload) = serde_json::to_string(&event) else {
-                    continue;
-                };
-                if socket.send(WsMessage::Text(payload.into())).await.is_err() {
-                    break;
-                }
-            }
-            Err(broadcast::error::RecvError::Closed) => break,
-        }
-    }
-}
-
-async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
-    Json(HealthResponse {
-        status: "ok",
-        network: if state.binance.is_testnet() {
-            "testnet"
-        } else {
-            "mainnet"
-        },
-    })
-}
-
-async fn diagnostics(State(state): State<AppState>) -> Json<DiagnosticsSnapshot> {
-    Json(state.diagnostics.snapshot())
-}
-
-async fn server_time(State(state): State<AppState>) -> AppResult<Json<Value>> {
-    Ok(Json(state.binance.server_time().await?))
-}
-
-async fn account(State(state): State<AppState>) -> AppResult<Json<Value>> {
-    // FIX: `/api/account` previously started from the in-memory account cache and
-    // only fetched live `positionRisk`. `merge_position_risk` can enrich positions
-    // already present in that cache, but it cannot create a position that the
-    // cache never saw. Therefore a BTC position opened directly on Binance could
-    // remain completely absent from the terminal if its ACCOUNT_UPDATE event was
-    // missed/delayed, even after the frontend explicitly refreshed the panel.
-    // Fetch the authoritative account snapshot together with positionRisk on every
-    // account refresh, then repair both caches from those same live responses.
-    let (account, position_risk) =
-        tokio::try_join!(state.binance.account_info(), state.binance.position_risk(),)?;
-
-    state.account_state.replace(account.clone()).await;
-    state
-        .position_risk_state
-        .replace(position_risk.clone())
-        .await;
-
-    let mut value = serde_json::to_value(account)?;
-    merge_position_risk(&mut value, &position_risk);
-
-    Ok(Json(value))
-}
-
-async fn position_realized_pnl(State(state): State<AppState>) -> AppResult<Json<Value>> {
-    let position_risk = state.binance.position_risk().await?;
-    let mut results = Vec::new();
-
-    for position in position_risk.iter().filter(|position| {
-        position
-            .get("positionAmt")
-            .and_then(Value::as_str)
-            .and_then(|value| value.parse::<f64>().ok())
-            .is_some_and(|amount| amount.abs() > 1e-12)
-    }) {
-        let Some(symbol) = position.get("symbol").and_then(Value::as_str) else {
-            continue;
-        };
-        let position_side = position
-            .get("positionSide")
-            .and_then(Value::as_str)
-            .unwrap_or("BOTH");
-        let amount = position
-            .get("positionAmt")
-            .and_then(Value::as_str)
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.0);
-
-        let trades = match state.binance.user_trades(symbol).await {
-            Ok(trades) => trades,
-            Err(error) => {
-                // FIX: one unavailable symbol history must not hide valid RPNL
-                // for every other open position in the aggregate response.
-                tracing::warn!(symbol, %error, "Could not load position trade history");
-                results.push(json!({
-                    "symbol": symbol,
-                    "position_side": position_side,
-                    "realized_pnl": null,
-                    "complete": false,
-                    "lifecycle_started_at": null,
-                }));
-                continue;
-            }
-        };
-        let lifecycle = current_position_realized_pnl(&trades, position_side, amount);
-        results.push(json!({
-            "symbol": symbol,
-            "position_side": position_side,
-            "realized_pnl": lifecycle.complete.then_some(lifecycle.realized_pnl),
-            "complete": lifecycle.complete,
-            "lifecycle_started_at": lifecycle.lifecycle_started_at,
-        }));
-    }
-
-    Ok(Json(json!({ "positions": results })))
-}
-
-struct PositionLifecyclePnl {
-    realized_pnl: f64,
-    complete: bool,
-    lifecycle_started_at: Option<i64>,
-}
-
-fn current_position_realized_pnl(
-    trades: &[Value],
-    position_side: &str,
-    current_amount: f64,
-) -> PositionLifecyclePnl {
-    let mut matching: Vec<&Value> = trades
-        .iter()
-        .filter(|trade| {
-            trade
-                .get("positionSide")
-                .and_then(Value::as_str)
-                .unwrap_or("BOTH")
-                == position_side
-        })
-        .collect();
-    matching.sort_by_key(|trade| {
-        (
-            trade.get("time").and_then(Value::as_i64).unwrap_or(0),
-            trade.get("id").and_then(Value::as_i64).unwrap_or(0),
-        )
-    });
-
-    // FEATURE: walk fills backwards from Binance's authoritative current size.
-    // Reversing each signed fill reveals the last flat/sign-flip boundary, so
-    // realized PNL from older closed positions never leaks into this lifecycle.
-    let mut exposure = if position_side == "BOTH" {
-        current_amount
-    } else {
-        current_amount.abs()
-    };
-    let mut realized_pnl = 0.0;
-    let mut lifecycle_started_at = None;
-
-    for trade in matching.into_iter().rev() {
-        let quantity = trade
-            .get("qty")
-            .or_else(|| trade.get("baseQty"))
-            .and_then(Value::as_str)
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let side = trade.get("side").and_then(Value::as_str).unwrap_or("");
-        let delta = match position_side {
-            "LONG" => {
-                if side == "BUY" {
-                    quantity
-                } else {
-                    -quantity
-                }
-            }
-            "SHORT" => {
-                if side == "SELL" {
-                    quantity
-                } else {
-                    -quantity
-                }
-            }
-            _ => {
-                if side == "BUY" {
-                    quantity
-                } else {
-                    -quantity
-                }
-            }
-        };
-        let previous = exposure - delta;
-
-        // FIX: a single reversal fill realizes the old leg and opens the new
-        // one. Its realizedPnl belongs to the previous lifecycle, so stop before
-        // adding it when reversing crosses through zero.
-        if exposure * previous < -1e-12 {
-            return PositionLifecyclePnl {
-                realized_pnl,
-                complete: true,
-                lifecycle_started_at,
-            };
-        }
-
-        realized_pnl += trade
-            .get("realizedPnl")
-            .and_then(Value::as_str)
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        lifecycle_started_at = trade.get("time").and_then(Value::as_i64);
-
-        if previous.abs() <= 1e-12 {
-            return PositionLifecyclePnl {
-                realized_pnl,
-                complete: true,
-                lifecycle_started_at,
-            };
-        }
-        exposure = previous;
-    }
-
-    // FIX: do not expose a partial seven-day/1000-fill sum as authoritative.
-    // A missing flat boundary means the position began outside Binance's window.
-    PositionLifecyclePnl {
-        realized_pnl,
-        complete: false,
-        lifecycle_started_at,
-    }
-}
-
-fn merge_position_risk(account: &mut Value, position_risk: &[Value]) {
-    let Some(account_positions) = account.get_mut("positions").and_then(Value::as_array_mut) else {
-        return;
-    };
-
-    for account_position in account_positions {
-        let Some(symbol) = account_position.get("symbol").and_then(Value::as_str) else {
-            continue;
-        };
-
-        let account_position_side = account_position
-            .get("positionSide")
-            .and_then(Value::as_str)
-            .unwrap_or("BOTH");
-
-        let matching_risk = position_risk.iter().find(|risk| {
-            let same_symbol = risk.get("symbol").and_then(Value::as_str) == Some(symbol);
-
-            let risk_position_side = risk
-                .get("positionSide")
-                .and_then(Value::as_str)
-                .unwrap_or("BOTH");
-
-            same_symbol && risk_position_side == account_position_side
-        });
-
-        let (Some(account_object), Some(risk_object)) = (
-            account_position.as_object_mut(),
-            matching_risk.and_then(Value::as_object),
-        ) else {
-            continue;
-        };
-
-        account_object.extend(risk_object.clone());
-
-        if let Some(live_unrealized_profit) = account_object.remove("unRealizedProfit") {
-            account_object.insert("unrealizedProfit".to_string(), live_unrealized_profit);
-        }
-    }
-}
-
-async fn balance(State(state): State<AppState>) -> AppResult<Json<Value>> {
-    let account = state.account_state.snapshot().await;
-
-    Ok(Json(json!({
-        "total_wallet_balance": account.total_wallet_balance,
-        "available_balance": account.available_balance
-    })))
 }
 
 async fn price(
@@ -703,7 +283,7 @@ async fn auto_market_order(
 
     let _guard = state.trade_lock.lock().await;
 
-    // FIX: AUTO MARKET previously ignored Settings -> Margin percentage and
+    // AUTO MARKET previously ignored Settings -> Margin percentage and
     // forced a private 1% constant, while the UI describes this value as the
     // portfolio margin used per trade. Read the persisted setting here so
     // AUTO MARKET and regular MARKET/LIMIT entries use one consistent budget.
@@ -720,7 +300,7 @@ async fn auto_market_order(
     )
     .await?;
 
-    // FIX: fail closed immediately before creating exposure. Startup/add-time
+    // fail closed immediately before creating exposure. Startup/add-time
     // enforcement is not enough because margin mode can be changed directly
     // on Binance while this process is running.
     state.binance.ensure_isolated_margin(&symbol).await?;
@@ -749,7 +329,7 @@ async fn auto_market_order(
         )
         .await?;
 
-    // FIX: this endpoint previously relied ENTIRELY on the Binance
+    // this endpoint previously relied ENTIRELY on the Binance
     // user-data WebSocket's ACCOUNT_UPDATE event to ever tell
     // `account_state` a position now exists. That event normally arrives
     // within milliseconds - but if it's ever delayed, dropped, or fails
@@ -763,7 +343,7 @@ async fn auto_market_order(
     // triggered) closes that race without waiting on the websocket
     // alone.
     state.account_state.request_refresh();
-    // FIX: the chart's liquidation line comes from positionRisk, not the
+    // the chart's liquidation line comes from positionRisk, not the
     // account snapshot alone. Refresh both caches as soon as AUTO MARKET
     // fills so the frontend does not wait for a later websocket event or
     // the slow safety poll before it can render the risk boundary.
@@ -849,11 +429,11 @@ async fn market_order(
         )
         .await?;
 
-    // FIX: see the comment on the same call in auto_market_order above -
+    // see the comment on the same call in auto_market_order above -
     // every endpoint that can change a position must force account_state
     // to reconcile, not just rely on ACCOUNT_UPDATE arriving in time.
     state.account_state.request_refresh();
-    // FIX: liquidationPrice is supplied by the separate positionRisk cache.
+    // liquidationPrice is supplied by the separate positionRisk cache.
     // Refreshing only account_state made the position appear first and its
     // liquidation line arrive seconds later on the next independent update.
     state.position_risk_state.request_refresh();
@@ -866,7 +446,7 @@ async fn market_order(
     })))
 }
 
-/// FEATURE: estimate the isolated liquidation boundary for a resting entry LIMIT.
+/// estimate the isolated liquidation boundary for a resting entry LIMIT.
 /// Binance cannot return `liquidationPrice` until the order fills, so the chart
 /// needs a projected value. This mirrors isolated-position equity versus Binance's
 /// tiered maintenance margin (`maintMarginRatio * notional - cum`).
@@ -949,7 +529,7 @@ async fn limit_order(
     )
     .await?;
 
-    // FIX: LIMIT entries can rest and fill later, so they must be created only
+    // LIMIT entries can rest and fill later, so they must be created only
     // after the same fail-closed ISOLATED check used by MARKET entries.
     if !req.reduce_only {
         state.binance.ensure_isolated_margin(&symbol).await?;
@@ -959,7 +539,7 @@ async fn limit_order(
         state.binance.set_leverage(&symbol, leverage).await?;
     }
 
-    // FEATURE: compute the projected liquidation before submitting the resting
+    // compute the projected liquidation before submitting the resting
     // order so the frontend can draw its EST. LIQ guide immediately. This is
     // intentionally omitted for reduce-only orders because they do not create
     // a new leveraged entry leg.
@@ -976,7 +556,7 @@ async fn limit_order(
             None => None,
         }
     } else {
-        // FEATURE: do not show a misleading standalone estimate when this LIMIT
+        // do not show a misleading standalone estimate when this LIMIT
         // would add to an existing position; that case needs the current entry,
         // isolated wallet and resulting blended size to project liquidation.
         None
@@ -1015,8 +595,7 @@ async fn limit_order(
 /// Live (non-cached) lookup of a single symbol's open position, used as a
 /// fallback when `account_state`'s in-memory snapshot doesn't have it yet.
 ///
-/// FIX (the actual bug behind "stop-market 400s right after an auto-market
-/// fill, position missing from the UI until restart"): `stop_market` used
+/// `stop_market` used
 /// to trust `state.account_state.snapshot()` unconditionally - a purely
 /// in-memory cache that is ONLY updated by the Binance user-data
 /// WebSocket's ACCOUNT_UPDATE event (or an explicit `request_refresh()`
@@ -1064,7 +643,62 @@ fn find_nonzero_position(account: &FuturesAccountInfo, symbol: &str) -> Option<f
         .filter(|amount| amount.abs() > f64::EPSILON)
 }
 
-// FEATURE: resolve the liquidation boundary for the exact open leg instead
+fn close_side_for_position(position_amount: f64) -> OrderSide {
+    if position_amount > 0.0 {
+        OrderSide::Sell
+    } else {
+        OrderSide::Buy
+    }
+}
+
+fn unfilled_order_quantity(original: f64, executed: f64) -> f64 {
+    (original - executed).max(0.0)
+}
+
+fn validate_stop_trigger(
+    position_amount: f64,
+    current_price: f64,
+    trigger_price: f64,
+    liquidation_price: Option<f64>,
+) -> AppResult<()> {
+    let valid_trigger = if position_amount > 0.0 {
+        trigger_price < current_price
+    } else {
+        trigger_price > current_price
+    };
+
+    if !valid_trigger {
+        return Err(AppError::Invalid(if position_amount > 0.0 {
+            "LONG stop loss must be below the current market price".into()
+        } else {
+            "SHORT stop loss must be above the current market price".into()
+        }));
+    }
+
+    if let Some(liquidation_price) = liquidation_price {
+        let before_liquidation = if position_amount > 0.0 {
+            trigger_price > liquidation_price
+        } else {
+            trigger_price < liquidation_price
+        };
+
+        if !before_liquidation {
+            return Err(AppError::Invalid(if position_amount > 0.0 {
+                format!(
+                    "LONG stop loss {trigger_price} must stay above liquidation price {liquidation_price}"
+                )
+            } else {
+                format!(
+                    "SHORT stop loss {trigger_price} must stay below liquidation price {liquidation_price}"
+                )
+            }));
+        }
+    }
+
+    Ok(())
+}
+
+// resolve the liquidation boundary for the exact open leg instead
 // of merely matching its symbol. The sign check keeps LONG and SHORT legs
 // distinct in hedge mode, where two positionRisk rows can share one symbol.
 fn liquidation_price_for_position(
@@ -1106,16 +740,12 @@ async fn stop_market(
     let symbol = normalize_symbol(&req.symbol)?;
     let _guard = state.trade_lock.lock().await;
 
-    // FIX: was `state.account_state.snapshot()` used directly, with no
+    // was `state.account_state.snapshot()` used directly, with no
     // fallback if the cache didn't have the position yet - see the big
     // comment on find_position_amount above for why that raced.
     let (amount, _account) = find_position_amount(&state, &symbol).await?;
 
-    let close_side = if amount > 0.0 {
-        OrderSide::Sell
-    } else {
-        OrderSide::Buy
-    };
+    let close_side = close_side_for_position(amount);
 
     if req.side.as_str() != close_side.as_str() {
         return Err(AppError::Invalid(
@@ -1123,7 +753,7 @@ async fn stop_market(
         ));
     }
 
-    // FEATURE: fetch positionRisk at submission time instead of trusting the
+    // fetch positionRisk at submission time instead of trusting the
     // slower cache used for display. Cross-margin liquidation can move as the
     // wallet or other positions change, so a stale boundary is not adequate
     // for a server-side safety check on a real protection order.
@@ -1136,49 +766,15 @@ async fn stop_market(
     state.position_risk_state.replace(position_risk).await;
     let trigger_price = round_to_tick(req.trigger_price, filters.tick_size);
 
-    let valid_trigger = if amount > 0.0 {
-        trigger_price < current_price
-    } else {
-        trigger_price > current_price
-    };
-
-    if !valid_trigger {
-        return Err(AppError::Invalid(if amount > 0.0 {
-            "LONG stop loss must be below the current market price".into()
-        } else {
-            "SHORT stop loss must be above the current market price".into()
-        }));
-    }
-
-    // FEATURE: a stop beyond liquidation would never protect the position.
-    // Reject it even if a caller bypasses the chart's visual clamp. Equality
-    // is rejected too because liquidation may occur before an equal-price
-    // conditional stop can execute.
-    if let Some(liquidation_price) = liquidation_price {
-        let before_liquidation = if amount > 0.0 {
-            trigger_price > liquidation_price
-        } else {
-            trigger_price < liquidation_price
-        };
-
-        if !before_liquidation {
-            return Err(AppError::Invalid(if amount > 0.0 {
-                format!(
-                    "LONG stop loss {trigger_price} must stay above liquidation price {liquidation_price}"
-                )
-            } else {
-                format!(
-                    "SHORT stop loss {trigger_price} must stay below liquidation price {liquidation_price}"
-                )
-            }));
-        }
-    }
+    // A stop beyond liquidation would never protect the position. Equality is
+    // rejected because liquidation may occur before the stop can execute.
+    validate_stop_trigger(amount, current_price, trigger_price, liquidation_price)?;
 
     let client_algo_id = req
         .client_algo_id
         .unwrap_or_else(|| new_client_order_id("fe-sl-full"));
 
-    // FIX: full-position SLs are drawn against the contract/last-price candles and
+    // full-position SLs are drawn against the contract/last-price candles and
     // the validation above also reads Binance's contract price. Force CONTRACT_PRICE
     // here so an older client cannot accidentally submit MARK_PRICE and create a stop
     // that visibly trades through its chart level before Binance triggers it.
@@ -1241,7 +837,7 @@ async fn take_profit_market(
             req.trigger_price,
             req.quantity,
             req.close_position,
-            // FIX: conditional take-profit triggers should follow the same contract/last
+            // conditional take-profit triggers should follow the same contract/last
             // price shown by the terminal candles. Using MARK_PRICE here could let the
             // visible market trade through the TP level without triggering immediately,
             // so force CONTRACT_PRICE just like the protective full-position stop-loss.
@@ -1260,16 +856,12 @@ async fn close_position(
     let symbol = normalize_symbol(&req.symbol)?;
     let _guard = state.trade_lock.lock().await;
 
-    // FIX: same fallback as stop_market - a position that only just
+    // same fallback as stop_market - a position that only just
     // opened (or is being closed right after another rapid action)
     // shouldn't 400 just because ACCOUNT_UPDATE hasn't landed yet.
     let (amount, _account) = find_position_amount(&state, &symbol).await?;
 
-    let side = if amount > 0.0 {
-        OrderSide::Sell
-    } else {
-        OrderSide::Buy
-    };
+    let side = close_side_for_position(amount);
 
     let response = state
         .binance
@@ -1286,7 +878,7 @@ async fn close_position(
 }
 
 /*
- * FIX: close_everything used to be all-or-nothing - every symbol with an
+ * close_everything used to be all-or-nothing - every symbol with an
  * open order or open position, no exceptions. Same convention as
  * open_orders' own optional `?symbol=` (see its own comment above): symbol
  * omitted/null means "everything, unchanged behavior"; symbol provided
@@ -1300,6 +892,19 @@ struct CloseEverythingRequest {
     symbol: Option<String>,
 }
 
+fn close_everything_result(
+    cancelled_symbols: Vec<String>,
+    closed_positions: Vec<Value>,
+    errors: Vec<Value>,
+) -> Value {
+    json!({
+        "completed": errors.is_empty(),
+        "cancelled_symbols": cancelled_symbols,
+        "closed_positions": closed_positions,
+        "errors": errors,
+    })
+}
+
 async fn close_everything(
     State(state): State<AppState>,
     Json(req): Json<CloseEverythingRequest>,
@@ -1310,7 +915,7 @@ async fn close_everything(
     // between discovery and cancellation.
     let _guard = state.trade_lock.lock().await;
 
-    // FIX: Close Everything must operate on Binance's live account state, not
+    // Close Everything must operate on Binance's live account state, not
     // the opportunistic WebSocket-backed cache. If an externally opened position
     // was missing from that cache, the old implementation could cancel orders
     // yet silently leave the real position open. The trade lock is already held,
@@ -1372,11 +977,7 @@ async fn close_everything(
     }
 
     for (symbol, amount) in open_positions {
-        let close_side = if amount > 0.0 {
-            OrderSide::Sell
-        } else {
-            OrderSide::Buy
-        };
+        let close_side = close_side_for_position(amount);
 
         match state
             .binance
@@ -1426,12 +1027,11 @@ async fn close_everything(
         reason: "close everything completed".into(),
     });
 
-    Ok(Json(json!({
-        "completed": errors.is_empty(),
-        "cancelled_symbols": cancelled_symbols,
-        "closed_positions": closed_positions,
-        "errors": errors,
-    })))
+    Ok(Json(close_everything_result(
+        cancelled_symbols,
+        closed_positions,
+        errors,
+    )))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -1530,7 +1130,7 @@ async fn reprice_reduce_order(
         .and_then(Value::as_str)
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let quantity = floor_to_step((orig - executed).max(0.0), filters.step_size);
+    let quantity = floor_to_step(unfilled_order_quantity(orig, executed), filters.step_size);
     if quantity < filters.min_qty {
         return Err(AppError::Invalid(
             "reduce order has no remaining quantity".into(),
@@ -1550,7 +1150,7 @@ async fn reprice_reduce_order(
         .and_then(Value::as_str)
         .unwrap_or("GTC");
     /*
-     * FIX (dragging a Binance-created reduce LIMIT deleted the order): this
+     * this
      * endpoint used to cancel the live order first, derive a replacement
      * clientOrderId from Binance's existing ID, and only then validate/place
      * the replacement. Binance-generated IDs may contain characters or be
@@ -1680,7 +1280,7 @@ async fn update_reduce_order(
             .and_then(Value::as_str)
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
-        (orig - executed).max(0.0)
+        unfilled_order_quantity(orig, executed)
     };
 
     let mut other_reserved = 0.0;
@@ -1710,7 +1310,7 @@ async fn update_reduce_order(
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        other_reserved += (orig - executed).max(0.0);
+        other_reserved += unfilled_order_quantity(orig, executed);
     }
 
     let available_before =
@@ -1831,18 +1431,14 @@ async fn position_intent(
     let _guard = state.trade_lock.lock().await;
     let filters = state.binance.symbol_filters(&symbol).await?;
 
-    // FIX: same live-fallback pattern as stop_market/close_position - a
+    // same live-fallback pattern as stop_market/close_position - a
     // position acted on immediately after opening (ADD/REDUCE/REVERSE
     // right after an entry fill) must not 400 just because
     // ACCOUNT_UPDATE hasn't landed in the cache yet.
     let (amount, _account) = find_position_amount(&state, &symbol).await?;
 
-    let current_side = if amount > 0.0 {
-        OrderSide::Buy
-    } else {
-        OrderSide::Sell
-    };
-    let opposite_side = current_side.opposite();
+    let opposite_side = close_side_for_position(amount);
+    let current_side = opposite_side.opposite();
 
     match req.intent {
         PositionIntent::Add => {
@@ -1855,7 +1451,7 @@ async fn position_intent(
                 .ensure_binance_trading_symbol(&symbol)
                 .await?;
 
-            // FIX: ADD increases exposure to an existing position. Refuse it
+            // ADD increases exposure to an existing position. Refuse it
             // when that position is CROSS; the user can still REDUCE/CLOSE it.
             state.binance.ensure_isolated_margin(&symbol).await?;
 
@@ -1868,7 +1464,7 @@ async fn position_intent(
                     })?),
                 };
 
-            // FIX: ADD must allocate the configured portfolio-margin
+            // ADD must allocate the configured portfolio-margin
             // percentage again, not a fixed 50 USDT notional (which adds only
             // 50 / leverage of actual margin). Size it on the backend from the
             // current available balance and the leverage already active on the
@@ -2129,7 +1725,7 @@ async fn position_intent(
                 .ensure_binance_trading_symbol(&symbol)
                 .await?;
 
-            // FIX: a REVERSE closes first, then creates fresh exposure in the
+            // a REVERSE closes first, then creates fresh exposure in the
             // opposite direction. Enforce ISOLATED after the account becomes
             // flat and before that new leg is submitted.
             state.binance.ensure_isolated_margin(&symbol).await?;
@@ -2228,7 +1824,7 @@ async fn chase_limit_order(
         .unwrap_or(0.0);
 
     let remaining_quantity = floor_to_step(
-        (original_quantity - executed_quantity).max(0.0),
+        unfilled_order_quantity(original_quantity, executed_quantity),
         filters.step_size,
     );
 
@@ -2257,7 +1853,7 @@ async fn chase_limit_order(
 
     state.binance.cancel_order(&symbol, order_id).await?;
 
-    // FIX: chasing converts a resting entry into immediate market exposure.
+    // chasing converts a resting entry into immediate market exposure.
     // Check ISOLATED after cancelling the old order (Binance cannot change
     // margin mode while it is open) and abort before the market replacement.
     state.binance.ensure_isolated_margin(&symbol).await?;
@@ -2290,108 +1886,6 @@ async fn chase_limit_order(
         "remaining_quantity": remaining_quantity,
         "market_order": market_order,
     })))
-}
-
-async fn query_order(
-    State(state): State<AppState>,
-    Path((symbol, order_id)): Path<(String, i64)>,
-) -> AppResult<Json<Value>> {
-    let symbol = normalize_symbol(&symbol)?;
-    Ok(Json(state.binance.query_order(&symbol, order_id).await?))
-}
-
-async fn modify_limit_order(
-    State(state): State<AppState>,
-    Path((symbol, order_id)): Path<(String, i64)>,
-    Json(req): Json<ModifyLimitOrderRequest>,
-) -> AppResult<Json<Value>> {
-    let symbol = normalize_symbol(&symbol)?;
-    let _guard = state.trade_lock.lock().await;
-    let filters = state.binance.symbol_filters(&symbol).await?;
-    let price = round_to_tick(req.price, filters.tick_size);
-    let quantity = floor_to_step(req.quantity, filters.step_size);
-
-    if quantity < filters.min_qty {
-        return Err(AppError::Invalid(format!(
-            "quantity {quantity} is below min_qty {}",
-            filters.min_qty
-        )));
-    }
-
-    if quantity * price < filters.min_notional {
-        return Err(AppError::Invalid(format!(
-            "notional {} is below min_notional {}",
-            quantity * price,
-            filters.min_notional
-        )));
-    }
-
-    tracing::info!(
-        %symbol,
-        order_id,
-        side = %req.side.as_str(),
-        quantity,
-        price,
-        time_in_force = %req.time_in_force,
-        "Received LIMIT order modification"
-    );
-
-    let response = state
-        .binance
-        .modify_limit_order(
-            &symbol,
-            order_id,
-            req.side,
-            quantity,
-            price,
-            &req.time_in_force,
-        )
-        .await?;
-
-    Ok(Json(json!({
-        "submitted_quantity": quantity,
-        "submitted_price": price,
-        "order": response
-    })))
-}
-
-async fn cancel_order(
-    State(state): State<AppState>,
-    Path((symbol, order_id)): Path<(String, i64)>,
-) -> AppResult<Json<Value>> {
-    let symbol = normalize_symbol(&symbol)?;
-    let _guard = state.trade_lock.lock().await;
-    Ok(Json(state.binance.cancel_order(&symbol, order_id).await?))
-}
-
-async fn open_orders(
-    State(state): State<AppState>,
-    Query(query): Query<OptionalSymbolQuery>,
-) -> AppResult<Json<Value>> {
-    // FIX: this used to require `symbol` and only ever return one symbol's
-    // open orders - fine for a single-symbol frontend, but once a user can
-    // hold positions on several symbols at once, the "Open Orders" list
-    // needs to cover all of them, the same way GET /api/account already
-    // returns positions for every symbol rather than just one. Omitting
-    // `symbol` now returns everything; a caller that still wants just one
-    // symbol's orders (e.g. the chart's own order-line rendering) can
-    // continue passing `?symbol=X` exactly as before.
-    match query.symbol {
-        Some(symbol) => {
-            let symbol = normalize_symbol(&symbol)?;
-            Ok(Json(state.binance.open_orders(&symbol).await?))
-        }
-        None => Ok(Json(state.binance.all_open_orders().await?)),
-    }
-}
-
-async fn cancel_all_orders(
-    State(state): State<AppState>,
-    Query(query): Query<SymbolQuery>,
-) -> AppResult<Json<Value>> {
-    let symbol = normalize_symbol(&query.symbol)?;
-    let _guard = state.trade_lock.lock().await;
-    Ok(Json(state.binance.cancel_all_orders(&symbol).await?))
 }
 
 async fn open_reduce_only_quantity(
@@ -2431,7 +1925,7 @@ async fn open_reduce_only_quantity(
             .and_then(|raw| raw.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        total += (original - executed).max(0.0);
+        total += unfilled_order_quantity(original, executed);
     }
 
     Ok(total)
@@ -2471,7 +1965,7 @@ async fn resolve_quantity(
             return Ok((preview.quantity, Some(preview.leverage), Some(preview)));
         }
 
-        // FIX: manual MARKET/LIMIT entries previously sent an explicit
+        // manual MARKET/LIMIT entries previously sent an explicit
         // frontend-computed quantity with auto_size=false, so the persisted
         // margin_pct setting was completely bypassed. When the manual flow
         // requests auto sizing without a stop, size from configured portfolio
@@ -2500,7 +1994,7 @@ async fn resolve_quantity(
         )));
     }
 
-    // FIX: this manual-quantity path (used by plain, non-auto-sized
+    // this manual-quantity path (used by plain, non-auto-sized
     // MARKET/LIMIT orders and by ADD) used to stop at the min_qty check
     // above and hand the quantity straight to Binance - unlike the
     // auto_size path below, it never checked MIN_NOTIONAL at all. A
@@ -2565,18 +2059,6 @@ async fn build_configured_margin_quantity(
         .parse::<f64>()
         .map_err(|_| AppError::Invalid("invalid available balance from Binance".into()))?;
 
-    if !available_balance.is_finite() || available_balance <= 0.0 {
-        return Err(AppError::Invalid(
-            "available balance must be finite and > 0".into(),
-        ));
-    }
-
-    if !price.is_finite() || price <= 0.0 {
-        return Err(AppError::Invalid(
-            "reference price must be finite and > 0".into(),
-        ));
-    }
-
     let maximum_allowed = exchange_max.min(config.max_leverage);
     if leverage == 0 || leverage > maximum_allowed {
         return Err(AppError::Invalid(format!(
@@ -2584,13 +2066,50 @@ async fn build_configured_margin_quantity(
         )));
     }
 
-    let margin_to_use = available_balance * config.margin_pct;
+    let quantity = configured_margin_quantity(
+        symbol,
+        available_balance,
+        config.margin_pct,
+        leverage,
+        price,
+        &filters,
+    )?;
+
+    Ok((quantity, leverage))
+}
+
+fn configured_margin_quantity(
+    symbol: &str,
+    available_balance: f64,
+    margin_pct: f64,
+    leverage: u32,
+    price: f64,
+    filters: &SymbolFilters,
+) -> AppResult<f64> {
+    if !available_balance.is_finite() || available_balance <= 0.0 {
+        return Err(AppError::Invalid(
+            "available balance must be finite and > 0".into(),
+        ));
+    }
+    if !price.is_finite() || price <= 0.0 {
+        return Err(AppError::Invalid(
+            "reference price must be finite and > 0".into(),
+        ));
+    }
+    if !margin_pct.is_finite() || margin_pct <= 0.0 || margin_pct > 1.0 {
+        return Err(AppError::Invalid(
+            "margin_pct must be finite and in (0, 1]".into(),
+        ));
+    }
+    if leverage == 0 {
+        return Err(AppError::Invalid("leverage must be > 0".into()));
+    }
+
+    let margin_to_use = available_balance * margin_pct;
     let raw_quantity = (margin_to_use * leverage as f64) / price;
 
-    // FIX: always round DOWN to Binance's quantity step. Rounding up could
-    // silently exceed the configured portfolio-margin percentage; for coarse
-    // steps (BTC at low leverage, for example) the effective margin can
-    // therefore be lower than the target, but never higher because of sizing.
+    // Quantity always rounds down so exchange normalization cannot spend more
+    // than the configured portfolio-margin allocation.
     let quantity = floor_to_step(raw_quantity, filters.step_size);
     let min_notional_required = filters.min_notional.max(filters.min_qty * price);
     let notional = quantity * price;
@@ -2602,7 +2121,7 @@ async fn build_configured_margin_quantity(
         )));
     }
 
-    Ok((quantity, leverage))
+    Ok(quantity)
 }
 
 async fn build_auto_size(
@@ -2831,4 +2350,148 @@ async fn build_auto_size_with_margin_pct(
         margin_bumped,
         config,
     })
+}
+
+#[cfg(test)]
+mod financial_invariant_tests {
+    use serde_json::json;
+
+    use super::{
+        close_everything_result, close_side_for_position, configured_margin_quantity,
+        find_nonzero_position, liquidation_price_for_position, unfilled_order_quantity,
+        validate_stop_trigger,
+    };
+    use crate::models::{FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters};
+
+    fn account_with_positions(positions: Vec<FuturesPosition>) -> FuturesAccountInfo {
+        FuturesAccountInfo {
+            total_wallet_balance: "1000".into(),
+            available_balance: "900".into(),
+            assets: Vec::new(),
+            positions,
+            extra: json!({}),
+        }
+    }
+
+    fn position(symbol: &str, amount: &str) -> FuturesPosition {
+        FuturesPosition {
+            symbol: symbol.into(),
+            position_amt: amount.into(),
+            entry_price: "100".into(),
+            unrealized_profit: "0".into(),
+            extra: json!({}),
+        }
+    }
+
+    #[test]
+    fn close_and_reverse_use_the_exposure_reducing_side() {
+        assert!(matches!(close_side_for_position(0.5), OrderSide::Sell));
+        assert!(matches!(close_side_for_position(-0.5), OrderSide::Buy));
+
+        let long_close = close_side_for_position(0.5);
+        let reverse_entry = long_close;
+        assert_eq!(reverse_entry.as_str(), "SELL");
+        assert_eq!(reverse_entry.opposite().as_str(), "BUY");
+    }
+
+    #[test]
+    fn configured_sizing_rounds_down_without_exceeding_the_margin_budget() {
+        let filters = SymbolFilters {
+            step_size: 0.001,
+            min_qty: 0.001,
+            min_notional: 20.0,
+            tick_size: 0.1,
+        };
+        let quantity = configured_margin_quantity("BTCUSDT", 1_000.0, 0.02, 10, 30_000.0, &filters)
+            .expect("configured sizing should produce a valid order");
+
+        assert_eq!(quantity, 0.006);
+        let effective_margin = quantity * 30_000.0 / 10.0;
+        assert!(effective_margin <= 1_000.0 * 0.02);
+    }
+
+    #[test]
+    fn configured_sizing_fails_before_submission_when_minimums_cannot_be_met() {
+        let filters = SymbolFilters {
+            step_size: 0.001,
+            min_qty: 0.001,
+            min_notional: 20.0,
+            tick_size: 0.1,
+        };
+
+        assert!(configured_margin_quantity("BTCUSDT", 10.0, 0.01, 1, 30_000.0, &filters).is_err());
+    }
+
+    #[test]
+    fn partial_fill_math_never_reuses_executed_or_negative_quantity() {
+        assert!((unfilled_order_quantity(0.010, 0.004) - 0.006).abs() < 1e-12);
+        assert_eq!(unfilled_order_quantity(0.010, 0.010), 0.0);
+        assert_eq!(unfilled_order_quantity(0.010, 0.011), 0.0);
+    }
+
+    #[test]
+    fn stop_loss_must_be_between_market_and_liquidation() {
+        assert!(validate_stop_trigger(1.0, 100.0, 90.0, Some(80.0)).is_ok());
+        assert!(validate_stop_trigger(1.0, 100.0, 100.0, Some(80.0)).is_err());
+        assert!(validate_stop_trigger(1.0, 100.0, 80.0, Some(80.0)).is_err());
+
+        assert!(validate_stop_trigger(-1.0, 100.0, 110.0, Some(120.0)).is_ok());
+        assert!(validate_stop_trigger(-1.0, 100.0, 100.0, Some(120.0)).is_err());
+        assert!(validate_stop_trigger(-1.0, 100.0, 120.0, Some(120.0)).is_err());
+    }
+
+    #[test]
+    fn cached_position_lookup_rejects_flat_and_invalid_rows() {
+        let account = account_with_positions(vec![
+            position("BTCUSDT", "0"),
+            position("ETHUSDT", "invalid"),
+            position("SOLUSDT", "-2.5"),
+        ]);
+
+        assert_eq!(find_nonzero_position(&account, "BTCUSDT"), None);
+        assert_eq!(find_nonzero_position(&account, "ETHUSDT"), None);
+        assert_eq!(find_nonzero_position(&account, "SOLUSDT"), Some(-2.5));
+    }
+
+    #[test]
+    fn liquidation_lookup_selects_the_matching_hedge_leg() {
+        let risks = vec![
+            json!({
+                "symbol": "BTCUSDT",
+                "positionAmt": "1",
+                "liquidationPrice": "80"
+            }),
+            json!({
+                "symbol": "BTCUSDT",
+                "positionAmt": "-1",
+                "liquidationPrice": "120"
+            }),
+        ];
+
+        assert_eq!(
+            liquidation_price_for_position(&risks, "BTCUSDT", 1.0),
+            Some(80.0)
+        );
+        assert_eq!(
+            liquidation_price_for_position(&risks, "BTCUSDT", -1.0),
+            Some(120.0)
+        );
+    }
+
+    #[test]
+    fn close_everything_reports_partial_failure_instead_of_claiming_completion() {
+        let result = close_everything_result(
+            vec!["BTCUSDT".into()],
+            vec![json!({ "symbol": "BTCUSDT" })],
+            vec![json!({
+                "stage": "CLOSE_POSITION",
+                "symbol": "ETHUSDT",
+                "error": "simulated rejection"
+            })],
+        );
+
+        assert_eq!(result["completed"], false);
+        assert_eq!(result["cancelled_symbols"][0], "BTCUSDT");
+        assert_eq!(result["errors"][0]["stage"], "CLOSE_POSITION");
+    }
 }

@@ -7,8 +7,7 @@ export const PENDING_ORDER_LABEL_PADDING_X = 8;
 export const REDUCE_ORDER_EDITOR_WIDTH = 220;
 export const REDUCE_ORDER_EDITOR_HEIGHT = 108;
 export const REDUCE_ORDER_EDITOR_GAP = 8;
-export const PENDING_ORDER_FONT =
-  "600 11px 'JetBrains Mono', ui-monospace, monospace";
+export const PENDING_ORDER_FONT = "600 11px 'JetBrains Mono', ui-monospace, monospace";
 
 const PENDING_ORDER_CANCEL_SIZE = 20;
 const PENDING_ORDER_EDIT_WIDTH = 38;
@@ -53,12 +52,9 @@ export function getPendingOrderLabelText(
   const quantity = formatOrderQuantity(drawing.orderQuantity);
   const asset = baseAsset(drawing.orderSymbol);
   const remainingPct = drawing.orderRemainingPct;
-  const left =
-    remainingPct == null ? "" : ` · LEFT ${Math.max(0, remainingPct)}%`;
+  const left = remainingPct == null ? "" : ` · LEFT ${Math.max(0, remainingPct)}%`;
   const pctText = pct == null ? "TP" : `TP ${pct}%`;
-  const quantityText = quantity
-    ? ` · ${quantity}${asset ? ` ${asset}` : ""}`
-    : "";
+  const quantityText = quantity ? ` · ${quantity}${asset ? ` ${asset}` : ""}` : "";
 
   return `${pctText}${quantityText}${left}`;
 }
@@ -73,11 +69,7 @@ export function getPendingOrderRects(
   const canvas = refs.canvasRef.current;
   if (!chart || !series || !canvas) return null;
 
-  const y = priceToCoordinateWithFutureFallback(
-    series,
-    refs.futureScaleRef.current,
-    drawing.price,
-  );
+  const y = priceToCoordinateWithFutureFallback(series, refs.futureScaleRef.current, drawing.price);
   if (y == null) return null;
 
   const context = canvas.getContext("2d");
@@ -103,8 +95,7 @@ export function getPendingOrderRects(
   context.save();
   context.font = PENDING_ORDER_FONT;
   const estimatedWidth = hasEstimatedLiquidation
-    ? context.measureText(estimatedText).width +
-      PENDING_ORDER_LABEL_PADDING_X * 2
+    ? context.measureText(estimatedText).width + PENDING_ORDER_LABEL_PADDING_X * 2
     : 0;
   context.restore();
 
@@ -118,12 +109,8 @@ export function getPendingOrderRects(
     (estimatedX ?? paneWidth - PENDING_ORDER_EDGE_MARGIN) -
     PENDING_ORDER_GAP -
     PENDING_ORDER_CANCEL_SIZE;
-  const editX = isChaseable
-    ? null
-    : cancelX - PENDING_ORDER_GAP - PENDING_ORDER_EDIT_WIDTH;
-  const chaseX = isChaseable
-    ? cancelX - PENDING_ORDER_GAP - PENDING_ORDER_CHASE_WIDTH
-    : null;
+  const editX = isChaseable ? null : cancelX - PENDING_ORDER_GAP - PENDING_ORDER_EDIT_WIDTH;
+  const chaseX = isChaseable ? cancelX - PENDING_ORDER_GAP - PENDING_ORDER_CHASE_WIDTH : null;
   const labelWidth = textWidth + PENDING_ORDER_LABEL_PADDING_X * 2;
   const controlsLeft = chaseX ?? editX ?? cancelX;
   const labelX = controlsLeft - PENDING_ORDER_GAP - labelWidth;
@@ -182,12 +169,7 @@ export function getPendingOrderRects(
   };
 }
 
-export type PendingOrderControl =
-  | "cancel"
-  | "estimated"
-  | "estimatedHide"
-  | "edit"
-  | "chase";
+export type PendingOrderControl = "cancel" | "estimated" | "estimatedHide" | "edit" | "chase";
 
 export function findPendingOrderControlHit(
   drawings: Drawing[],
@@ -206,12 +188,7 @@ export function findPendingOrderControlHit(
     const rect = rects?.[control];
     if (!rects || !rect) continue;
 
-    if (
-      x >= rect.x &&
-      x <= rect.x + rect.width &&
-      y >= rect.y &&
-      y <= rect.y + rect.height
-    ) {
+    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
       return { drawing, rects };
     }
   }

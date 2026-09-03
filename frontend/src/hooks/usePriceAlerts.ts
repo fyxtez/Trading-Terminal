@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { priceAlertsStorageKey } from "../config/constants";
-import {
-  loadStoredAlerts,
-  saveAlerts,
-  sendPriceAlertNotification,
-} from "../utils/alerts";
+import { loadStoredAlerts, saveAlerts, sendPriceAlertNotification } from "../utils/alerts";
 import {
   cancelPersistentPriceAlert,
   createPersistentPriceAlert,
@@ -71,6 +67,10 @@ export function usePriceAlerts(
    * useChartRefs.ts/useDrawings.ts.
    */
   const alertsRef = useRef<PriceAlert[]>(alerts);
+  // A persistent alert can trigger while its create/list request is still in
+  // flight. Remember consumed backend IDs so a late response cannot resurrect
+  // the line after the trigger event already removed it.
+  const triggeredPersistentAlertIdsRef = useRef(new Set<string>());
   useEffect(() => {
     alertsRef.current = alerts;
   }, [alerts]);
@@ -152,9 +152,9 @@ export function usePriceAlerts(
       void createPersistentPriceAlert(normalizedSymbol, alert)
         .then((created) => {
           setState((previous) => {
-            const nextAlerts = previous.alerts.map((item) =>
-              item.id === alert.id ? created : item,
-            );
+            const nextAlerts = previous.alerts
+              .map((item) => (item.id === alert.id ? created : item))
+              .filter((item) => !triggeredPersistentAlertIdsRef.current.has(item.id));
             saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
             return { symbol: normalizedSymbol, alerts: nextAlerts };
           });
@@ -196,9 +196,7 @@ export function usePriceAlerts(
     const after: PriceAlert = { ...before, price };
 
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -226,9 +224,7 @@ export function usePriceAlerts(
     };
 
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -256,9 +252,7 @@ export function usePriceAlerts(
     const after: PriceAlert = { ...before, pattern };
 
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -272,7 +266,7 @@ export function usePriceAlerts(
   };
 
   /**
-   * FEATURE: saves free-form alert context locally and, in persistent mode,
+   * saves free-form alert context locally and, in persistent mode,
    * updates SQLite so the backend-owned notification can append it later.
    */
   const setAlertAdditionalInfo = (id: string, additionalInfo: string) => {
@@ -283,9 +277,7 @@ export function usePriceAlerts(
     if (after.additionalInfo === before.additionalInfo) return;
 
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -301,7 +293,7 @@ export function usePriceAlerts(
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
-    // FEATURE: unlocking also restores full opacity so controls never become
+    // unlocking also restores full opacity so controls never become
     // available on a still-dimmed line that the user must restore separately.
     const after: PriceAlert = {
       ...before,
@@ -309,9 +301,7 @@ export function usePriceAlerts(
       hidden: before.locked ? false : before.hidden,
     };
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -324,9 +314,7 @@ export function usePriceAlerts(
 
     const after: PriceAlert = { ...before, hidden: !before.hidden };
     setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === id ? after : alert,
-      );
+      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });
@@ -336,9 +324,7 @@ export function usePriceAlerts(
   const reverseAlertAction = (action: AlertHistoryAction) => {
     if (action.type === "add") {
       setState((previous) => {
-        const nextAlerts = previous.alerts.filter(
-          (alert) => alert.id !== action.alert.id,
-        );
+        const nextAlerts = previous.alerts.filter((alert) => alert.id !== action.alert.id);
         saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
         return { symbol: normalizedSymbol, alerts: nextAlerts };
       });
@@ -375,9 +361,7 @@ export function usePriceAlerts(
 
     if (action.type === "delete") {
       setState((previous) => {
-        const nextAlerts = previous.alerts.filter(
-          (alert) => alert.id !== action.alert.id,
-        );
+        const nextAlerts = previous.alerts.filter((alert) => alert.id !== action.alert.id);
         saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
         return { symbol: normalizedSymbol, alerts: nextAlerts };
       });
@@ -446,20 +430,16 @@ export function usePriceAlerts(
           (alert) => alert.id.startsWith("alert-") && !remoteIds.has(alert.id),
         );
         const created = await Promise.all(
-          localOnly.map((alert) =>
-            createPersistentPriceAlert(normalizedSymbol, alert),
-          ),
+          localOnly.map((alert) => createPersistentPriceAlert(normalizedSymbol, alert)),
         );
         if (cancelled) return;
-        const localById = new Map(
-          alertsRef.current.map((alert) => [alert.id, alert]),
-        );
-        const nextAlerts = [...remote, ...created].map((alert) => {
-          const local = localById.get(alert.id);
-          return local
-            ? { ...alert, locked: local.locked, hidden: local.hidden }
-            : alert;
-        });
+        const localById = new Map(alertsRef.current.map((alert) => [alert.id, alert]));
+        const nextAlerts = [...remote, ...created]
+          .filter((alert) => !triggeredPersistentAlertIdsRef.current.has(alert.id))
+          .map((alert) => {
+            const local = localById.get(alert.id);
+            return local ? { ...alert, locked: local.locked, hidden: local.hidden } : alert;
+          });
         setState({ symbol: normalizedSymbol, alerts: nextAlerts });
         saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       } catch (error) {
@@ -478,28 +458,21 @@ export function usePriceAlerts(
   useEffect(() => {
     const handleTriggeredAlert = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ id: string; symbol: string }>;
+      triggeredPersistentAlertIdsRef.current.add(event.detail.id);
       if (normalizeSymbol(event.detail.symbol) !== normalizedSymbol) return;
 
       setState((previous) => {
         if (previous.symbol !== normalizedSymbol) return previous;
-        const nextAlerts = previous.alerts.filter(
-          (alert) => alert.id !== event.detail.id,
-        );
+        const nextAlerts = previous.alerts.filter((alert) => alert.id !== event.detail.id);
         if (nextAlerts.length === previous.alerts.length) return previous;
         saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
         return { symbol: normalizedSymbol, alerts: nextAlerts };
       });
     };
 
-    window.addEventListener(
-      "persistent-price-alert-triggered",
-      handleTriggeredAlert,
-    );
+    window.addEventListener("persistent-price-alert-triggered", handleTriggeredAlert);
     return () => {
-      window.removeEventListener(
-        "persistent-price-alert-triggered",
-        handleTriggeredAlert,
-      );
+      window.removeEventListener("persistent-price-alert-triggered", handleTriggeredAlert);
     };
   }, [normalizedSymbol]);
 
@@ -515,7 +488,7 @@ export function usePriceAlerts(
   useEffect(() => {
     if (lastPrice === null || persistentAlertsEnabledRef.current) return;
 
-    // FIX: `lastPrice` is React state owned by useMarketData and can survive for
+    // `lastPrice` is React state owned by useMarketData and can survive for
     // one render while a symbol switch is in progress. Without symbol-tagging
     // the crossing baseline, opening TRX after NVDA could compare NVDA's last
     // price (e.g. 218) with TRX's first tick (e.g. 0.34) and falsely fire every
@@ -538,10 +511,8 @@ export function usePriceAlerts(
     if (currentAlerts.length === 0) return;
 
     const triggered = currentAlerts.filter((alert) => {
-      const crossedUpward =
-        previousPrice < alert.price && lastPrice >= alert.price;
-      const crossedDownward =
-        previousPrice > alert.price && lastPrice <= alert.price;
+      const crossedUpward = previousPrice < alert.price && lastPrice >= alert.price;
+      const crossedDownward = previousPrice > alert.price && lastPrice <= alert.price;
       return crossedUpward || crossedDownward;
     });
 
@@ -549,9 +520,7 @@ export function usePriceAlerts(
 
     const triggeredIds = new Set(triggered.map((alert) => alert.id));
     setState((previous) => {
-      const nextAlerts = previous.alerts.filter(
-        (alert) => !triggeredIds.has(alert.id),
-      );
+      const nextAlerts = previous.alerts.filter((alert) => !triggeredIds.has(alert.id));
       saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
       return { symbol: normalizedSymbol, alerts: nextAlerts };
     });

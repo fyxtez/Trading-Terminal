@@ -18,7 +18,6 @@ export interface MarketOrderRequest {
   client_order_id: string | null;
 }
 
-
 export interface AutoMarketOrderRequest {
   symbol: string;
   side: OrderSide;
@@ -84,7 +83,7 @@ export type PlaceLimitOrderResponse = {
   submitted_quantity: number;
   submitted_price: number;
   applied_leverage: number | null;
-  // FEATURE: backend-projected isolated liquidation for a resting entry LIMIT.
+  // backend-projected isolated liquidation for a resting entry LIMIT.
   // Binance has no official liquidationPrice until the order actually fills.
   estimated_liquidation_price: number | null;
   sizing: unknown;
@@ -119,7 +118,7 @@ export type PendingLimitOrder = {
   intent?: "ENTRY" | "ADD" | "REDUCE";
   reducePct?: number;
   remainingPct?: number;
-  // FEATURE: carry the pre-fill liquidation estimate into the chart order line.
+  // carry the pre-fill liquidation estimate into the chart order line.
   estimatedLiquidationPrice?: number;
 };
 
@@ -170,8 +169,6 @@ export type TradeMarker = {
   createdAt?: number;
 };
 
-
-
 export type OrderExecutedEvent = {
   type: "ORDER_EXECUTED";
   event_id: string;
@@ -190,7 +187,6 @@ export type OrderExecutedEvent = {
   reduce_only: boolean;
 };
 
-
 export type AlertTriggeredEvent = {
   type: "ALERT_TRIGGERED";
   id: string;
@@ -204,6 +200,8 @@ export type AlertTriggeredEvent = {
 
 export type NotificationFailedEvent = {
   type: "NOTIFICATION_FAILED";
+  alert_id: string;
+  symbol: string;
   channel: string;
   context: string;
   message: string;

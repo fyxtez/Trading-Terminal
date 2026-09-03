@@ -27,7 +27,9 @@
   font-size: 13px;
 }
 
-.system-notice.error strong { color: var(--red); }
+.system-notice.error strong {
+  color: var(--red);
+}
 
 .system-notice p {
   margin: 5px 0 0;

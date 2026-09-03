@@ -47,13 +47,7 @@
   right: 0;
   top: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--amber) 20%,
-    var(--amber) 80%,
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, var(--amber) 20%, var(--amber) 80%, transparent);
   opacity: 0.75;
 }
 
@@ -79,7 +73,9 @@
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
-  transition: background 100ms ease, color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
 }
 .settings-close:hover,
 .hotkeys-close:hover,

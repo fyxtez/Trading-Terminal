@@ -143,9 +143,7 @@ export default function ContextMenu({
     targetDrawing?.type === "horizontal" ||
     targetDrawing?.type === "vertical";
   const drawingAlertPrice =
-    targetDrawing?.type === "horizontal"
-      ? targetDrawing.price
-      : contextMenu.price;
+    targetDrawing?.type === "horizontal" ? targetDrawing.price : contextMenu.price;
   /*
    * Both reset to their defaults for free every time this menu opens,
    * since the chart-menu branch is only ever mounted while
@@ -154,8 +152,7 @@ export default function ContextMenu({
    * than reopening mid-submenu or mid-confirmation from last time.
    */
   const [isTimeframeMenuOpen, setIsTimeframeMenuOpen] = useState(false);
-  const [confirmingTimeframe, setConfirmingTimeframe] =
-    useState<Interval | null>(null);
+  const [confirmingTimeframe, setConfirmingTimeframe] = useState<Interval | null>(null);
 
   return (
     <div
@@ -175,21 +172,23 @@ export default function ContextMenu({
             >
               Straighten selected on X axis
             </button>
-          ) : canCreateAlertFromDrawing && (
-            <>
-              <button
-                className="context-action"
-                disabled={drawingAlertPrice === null}
-                onClick={() => {
-                  onCreateAlert(drawingAlertPrice!);
-                  onClose();
-                }}
-              >
-                Create alert
-              </button>
+          ) : (
+            canCreateAlertFromDrawing && (
+              <>
+                <button
+                  className="context-action"
+                  disabled={drawingAlertPrice === null}
+                  onClick={() => {
+                    onCreateAlert(drawingAlertPrice!);
+                    onClose();
+                  }}
+                >
+                  Create alert
+                </button>
 
-              <div className="context-separator" />
-            </>
+                <div className="context-separator" />
+              </>
+            )
           )}
 
           {!isGroupDrawingMenu && targetDrawing?.type === "trend" && (
@@ -209,34 +208,40 @@ export default function ContextMenu({
             </>
           )}
 
-          {!isGroupDrawingMenu && <button
-            className="context-delete"
-            onClick={() => {
-              onDeleteDrawing(contextMenu.drawingId!);
-              onClose();
-            }}
-          >
-            Delete drawing
-          </button>}
+          {!isGroupDrawingMenu && (
+            <button
+              className="context-delete"
+              onClick={() => {
+                onDeleteDrawing(contextMenu.drawingId!);
+                onClose();
+              }}
+            >
+              Delete drawing
+            </button>
+          )}
 
           {!isGroupDrawingMenu && <div className="context-separator" />}
 
-          {!isGroupDrawingMenu && <><div className="context-label">Line color</div>
-          <div className="color-row">
-            {DRAWING_COLORS.map((color) => (
-              <button
-                key={color}
-                className="color-button"
-                style={{ backgroundColor: color }}
-                aria-label={`Set drawing color to ${color}`}
-                title={color}
-                onClick={() => {
-                  onChangeColor(contextMenu.drawingId!, color);
-                  onClose();
-                }}
-              />
-            ))}
-          </div></>}
+          {!isGroupDrawingMenu && (
+            <>
+              <div className="context-label">Line color</div>
+              <div className="color-row">
+                {DRAWING_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    className="color-button"
+                    style={{ backgroundColor: color }}
+                    aria-label={`Set drawing color to ${color}`}
+                    title={color}
+                    onClick={() => {
+                      onChangeColor(contextMenu.drawingId!, color);
+                      onClose();
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {!isGroupDrawingMenu && targetDrawing?.type === "text" && (
             <>
@@ -248,9 +253,7 @@ export default function ContextMenu({
                   <button
                     key={align}
                     className={`context-align-button ${
-                      (targetDrawing.align ?? "left") === align
-                        ? "context-align-active"
-                        : ""
+                      (targetDrawing.align ?? "left") === align ? "context-align-active" : ""
                     }`}
                     aria-label={`Align text ${align}`}
                     title={`Align ${align}`}
@@ -329,12 +332,9 @@ export default function ContextMenu({
           {confirmingTimeframe ? (
             <div className="context-confirm">
               <div className="context-confirm-label">
-                Delete {drawingCountsByTimeframe[confirmingTimeframe] ?? 0}{" "}
-                {confirmingTimeframe} line
-                {(drawingCountsByTimeframe[confirmingTimeframe] ?? 0) === 1
-                  ? ""
-                  : "s"}
-                ?
+                Delete {drawingCountsByTimeframe[confirmingTimeframe] ?? 0} {confirmingTimeframe}{" "}
+                line
+                {(drawingCountsByTimeframe[confirmingTimeframe] ?? 0) === 1 ? "" : "s"}?
               </div>
               <div className="context-confirm-actions">
                 <button
@@ -346,10 +346,7 @@ export default function ContextMenu({
                 >
                   Yes
                 </button>
-                <button
-                  className="context-confirm-no"
-                  onClick={() => setConfirmingTimeframe(null)}
-                >
+                <button className="context-confirm-no" onClick={() => setConfirmingTimeframe(null)}>
                   No
                 </button>
               </div>
@@ -368,17 +365,12 @@ export default function ContextMenu({
                       onClick={() => setConfirmingTimeframe(interval)}
                     >
                       <span className="context-tf-label">{interval}</span>
-                      <span className="context-tf-count">
-                        {count > 0 ? count : "\u2013"}
-                      </span>
+                      <span className="context-tf-count">{count > 0 ? count : "\u2013"}</span>
                     </button>
                   );
                 })}
               </div>
-              <button
-                className="context-action"
-                onClick={() => setIsTimeframeMenuOpen(false)}
-              >
+              <button className="context-action" onClick={() => setIsTimeframeMenuOpen(false)}>
                 Back
               </button>
             </>

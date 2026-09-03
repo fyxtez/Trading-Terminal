@@ -94,9 +94,7 @@ export function useCoordinateMapping(refs: ChartRefs) {
     if (leftIndex >= 0 && leftIndex < candles.length - 1) {
       const leftTime = Number(candles[leftIndex].time);
       const rightTime = Number(candles[leftIndex + 1].time);
-      return Math.round(
-        leftTime + fraction * (rightTime - leftTime),
-      ) as UTCTimestamp;
+      return Math.round(leftTime + fraction * (rightTime - leftTime)) as UTCTimestamp;
     }
 
     if (candles.length < 2) {
@@ -206,7 +204,7 @@ export function useCoordinateMapping(refs: ChartRefs) {
       : time;
 
     /*
-     * FIX (pen strokes became stair-stepped on 15m+): alignToInterval=false
+     * alignToInterval=false
      * means the timestamp is an intentional fractional/sub-candle pen sample.
      * Even though timeToCoordinate sometimes returns a non-null value for such
      * a timestamp, Lightweight Charts quantizes that result to a bar column.
@@ -350,14 +348,10 @@ export function useCoordinateMapping(refs: ChartRefs) {
     }
 
     const x = timeToX(point.time, alignToInterval);
-    // FIX: when no candle is visible, the candlestick series returns null even
+    // when no candle is visible, the candlestick series returns null even
     // though the shared right scale is kept alive by the invisible future
     // series. Fall back to that series so drawings still receive Y coordinates.
-    const y = priceToCoordinateWithFutureFallback(
-      series,
-      refs.futureScaleRef.current,
-      point.price,
-    );
+    const y = priceToCoordinateWithFutureFallback(series, refs.futureScaleRef.current, point.price);
 
     if (x === null || y === null) {
       return null;
@@ -366,21 +360,13 @@ export function useCoordinateMapping(refs: ChartRefs) {
     return { x, y };
   };
 
-  const screenToChartPoint = (
-    x: number,
-    y: number,
-    continuous = false,
-  ): ChartPoint | null => {
+  const screenToChartPoint = (x: number, y: number, continuous = false): ChartPoint | null => {
     const chart = refs.chartRef.current;
     const series = refs.candleRef.current;
 
     if (!chart || !series) return null;
 
-    const price = coordinateToPriceWithFutureFallback(
-      series,
-      refs.futureScaleRef.current,
-      y,
-    );
+    const price = coordinateToPriceWithFutureFallback(series, refs.futureScaleRef.current, y);
 
     if (price === null) return null;
 
@@ -406,14 +392,10 @@ export function useCoordinateMapping(refs: ChartRefs) {
 
     const threshold = 8;
 
-    for (
-      let index = refs.drawingsRef.current.length - 1;
-      index >= 0;
-      index -= 1
-    ) {
+    for (let index = refs.drawingsRef.current.length - 1; index >= 0; index -= 1) {
       const drawing = refs.drawingsRef.current[index];
 
-      // FIX: callers can exclude drawings that are currently non-interactive
+      // callers can exclude drawings that are currently non-interactive
       // (for example hidden user annotations) before hit-testing geometry.
       // Filtering inside the reverse scan is important because it still lets a
       // visible order line underneath a hidden drawing receive pointer events.
@@ -445,11 +427,7 @@ export function useCoordinateMapping(refs: ChartRefs) {
         // the actual candle pane.
         const isInsidePlotPane = x >= 0 && x < paneWidth;
 
-        if (
-          isInsidePlotPane &&
-          lineY != null &&
-          Math.abs(y - lineY) <= threshold
-        ) {
+        if (isInsidePlotPane && lineY != null && Math.abs(y - lineY) <= threshold) {
           return drawing;
         }
 
@@ -484,15 +462,8 @@ export function useCoordinateMapping(refs: ChartRefs) {
       }
 
       if (drawing.type === "pen") {
-        for (
-          let pointIndex = 1;
-          pointIndex < drawing.points.length;
-          pointIndex += 1
-        ) {
-          const previous = chartPointToScreen(
-            drawing.points[pointIndex - 1],
-            false,
-          );
+        for (let pointIndex = 1; pointIndex < drawing.points.length; pointIndex += 1) {
+          const previous = chartPointToScreen(drawing.points[pointIndex - 1], false);
           const current = chartPointToScreen(drawing.points[pointIndex], false);
 
           if (!previous || !current) continue;

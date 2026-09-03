@@ -57,18 +57,13 @@ export default function SessionZonesOverlay({
   showNewYork,
   showNewYorkKillZone,
 }: SessionZonesOverlayProps) {
-  const [sessions, setSessions] = useState<TradingSession[]>(() =>
-    getTodaysSessions(),
-  );
+  const [sessions, setSessions] = useState<TradingSession[]>(() => getTodaysSessions());
   const dayKeyRef = useRef(localDayKey());
-  const [killZone, setKillZone] = useState<KillZone>(() =>
-    getTodaysNewYorkKillZone(),
-  );
+  const [killZone, setKillZone] = useState<KillZone>(() => getTodaysNewYorkKillZone());
 
   const [lines, setLines] = useState<PositionedLine[]>([]);
   const [paneHeight, setPaneHeight] = useState(0);
-  const [positionedKillZone, setPositionedKillZone] =
-    useState<PositionedZone | null>(null);
+  const [positionedKillZone, setPositionedKillZone] = useState<PositionedZone | null>(null);
 
   // Recompute the session windows the moment the chart's local calendar
   // day rolls over, so yesterday's lines never linger into today.
@@ -149,7 +144,7 @@ export default function SessionZonesOverlay({
           const left = Math.max(0, rawLeft);
           const right = Math.min(paneSize.width, rawRight);
 
-          // FEATURE: clip the filled window at pane edges so a partially
+          // clip the filled window at pane edges so a partially
           // visible kill zone remains useful while panning through it.
           if (right > left) {
             nextKillZone = {
@@ -187,7 +182,8 @@ export default function SessionZonesOverlay({
       setPositionedKillZone((current) => {
         if (!current && !nextKillZone) return current;
         if (
-          current && nextKillZone &&
+          current &&
+          nextKillZone &&
           Math.abs(current.left - nextKillZone.left) <= 0.25 &&
           Math.abs(current.width - nextKillZone.width) <= 0.25 &&
           Math.abs(current.height - nextKillZone.height) <= 0.25 &&
@@ -198,11 +194,21 @@ export default function SessionZonesOverlay({
         }
         return nextKillZone;
       });
-
     };
 
     return startPacedLoop(update);
-  }, [sessions, killZone, chartWrapRef, chartRef, candleRef, coordTimeToX, showAsia, showLondon, showNewYork, showNewYorkKillZone]);
+  }, [
+    sessions,
+    killZone,
+    chartWrapRef,
+    chartRef,
+    candleRef,
+    coordTimeToX,
+    showAsia,
+    showLondon,
+    showNewYork,
+    showNewYorkKillZone,
+  ]);
 
   if ((lines.length === 0 && !positionedKillZone) || paneHeight <= 0) return null;
 
@@ -219,9 +225,7 @@ export default function SessionZonesOverlay({
             backgroundColor: `${positionedKillZone.color}18`,
           }}
         >
-          <span style={{ color: positionedKillZone.color }}>
-            {positionedKillZone.label}
-          </span>
+          <span style={{ color: positionedKillZone.color }}>{positionedKillZone.label}</span>
         </div>
       )}
       {lines.map((line) => (

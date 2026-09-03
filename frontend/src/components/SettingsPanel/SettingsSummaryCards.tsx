@@ -24,9 +24,7 @@ export function DesktopConnectionsSection({
     ["ntfy", "ntfy", credentials.status.ntfyConfigured, undefined],
     ["Telegram", "telegram", credentials.status.telegramConfigured, undefined],
   ] as const;
-  const hasMissingConnection = connections.some(
-    ([, , configured]) => !configured,
-  );
+  const hasMissingConnection = connections.some(([, , configured]) => !configured);
 
   return (
     <section className="settings-section settings-desktop-connections">
@@ -48,11 +46,7 @@ export function DesktopConnectionsSection({
               <div className={configured ? "connected" : ""} key={connection}>
                 <span>{label}</span>
                 <div>
-                  <b>
-                    {configured
-                      ? `CONNECTED${detail ? ` · ${detail}` : ""}`
-                      : "NOT SET"}
-                  </b>
+                  <b>{configured ? `CONNECTED${detail ? ` · ${detail}` : ""}` : "NOT SET"}</b>
                   <button type="button" onClick={() => credentials.openSetup(connection)}>
                     {configured ? "EDIT" : "CONNECT"}
                   </button>
@@ -111,9 +105,7 @@ export function AvailableBalanceCard({
           </strong>
         )}
 
-        {!isLoading && !error && (
-          <span className="settings-balance-unit">USDT</span>
-        )}
+        {!isLoading && !error && <span className="settings-balance-unit">USDT</span>}
       </div>
     </section>
   );

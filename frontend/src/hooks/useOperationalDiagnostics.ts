@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConnectionState } from "./useTradingStream";
-import {
-  getBackendDiagnostics,
-  type BackendDiagnostics,
-} from "../trading/api/diagnostics";
-import {
-  SYSTEM_NOTICE_EVENT,
-  publishSystemNotice,
-  type SystemNotice,
-} from "../diagnostics/events";
+import { getBackendDiagnostics, type BackendDiagnostics } from "../trading/api/diagnostics";
+import { SYSTEM_NOTICE_EVENT, publishSystemNotice, type SystemNotice } from "../diagnostics/events";
 
 const DIAGNOSTICS_REFRESH_MS = 5_000;
 
@@ -57,8 +50,7 @@ export function useOperationalDiagnostics({
       const next = await getBackendDiagnostics();
       const previousCount = previousNotificationFailuresRef.current;
       if (
-        ((previousCount !== null &&
-          next.notifications.failureCount > previousCount) ||
+        ((previousCount !== null && next.notifications.failureCount > previousCount) ||
           (previousCount === null &&
             next.notifications.failureCount > 0 &&
             (next.notifications.lastFailureAtMs ?? 0) >= mountedAtRef.current)) &&
@@ -76,11 +68,7 @@ export function useOperationalDiagnostics({
       setError(null);
       setRefreshedAt(Date.now());
     } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "Diagnostics unavailable",
-      );
+      setError(refreshError instanceof Error ? refreshError.message : "Diagnostics unavailable");
     } finally {
       setIsLoading(false);
     }

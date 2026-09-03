@@ -36,12 +36,7 @@ function loadSavedViewports(): SavedChartViewports {
       if (!value || typeof value !== "object") continue;
 
       const candidate = value as Partial<SavedChartViewport>;
-      const numbers = [
-        candidate.xFromOffset,
-        candidate.xToOffset,
-        candidate.yFrom,
-        candidate.yTo,
-      ];
+      const numbers = [candidate.xFromOffset, candidate.xToOffset, candidate.yFrom, candidate.yTo];
 
       if (numbers.every((number) => typeof number === "number" && Number.isFinite(number))) {
         const viewport = candidate as SavedChartViewport;
@@ -57,10 +52,7 @@ function loadSavedViewports(): SavedChartViewports {
   }
 }
 
-export function loadSavedViewport(
-  symbol: string,
-  interval: Interval,
-): SavedChartViewport | null {
+export function loadSavedViewport(symbol: string, interval: Interval): SavedChartViewport | null {
   return loadSavedViewports()[viewportStorageId(symbol, interval)] ?? null;
 }
 
@@ -97,9 +89,7 @@ export function savedViewportShowsCandles(
   // only when at least one candle in the X window intersects the saved price.
   return candles
     .slice(firstCandleIndex, lastCandleIndex + 1)
-    .some(
-      (candle) => candle.high >= viewport.yFrom && candle.low <= viewport.yTo,
-    );
+    .some((candle) => candle.high >= viewport.yFrom && candle.low <= viewport.yTo);
 }
 
 function loadSavedIntervals(): SavedIntervalsBySymbol {

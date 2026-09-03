@@ -20,6 +20,8 @@ pub enum TradingEvent {
         triggered_at: i64,
     },
     NotificationFailed {
+        alert_id: String,
+        symbol: String,
         channel: String,
         context: String,
         message: String,
@@ -40,4 +42,26 @@ pub enum TradingEvent {
         transaction_time: Option<u64>,
         reduce_only: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TradingEvent;
+
+    #[test]
+    fn notification_failure_identifies_the_consumed_alert() {
+        let event = TradingEvent::NotificationFailed {
+            alert_id: "alert-id".into(),
+            symbol: "BTCUSDT".into(),
+            channel: "telegram".into(),
+            context: "BTCUSDT price alert".into(),
+            message: "rejected".into(),
+            occurred_at: 123,
+        };
+
+        let value = serde_json::to_value(event).expect("event must serialize");
+        assert_eq!(value["type"], "NOTIFICATION_FAILED");
+        assert_eq!(value["alert_id"], "alert-id");
+        assert_eq!(value["symbol"], "BTCUSDT");
+    }
 }

@@ -18,7 +18,7 @@ export default function HotkeysPopup({ onClose }: HotkeysPopupProps) {
 
       <div className="hotkeys-list">
         <div>
-          {/* FEATURE: Ctrl+W is browser-reserved in Chromium/Brave, so Alt+W
+          {/* Ctrl+W is browser-reserved in Chromium/Brave, so Alt+W
               provides a dependable close-active-symbol-tab shortcut instead. */}
           <kbd>Alt</kbd> + <kbd>W</kbd>
           <span>Close active symbol tab</span>
@@ -68,7 +68,7 @@ export default function HotkeysPopup({ onClose }: HotkeysPopupProps) {
           <span>Remove from group</span>
         </div>
         <div className="hotkeys-gesture-row">
-          {/* FIX: one combined gesture badge leaves a real description column;
+          {/* one combined gesture badge leaves a real description column;
               three independent keycaps previously squeezed this text into a
               narrow, awkward three-line stack. */}
           <kbd>Click → Move → Click</kbd>

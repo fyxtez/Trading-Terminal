@@ -7,12 +7,8 @@ import {
 } from "react";
 import { usePositions } from "../../hooks/usePositions";
 import type { OpenOrdersApi } from "../../hooks/useOpenOrders";
-import {
-  closeEverything,
-} from "../../trading/api/positions";
-import {
-  cancelConditionalOrder,
-} from "../../trading/api/orders";
+import { closeEverything } from "../../trading/api/positions";
+import { cancelConditionalOrder } from "../../trading/api/orders";
 import { loadSavedStop, saveStop, type SavedStop } from "../../trading/stopLoss";
 import type { TradeSide } from "../../trading/types";
 import {
@@ -93,7 +89,7 @@ export default function PositionsPanel({
 }: PositionsPanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("positions");
   /*
-   * FIX: "Close Everything" used to be a single account-wide action -
+   * "Close Everything" used to be a single account-wide action -
    * one double-tap button that closed every symbol's positions and
    * cancelled every symbol's orders, no way to scope it down. Now it
    * opens a small menu with two choices instead: the old full-account
@@ -111,24 +107,16 @@ export default function PositionsPanel({
   const closeEverythingRootRef = useRef<HTMLDivElement | null>(null);
   const positionsApi = usePositions(isOpen, onPositionClosed);
   const [isResizing, setIsResizing] = useState(false);
-  // FEATURE: This counter is only a lightweight render trigger for the shared
+  // This counter is only a lightweight render trigger for the shared
   // per-symbol TP/SL visibility preference. The preference itself remains in
   // localStorage so the chart and panel have one source of truth.
   const [, setTpSlVisibilityVersion] = useState(0);
 
   useEffect(() => {
-    const refreshTpSlVisibility = () =>
-      setTpSlVisibilityVersion((version) => version + 1);
+    const refreshTpSlVisibility = () => setTpSlVisibilityVersion((version) => version + 1);
 
-    window.addEventListener(
-      TP_SL_CONTROLS_VISIBILITY_EVENT,
-      refreshTpSlVisibility,
-    );
-    return () =>
-      window.removeEventListener(
-        TP_SL_CONTROLS_VISIBILITY_EVENT,
-        refreshTpSlVisibility,
-      );
+    window.addEventListener(TP_SL_CONTROLS_VISIBILITY_EVENT, refreshTpSlVisibility);
+    return () => window.removeEventListener(TP_SL_CONTROLS_VISIBILITY_EVENT, refreshTpSlVisibility);
   }, []);
 
   /*
@@ -157,7 +145,7 @@ export default function PositionsPanel({
   // GET /api/orders/open like regular orders do - so it has to be merged
   // in here rather than arriving through openOrdersApi.
   //
-  // FIX: this used to track only ONE saved stop (for whichever symbol
+  // this used to track only ONE saved stop (for whichever symbol
   // was currently selected on the chart), so a user holding positions on
   // several symbols at once would only ever see one symbol's stop-loss
   // in this list - the rest were silently missing, even though they were
@@ -165,12 +153,8 @@ export default function PositionsPanel({
   // row per OPEN POSITION that has a saved stop, covering every symbol at
   // once - the same way `positionsApi.positions` below already covers
   // every symbol's positions rather than just one.
-  const [savedStopsBySymbol, setSavedStopsBySymbol] = useState<
-    Record<string, SavedStop>
-  >({});
-  const [cancellingStopSymbol, setCancellingStopSymbol] = useState<
-    string | null
-  >(null);
+  const [savedStopsBySymbol, setSavedStopsBySymbol] = useState<Record<string, SavedStop>>({});
+  const [cancellingStopSymbol, setCancellingStopSymbol] = useState<string | null>(null);
   const [stopCancelError, setStopCancelError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -211,12 +195,8 @@ export default function PositionsPanel({
   const hasActiveSymbolToClose = useMemo(() => {
     const normalized = activeSymbol.toUpperCase();
     return (
-      positionsApi.positions.some(
-        (position) => position.symbol.toUpperCase() === normalized,
-      ) ||
-      combinedOpenOrders.some(
-        (order) => order.symbol.toUpperCase() === normalized,
-      )
+      positionsApi.positions.some((position) => position.symbol.toUpperCase() === normalized) ||
+      combinedOpenOrders.some((order) => order.symbol.toUpperCase() === normalized)
     );
   }, [positionsApi.positions, combinedOpenOrders, activeSymbol]);
 
@@ -267,9 +247,7 @@ export default function PositionsPanel({
       });
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
-      setStopCancelError(
-        error instanceof Error ? error.message : "Unable to cancel stop loss",
-      );
+      setStopCancelError(error instanceof Error ? error.message : "Unable to cancel stop loss");
     } finally {
       setCancellingStopSymbol(null);
     }
@@ -280,8 +258,7 @@ export default function PositionsPanel({
     setCloseEverythingError(null);
 
     /*
-     * FIX (missing marker on non-active symbols after Close Everything):
-     * avg_price comes from the market-close order's own immediate REST
+     * * avg_price comes from the market-close order's own immediate REST
      * response - which, for a market order, can occasionally come back
      * with avgPrice not yet populated (a known Binance timing quirk,
      * more likely to surface when closing several positions back-to-
@@ -297,19 +274,14 @@ export default function PositionsPanel({
      * a liquid pair rarely slips far from the mark price anyway.
      */
     const markPriceBySymbol = new Map(
-      positionsApi.positions.map((item) => [
-        item.symbol.toUpperCase(),
-        item.mark_price,
-      ]),
+      positionsApi.positions.map((item) => [item.symbol.toUpperCase(), item.mark_price]),
     );
 
     try {
       const result = await closeEverything(symbol);
 
       for (const closedPosition of result.closed_positions) {
-        const fallbackPrice = markPriceBySymbol.get(
-          closedPosition.symbol.toUpperCase(),
-        );
+        const fallbackPrice = markPriceBySymbol.get(closedPosition.symbol.toUpperCase());
 
         onPositionClosed(
           closedPosition.side,
@@ -322,22 +294,14 @@ export default function PositionsPanel({
       }
 
       if (!result.completed) {
-        const message = result.errors
-          .map((item) => `${item.symbol}: ${item.error}`)
-          .join(" · ");
-        setCloseEverythingError(
-          message || "Close Everything completed with errors",
-        );
+        const message = result.errors.map((item) => `${item.symbol}: ${item.error}`).join(" · ");
+        setCloseEverythingError(message || "Close Everything completed with errors");
       }
 
-      await Promise.all([
-        positionsApi.refresh(true),
-        openOrdersApi.refresh(true),
-      ]);
+      await Promise.all([positionsApi.refresh(true), openOrdersApi.refresh(true)]);
 
       /*
-       * FIX (Positions panel not auto-closing when Close Everything
-       * leaves 0 positions): same root cause as the auto-open bug fixed
+       * same root cause as the auto-open bug fixed
        * in useTradeMenu.ts - App.tsx's auto-open/close-panel logic only
        * listens for "account-state-changed", but this only ever
        * dispatched "trading-state-changed". Dispatching both means that
@@ -349,18 +313,14 @@ export default function PositionsPanel({
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
       setCloseEverythingError(
-        error instanceof Error
-          ? error.message
-          : "Unable to close all positions and orders",
+        error instanceof Error ? error.message : "Unable to close all positions and orders",
       );
     } finally {
       setIsClosingEverything(false);
     }
   };
 
-  const handleResizePointerDown = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (window.matchMedia("(max-width: 720px)").matches || isResizing) return;
 
     event.preventDefault();
@@ -451,8 +411,7 @@ export default function PositionsPanel({
               className="close-everything-button"
               disabled={
                 isClosingEverything ||
-                (positionsApi.positions.length === 0 &&
-                  combinedOpenOrders.length === 0)
+                (positionsApi.positions.length === 0 && combinedOpenOrders.length === 0)
               }
               onClick={() =>
                 setIsCloseEverythingMenuOpen((open) => {
@@ -473,10 +432,7 @@ export default function PositionsPanel({
                   onClick={() => {
                     if (!isCloseEverythingArmed) {
                       setIsCloseEverythingArmed(true);
-                      window.setTimeout(
-                        () => setIsCloseEverythingArmed(false),
-                        4_000,
-                      );
+                      window.setTimeout(() => setIsCloseEverythingArmed(false), 4_000);
                       return;
                     }
 
@@ -516,9 +472,7 @@ export default function PositionsPanel({
       </div>
 
       <div className="positions-body">
-        {closeEverythingError && (
-          <div className="positions-error">{closeEverythingError}</div>
-        )}
+        {closeEverythingError && <div className="positions-error">{closeEverythingError}</div>}
 
         {activeTab === "positions" ? (
           <>
@@ -537,9 +491,7 @@ export default function PositionsPanel({
               <span>Close Position</span>
             </div>
 
-            {positionsApi.error && (
-              <div className="positions-error">{positionsApi.error}</div>
-            )}
+            {positionsApi.error && <div className="positions-error">{positionsApi.error}</div>}
 
             {positionsApi.isLoading && positionsApi.positions.length === 0 ? (
               <div className="positions-empty">
@@ -559,24 +511,18 @@ export default function PositionsPanel({
                       isClosing={positionsApi.closingSymbol === position.symbol}
                       onCloseMarket={() => void positionsApi.closeMarket(position)}
                       fullTakeProfitPrice={
-                        position.symbol.toUpperCase() ===
-                          protection.symbol.toUpperCase() &&
+                        position.symbol.toUpperCase() === protection.symbol.toUpperCase() &&
                         protection.fullTakeProfitPrice !== null
                           ? protection.fullTakeProfitPrice
-                          : (fullTakeProfitBySymbol[
-                              position.symbol.toUpperCase()
-                            ] ?? null)
+                          : (fullTakeProfitBySymbol[position.symbol.toUpperCase()] ?? null)
                       }
                       stopLossPrice={
-                        position.symbol.toUpperCase() ===
-                        protection.symbol.toUpperCase()
+                        position.symbol.toUpperCase() === protection.symbol.toUpperCase()
                           ? protection.stopLossPrice
-                          : (savedStopsBySymbol[position.symbol.toUpperCase()]
-                              ?.triggerPrice ?? null)
+                          : (savedStopsBySymbol[position.symbol.toUpperCase()]?.triggerPrice ??
+                            null)
                       }
-                      areTpSlControlsShown={areTpSlControlsVisible(
-                        position.symbol,
-                      )}
+                      areTpSlControlsShown={areTpSlControlsVisible(position.symbol)}
                       onToggleTpSlControls={() =>
                         setTpSlControlsVisible(
                           position.symbol,
@@ -586,9 +532,7 @@ export default function PositionsPanel({
                       isFocused={focusedPositionKey === positionKey}
                       onFocus={() => onFocusPosition(positionKey)}
                       onSwitchSymbol={() => onSwitchSymbol(position.symbol)}
-                      isInteractive={
-                        position.symbol.toUpperCase() === activeSymbol.toUpperCase()
-                      }
+                      isInteractive={position.symbol.toUpperCase() === activeSymbol.toUpperCase()}
                     />
                   );
                 })}
@@ -606,9 +550,7 @@ export default function PositionsPanel({
             </div>
 
             {(openOrdersApi.error || stopCancelError) && (
-              <div className="positions-error">
-                {openOrdersApi.error ?? stopCancelError}
-              </div>
+              <div className="positions-error">{openOrdersApi.error ?? stopCancelError}</div>
             )}
 
             {openOrdersApi.isLoading && combinedOpenOrders.length === 0 ? (
@@ -635,12 +577,8 @@ export default function PositionsPanel({
                           ? cancellingStopSymbol === order.symbol.toUpperCase()
                           : openOrdersApi.cancellingOrderId === order.orderId
                       }
-                      isUpdating={
-                        openOrdersApi.updatingOrderId === order.orderId
-                      }
-                      isChasing={
-                        openOrdersApi.chasingOrderId === order.orderId
-                      }
+                      isUpdating={openOrdersApi.updatingOrderId === order.orderId}
+                      isChasing={openOrdersApi.chasingOrderId === order.orderId}
                       onCancel={() =>
                         isStopRow
                           ? void cancelSavedStop(order.symbol)
@@ -653,9 +591,7 @@ export default function PositionsPanel({
                       isFocused={focusedOrderId === order.orderId}
                       onFocus={() => onFocusOrder(order.orderId)}
                       onSwitchSymbol={() => onSwitchSymbol(order.symbol)}
-                      isInteractive={
-                        order.symbol.toUpperCase() === activeSymbol.toUpperCase()
-                      }
+                      isInteractive={order.symbol.toUpperCase() === activeSymbol.toUpperCase()}
                     />
                   );
                 })}

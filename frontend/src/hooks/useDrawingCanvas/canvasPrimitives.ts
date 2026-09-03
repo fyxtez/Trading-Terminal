@@ -88,11 +88,7 @@ export function drawPendingOrderLabel(
   context.font = PENDING_ORDER_FONT;
   context.textBaseline = "middle";
   context.textAlign = "left";
-  context.fillText(
-    text,
-    rect.x + PENDING_ORDER_LABEL_PADDING_X,
-    rect.y + rect.height / 2 + 1,
-  );
+  context.fillText(text, rect.x + PENDING_ORDER_LABEL_PADDING_X, rect.y + rect.height / 2 + 1);
   context.restore();
 }
 
@@ -106,21 +102,12 @@ export function drawPendingOrderCancelButton(
   context.fillRect(rect.x, rect.y, rect.width, rect.height);
   context.strokeStyle = color;
   context.lineWidth = 1;
-  context.strokeRect(
-    rect.x + 0.5,
-    rect.y + 0.5,
-    rect.width - 1,
-    rect.height - 1,
-  );
+  context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   context.fillStyle = color;
   context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(
-    "×",
-    rect.x + rect.width / 2,
-    rect.y + rect.height / 2 + 1,
-  );
+  context.fillText("×", rect.x + rect.width / 2, rect.y + rect.height / 2 + 1);
   context.restore();
 }
 
@@ -135,21 +122,12 @@ function drawOutlinedButton(
   context.fillRect(rect.x, rect.y, rect.width, rect.height);
   context.strokeStyle = color;
   context.lineWidth = 1;
-  context.strokeRect(
-    rect.x + 0.5,
-    rect.y + 0.5,
-    rect.width - 1,
-    rect.height - 1,
-  );
+  context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   context.fillStyle = color;
   context.font = "700 8px 'JetBrains Mono', ui-monospace, monospace";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(
-    text,
-    rect.x + rect.width / 2,
-    rect.y + rect.height / 2 + 0.5,
-  );
+  context.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2 + 0.5);
   context.restore();
 }
 
@@ -180,21 +158,12 @@ export function drawEstimatedLiquidationButton(
   context.fillRect(rect.x, rect.y, rect.width, rect.height);
   context.strokeStyle = color;
   context.lineWidth = 1;
-  context.strokeRect(
-    rect.x + 0.5,
-    rect.y + 0.5,
-    rect.width - 1,
-    rect.height - 1,
-  );
+  context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   context.fillStyle = color;
   context.font = PENDING_ORDER_FONT;
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(
-    rect.text,
-    rect.x + rect.width / 2,
-    rect.y + rect.height / 2 + 0.5,
-  );
+  context.fillText(rect.text, rect.x + rect.width / 2, rect.y + rect.height / 2 + 0.5);
   context.restore();
 }
 
@@ -210,12 +179,7 @@ export function drawEstimatedLiquidationHideButton(
   context.strokeStyle = color;
   context.lineWidth = 1;
   context.globalAlpha *= 0.72;
-  context.strokeRect(
-    rect.x + 0.5,
-    rect.y + 0.5,
-    rect.width - 1,
-    rect.height - 1,
-  );
+  context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
 
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;

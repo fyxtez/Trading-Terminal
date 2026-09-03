@@ -4,11 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
 import { DesktopConnectionsSection } from "./SettingsSummaryCards";
 
-function ConnectionsHarness({
-  credentials,
-}: {
-  credentials: DesktopCredentialsContextValue;
-}) {
+function ConnectionsHarness({ credentials }: { credentials: DesktopCredentialsContextValue }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
@@ -35,18 +31,13 @@ describe("DesktopConnectionsSection", () => {
 
     render(<ConnectionsHarness credentials={credentials} />);
 
-    expect(
-      screen.getByRole("heading", { name: "Third-Party Connections" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Third-Party Connections" })).toBeVisible();
     expect(
       screen.queryByText("Credentials stored securely on this computer."),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "HIDE" }));
-    expect(screen.getByRole("button", { name: "SHOW" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(screen.getByRole("button", { name: "SHOW" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Binance")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "SHOW" }));

@@ -30,7 +30,10 @@
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
   padding: 5px 10px;
   font-family: var(--font-mono);
   font-size: 13.5px;
@@ -144,8 +147,13 @@ button.topbar-connection-item:not(:disabled) {
   animation: topbar-connection-pulse 850ms ease-in-out infinite alternate;
 }
 
-.topbar-connection-item.disabled { color: var(--text-faint); }
-.topbar-connection-item.disabled .topbar-connection-dot { background: var(--text-faint); box-shadow: none; }
+.topbar-connection-item.disabled {
+  color: var(--text-faint);
+}
+.topbar-connection-item.disabled .topbar-connection-dot {
+  background: var(--text-faint);
+  box-shadow: none;
+}
 
 @keyframes topbar-connection-pulse {
   from {
@@ -173,7 +181,10 @@ button.topbar-connection-item:not(:disabled) {
   font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 
 .orders-button:hover,
@@ -225,7 +236,7 @@ button.topbar-connection-item:not(:disabled) {
   }
 
   .orders-button,
-.options-button {
+  .options-button {
     padding: 6px 8px;
   }
   .orders-button .orders-icon {

@@ -6,10 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
-import {
-  DEFAULT_BOX_COLOR,
-  DEFAULT_LINE_COLOR,
-} from "../../config/constants";
+import { DEFAULT_BOX_COLOR, DEFAULT_LINE_COLOR } from "../../config/constants";
 import { cloneDrawing, getTextFontSize } from "../../utils/drawings";
 import { startPacedLoop } from "../../utils/pacedLoop";
 import type {
@@ -21,11 +18,7 @@ import type {
   ScreenPoint,
   TextDrawing,
 } from "../../types/drawing";
-import {
-  cancelOrder,
-  chaseLimitOrder,
-  updateReduceOrder,
-} from "../../trading/api/orders";
+import { cancelOrder, chaseLimitOrder, updateReduceOrder } from "../../trading/api/orders";
 import { isStaleOrderError } from "../../trading/errors";
 import type { ChartRefs } from "../useChartRefs";
 import type { CoordinateMapping } from "../useCoordinateMapping";
@@ -78,7 +71,7 @@ export function useDrawingCanvas(
   const [isHoveringDrawing, setIsHoveringDrawing] = useState(false);
   const [editingText, setEditingText] = useState<EditingTextState | null>(null);
   const editingTextRef = useRef<typeof editingText>(null);
-  // FIX: the canvas paint loop is intentionally mounted once, so mirror this
+  // the canvas paint loop is intentionally mounted once, so mirror this
   // setting in a ref to let that long-lived loop see visibility changes.
   const showDrawingsRef = useRef(showDrawings);
 
@@ -91,21 +84,20 @@ export function useDrawingCanvas(
   }, [showDrawings]);
 
   /*
-   * FEATURE (limit-cancel feedback): keep order ids here while their Binance
+   * keep order ids here while their Binance
    * cancel request is in flight. The paced canvas loop is mounted once, so a
    * ref (rather than React state captured by that old closure) lets the line
    * dim immediately on the very next paint frame without waiting for a render.
    */
   const cancellingOrderIdsRef = useRef<Set<string>>(new Set());
 
-  // FIX: hidden user drawings must be completely inert, not merely invisible.
+  // hidden user drawings must be completely inert, not merely invisible.
   // Keep exchange order drawings interactive because "Show drawings" is only a
   // preference for user annotations; TP/reduce/order controls intentionally stay on.
-  // FEATURE: a dimmed order is temporarily non-interactive while cancel is pending,
+  // a dimmed order is temporarily non-interactive while cancel is pending,
   // preventing duplicate cancel/chase/reprice actions against the same Binance order.
   const isDrawingInteractive = (drawing: Drawing) =>
-    !cancellingOrderIdsRef.current.has(drawing.id) &&
-    (showDrawings || isOrderDrawing(drawing));
+    !cancellingOrderIdsRef.current.has(drawing.id) && (showDrawings || isOrderDrawing(drawing));
 
   // Whether the currently-hovered drawing is specifically a horizontal
   // (price) line - order lines, or a plain horizontal drawing. Tracked
@@ -114,27 +106,25 @@ export function useDrawingCanvas(
   // (dragging either one is a purely vertical price move), while other
   // drawing types (trend, box, pen, vertical) keep the generic pointer
   // cursor.
-  const [isHoveringHorizontalDrawing, setIsHoveringHorizontalDrawing] =
-    useState(false);
+  const [isHoveringHorizontalDrawing, setIsHoveringHorizontalDrawing] = useState(false);
 
   // Position (wrap-relative) of the "Cancel order" tooltip shown while
   // hovering a pending order's cancel button; null when not hovering one.
   const [cancelTooltip, setCancelTooltip] = useState<ScreenPoint | null>(null);
   const [chaseTooltip, setChaseTooltip] = useState<ScreenPoint | null>(null);
-  // FEATURE: the projected liquidation value is not an actual Binance position
+  // the projected liquidation value is not an actual Binance position
   // liquidation yet, so hovering its label explains exactly what the preview means.
   const [estimatedLiquidationTooltip, setEstimatedLiquidationTooltip] =
     useState<ScreenPoint | null>(null);
 
   /*
-   * FEATURE: clicking the visible TP percentage on a reduce-order label opens
+   * clicking the visible TP percentage on a reduce-order label opens
    * a compact chart-local editor. This intentionally reuses the SAME backend
    * reduce-order endpoint as Open Orders, so changing size from the chart and
    * changing it from the table can never drift into two separate behaviors.
    */
-  const [reduceOrderEditor, setReduceOrderEditor] =
-    useState<ReduceOrderEditorState | null>(null);
-  // FIX: the canvas paint loop is mounted once, so it cannot safely read the
+  const [reduceOrderEditor, setReduceOrderEditor] = useState<ReduceOrderEditorState | null>(null);
+  // the canvas paint loop is mounted once, so it cannot safely read the
   // latest React editor state from its original closure. Mirror the editor in a
   // ref so its DOM popover can continuously follow the TP line while the chart
   // pans, zooms or resizes.
@@ -176,7 +166,7 @@ export function useDrawingCanvas(
   useEffect(() => {
     if (showDrawings) return;
 
-    // FIX: turning drawings off while one is hovered used to leave the hover
+    // turning drawings off while one is hovered used to leave the hover
     // cursor/timeframe tooltip alive until the mouse moved again. Clear that
     // transient interaction state immediately so hidden annotations behave locked.
     setIsHoveringDrawing(false);
@@ -199,13 +189,7 @@ export function useDrawingCanvas(
     armTrendMove,
     armBoxHandleMove,
     submitOrderLineMove,
-  } = useArmedDrawingInteractions(
-    refs,
-    coord,
-    drawingsApi,
-    marketData,
-    tradeMenuApi,
-  );
+  } = useArmedDrawingInteractions(refs, coord, drawingsApi, marketData, tradeMenuApi);
 
   const getLocalPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const wrap = refs.chartWrapRef.current;
@@ -221,11 +205,7 @@ export function useDrawingCanvas(
   };
 
   const getPendingOrderRects = (drawing: HorizontalDrawing) =>
-    buildPendingOrderRects(
-      drawing,
-      refs,
-      marketData.pricePrecisionRef.current,
-    );
+    buildPendingOrderRects(drawing, refs, marketData.pricePrecisionRef.current);
 
   const findPendingOrderControl = (
     control: Parameters<typeof findPendingOrderControlHit>[3],
@@ -245,14 +225,11 @@ export function useDrawingCanvas(
     findPendingOrderControl("cancel", x, y);
   const findPendingOrderEstimatedLiquidationHit = (x: number, y: number) =>
     findPendingOrderControl("estimated", x, y);
-  const findPendingOrderEstimatedLiquidationHideHit = (
-    x: number,
-    y: number,
-  ) => findPendingOrderControl("estimatedHide", x, y);
+  const findPendingOrderEstimatedLiquidationHideHit = (x: number, y: number) =>
+    findPendingOrderControl("estimatedHide", x, y);
   const findPendingReduceOrderEditHit = (x: number, y: number) =>
     findPendingOrderControl("edit", x, y);
-  const findPendingOrderChaseHit = (x: number, y: number) =>
-    findPendingOrderControl("chase", x, y);
+  const findPendingOrderChaseHit = (x: number, y: number) => findPendingOrderControl("chase", x, y);
 
   const beginTextEditing = (drawing: TextDrawing) => {
     const rawRect = getTextRect(drawing, coord);
@@ -311,9 +288,8 @@ export function useDrawingCanvas(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   const closeReduceOrderEditor = () => {
-    // FIX: clear the live ref at the same time as React state; otherwise the
+    // clear the live ref at the same time as React state; otherwise the
     // long-lived canvas loop could see one stale frame and re-anchor an editor
     // that the user had just closed.
     reduceOrderEditorRef.current = null;
@@ -334,9 +310,7 @@ export function useDrawingCanvas(
     const editor = reduceOrderEditor;
     if (!editor || editor.isSubmitting) return;
 
-    const drawing = refs.drawingsRef.current.find(
-      (candidate) => candidate.id === editor.drawingId,
-    );
+    const drawing = refs.drawingsRef.current.find((candidate) => candidate.id === editor.drawingId);
 
     if (
       !drawing ||
@@ -365,14 +339,10 @@ export function useDrawingCanvas(
       message: `Updating take profit to ${editor.reducePct}%…`,
     });
 
-    void updateReduceOrder(
-      drawing.orderSymbol,
-      drawing.orderId,
-      editor.reducePct,
-    )
+    void updateReduceOrder(drawing.orderSymbol, drawing.orderId, editor.reducePct)
       .then((result) => {
         /*
-         * FEATURE: the reduce update endpoint replaces the live Binance limit
+         * the reduce update endpoint replaces the live Binance limit
          * order and can therefore return a new order id/client id. Mirror every
          * returned field onto the existing chart drawing immediately; the normal
          * Open Orders refresh remains authoritative and will reconcile afterward.
@@ -380,9 +350,7 @@ export function useDrawingCanvas(
         drawingsApi.replaceDrawingWithoutHistory(drawing.id, {
           ...drawing,
           orderId:
-            typeof result.order?.orderId === "string"
-              ? result.order.orderId
-              : drawing.orderId,
+            typeof result.order?.orderId === "string" ? result.order.orderId : drawing.orderId,
           clientOrderId: result.order?.clientOrderId ?? drawing.clientOrderId,
           orderQuantity: result.submitted_quantity,
           orderReducePct: result.reduce_pct,
@@ -395,8 +363,7 @@ export function useDrawingCanvas(
 
         const requested = result.requested_reduce_pct;
         const actual = result.reduce_pct;
-        const wasBumped =
-          requested !== undefined && Math.round(requested) !== Math.round(actual);
+        const wasBumped = requested !== undefined && Math.round(requested) !== Math.round(actual);
 
         tradeMenuApi.setTradeToast({
           kind: "success",
@@ -415,21 +382,16 @@ export function useDrawingCanvas(
         window.dispatchEvent(new Event("orders-state-changed"));
         tradeMenuApi.setTradeToast({
           kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to update take-profit size",
+          message: error instanceof Error ? error.message : "Failed to update take-profit size",
         });
       });
   };
 
-  const handlePointerDownCapture = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handlePointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
 
     /*
-     * FIX: this handler runs in the CAPTURE phase on the whole chart-wrap
+     * this handler runs in the CAPTURE phase on the whole chart-wrap
      * div, which means it fires before a real DOM button layered on top
      * of the chart (the toolbar-reveal button, the candle-countdown
      * badge) ever gets its own click event. Every branch below does pure
@@ -443,7 +405,10 @@ export function useDrawingCanvas(
      * that: the click just proceeds normally to whatever button it
      * actually landed on, and none of the chart's own hit-testing runs.
      */
-    if (event.target instanceof HTMLElement && event.target.closest("button, input, textarea, .chart-text-editor")) {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button, input, textarea, .chart-text-editor")
+    ) {
       return;
     }
 
@@ -458,7 +423,7 @@ export function useDrawingCanvas(
     if (!local) return;
 
     /*
-     * FIX: a box/trend drawing's own rectangle can visually extend past
+     * a box/trend drawing's own rectangle can visually extend past
      * the plot area into the price-scale gutter on the right (or the
      * time-scale gutter at the bottom) - lightweight-charts reserves
      * that space for its own axis labels, but nothing here was ever
@@ -476,12 +441,7 @@ export function useDrawingCanvas(
     if (chart) {
       const paneSize = chart.paneSize();
 
-      if (
-        local.x < 0 ||
-        local.y < 0 ||
-        local.x > paneSize.width ||
-        local.y > paneSize.height
-      ) {
+      if (local.x < 0 || local.y < 0 || local.x > paneSize.width || local.y > paneSize.height) {
         return;
       }
     }
@@ -522,8 +482,7 @@ export function useDrawingCanvas(
       // See xToTime's comment on `continuous` - a pen stroke needs the
       // mouse's real sub-bar position, not "whichever candle is under the
       // cursor", or it starts choppy from its very first point.
-      const startPoint =
-        coord.screenToChartPoint(local.x, local.y, true) ?? chartPoint;
+      const startPoint = coord.screenToChartPoint(local.x, local.y, true) ?? chartPoint;
 
       const pen: PenDrawing = {
         id: crypto.randomUUID(),
@@ -655,15 +614,17 @@ export function useDrawingCanvas(
       return;
     }
 
-    const estimatedLiquidationHideHit =
-      findPendingOrderEstimatedLiquidationHideHit(local.x, local.y);
+    const estimatedLiquidationHideHit = findPendingOrderEstimatedLiquidationHideHit(
+      local.x,
+      local.y,
+    );
 
     if (estimatedLiquidationHideHit) {
       event.preventDefault();
       event.stopPropagation();
       const drawing = estimatedLiquidationHideHit.drawing;
 
-      // FEATURE: the eye toggle affects only the projected EST. LIQ geometry.
+      // the eye toggle affects only the projected EST. LIQ geometry.
       // The original LIMIT line and its CHASE/X controls stay untouched.
       drawingsApi.replaceDrawingWithoutHistory(drawing.id, {
         ...drawing,
@@ -683,21 +644,17 @@ export function useDrawingCanvas(
       const { drawing, rects } = reduceEditHit;
       const editRect = rects.edit!;
       /*
-       * FEATURE: TP-size editing now opens only from the dedicated EDIT button.
+       * TP-size editing now opens only from the dedicated EDIT button.
        * Seed the same smart/clamped anchor used by the live paint-loop sync so
        * the popover is correctly placed immediately on the first frame.
        */
       const pane = refs.chartRef.current?.paneSize();
       const paneWidth = pane?.width ?? refs.canvasRef.current?.width ?? 0;
       const paneHeight = pane?.height ?? refs.canvasRef.current?.height ?? 0;
-      const preferredLeft =
-        editRect.x + editRect.width - REDUCE_ORDER_EDITOR_WIDTH;
+      const preferredLeft = editRect.x + editRect.width - REDUCE_ORDER_EDITOR_WIDTH;
       const left = Math.max(
         8,
-        Math.min(
-          preferredLeft,
-          Math.max(8, paneWidth - REDUCE_ORDER_EDITOR_WIDTH - 8),
-        ),
+        Math.min(preferredLeft, Math.max(8, paneWidth - REDUCE_ORDER_EDITOR_WIDTH - 8)),
       );
       const belowTop = editRect.y + editRect.height + REDUCE_ORDER_EDITOR_GAP;
       const aboveTop = editRect.y - REDUCE_ORDER_EDITOR_HEIGHT - REDUCE_ORDER_EDITOR_GAP;
@@ -714,10 +671,7 @@ export function useDrawingCanvas(
         drawingId: drawing.id,
         left,
         top,
-        reducePct: Math.max(
-          1,
-          Math.min(100, Math.round(drawing.orderReducePct ?? 100)),
-        ),
+        reducePct: Math.max(1, Math.min(100, Math.round(drawing.orderReducePct ?? 100))),
         isSubmitting: false,
       };
       reduceOrderEditorRef.current = nextEditor;
@@ -735,11 +689,7 @@ export function useDrawingCanvas(
 
       const drawing = chaseHit.drawing;
 
-      if (
-        drawing.orderId === undefined ||
-        !drawing.orderSymbol ||
-        !drawing.orderSide
-      ) {
+      if (drawing.orderId === undefined || !drawing.orderSymbol || !drawing.orderSide) {
         tradeMenuApi.setTradeToast({
           kind: "error",
           message: "This order line has incomplete Binance metadata.",
@@ -760,11 +710,7 @@ export function useDrawingCanvas(
       void chaseLimitOrder(drawing.orderSymbol, drawing.orderId)
         .then((result) => {
           drawingsApi.deleteDrawing(drawing.id);
-          tradeMenuApi.addMarketFillMarker(
-            result.side,
-            result.market_order,
-            drawing.price,
-          );
+          tradeMenuApi.addMarketFillMarker(result.side, result.market_order, drawing.price);
           window.dispatchEvent(new Event("trading-state-changed"));
 
           tradeMenuApi.setTradeToast({
@@ -780,10 +726,7 @@ export function useDrawingCanvas(
 
           tradeMenuApi.setTradeToast({
             kind: "error",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Failed to chase limit order",
+            message: error instanceof Error ? error.message : "Failed to chase limit order",
           });
         });
 
@@ -802,8 +745,7 @@ export function useDrawingCanvas(
       if (drawing.orderId === undefined || !drawing.orderSymbol) {
         tradeMenuApi.setTradeToast({
           kind: "error",
-          message:
-            "This order line has no Binance order ID. Recreate the order.",
+          message: "This order line has no Binance order ID. Recreate the order.",
         });
         return;
       }
@@ -816,7 +758,7 @@ export function useDrawingCanvas(
       });
 
       /*
-       * FEATURE (cancel-in-progress dimming): do not pretend the order is gone
+       * do not pretend the order is gone
        * before Binance confirms it. Mark it as cancelling immediately; the paced
        * canvas loop reads this ref and dims the full order UI on the next frame.
        * On success we remove it, and on a real failure we simply undim it.
@@ -826,7 +768,7 @@ export function useDrawingCanvas(
       void cancelOrder(drawing.orderSymbol, drawing.orderId)
         .then(() => {
           /*
-           * FIX (cancel dim flicker): the REST cancel can succeed before the
+           * the REST cancel can succeed before the
            * separate Open Orders snapshot has caught up. Removing the cancelling
            * marker here made a stale snapshot re-create the same line at full
            * opacity for a moment, producing the visible dim -> normal -> gone
@@ -847,12 +789,9 @@ export function useDrawingCanvas(
           });
         })
         .catch((error: unknown) => {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Failed to cancel limit order";
+          const message = error instanceof Error ? error.message : "Failed to cancel limit order";
           /*
-           * FIX: this order can genuinely no longer exist on Binance by
+           * this order can genuinely no longer exist on Binance by
            * the time Cancel is clicked (already filled, or already
            * replaced by a reprice/reduce-edit elsewhere) - same "-2013"/
            * "not found" family of stale-order responses already handled
@@ -868,7 +807,7 @@ export function useDrawingCanvas(
            */
           const staleOrder = isStaleOrderError(message);
 
-          // FEATURE: every completed request must clear the dimmed/pending marker.
+          // every completed request must clear the dimmed/pending marker.
           // A real failure leaves the order in place at normal opacity so it can
           // be retried; a stale-order response removes the ghost line entirely.
           cancellingOrderIdsRef.current.delete(drawing.id);
@@ -896,7 +835,7 @@ export function useDrawingCanvas(
       event.stopPropagation();
 
       const selectedIds = refs.groupSelectedIdsRef.current;
-      // FEATURE: Shift+click is the explicit remove gesture. A plain click on
+      // Shift+click is the explicit remove gesture. A plain click on
       // an already-selected member is reserved for picking up/moving the group,
       // so selection editing and group translation never fight over one click.
       if (hit && event.shiftKey && selectedIds.has(hit.id)) {
@@ -908,9 +847,7 @@ export function useDrawingCanvas(
       // next click drops it; no mouse button needs to remain pressed.
       if (hit && selectedIds.has(hit.id)) {
         const before = refs.drawingsRef.current
-          .filter(
-            (drawing) => selectedIds.has(drawing.id) && !isOrderDrawing(drawing),
-          )
+          .filter((drawing) => selectedIds.has(drawing.id) && !isOrderDrawing(drawing))
           .map((drawing) => cloneDrawing(drawing));
         if (before.length > 0) {
           setArmedGroupMove({ pointerStart: chartPoint, before });
@@ -918,7 +855,7 @@ export function useDrawingCanvas(
         return;
       }
 
-      // FEATURE: a click anywhere else starts the dashed marquee. It uses
+      // a click anywhere else starts the dashed marquee. It uses
       // screen coordinates because selection is visual and must match exactly
       // what falls inside the rectangle at the current pan/zoom level.
       refs.groupSelectionBoxRef.current = {
@@ -972,19 +909,17 @@ export function useDrawingCanvas(
 
       if (
         startScreen &&
-        Math.hypot(local.x - startScreen.x, local.y - startScreen.y) <=
-          handleThreshold
+        Math.hypot(local.x - startScreen.x, local.y - startScreen.y) <= handleThreshold
       ) {
         dragMode = "trend-start";
       } else if (
         endScreen &&
-        Math.hypot(local.x - endScreen.x, local.y - endScreen.y) <=
-          handleThreshold
+        Math.hypot(local.x - endScreen.x, local.y - endScreen.y) <= handleThreshold
       ) {
         dragMode = "trend-end";
       }
 
-      // FEATURE: endpoint edits and whole-line translation both use the same
+      // endpoint edits and whole-line translation both use the same
       // click-move-click interaction; neither requires holding the button.
       if (dragMode === "trend-start" || dragMode === "trend-end") {
         armTrendEndpointMove(hit, dragMode === "trend-start" ? "start" : "end");
@@ -1028,8 +963,7 @@ export function useDrawingCanvas(
         ];
 
         const handle = handles.find(
-          (item) =>
-            Math.hypot(local.x - item.x, local.y - item.y) <= handleThreshold,
+          (item) => Math.hypot(local.x - item.x, local.y - item.y) <= handleThreshold,
         );
 
         // Same click-move-click flow as the trend-endpoint block above,
@@ -1061,7 +995,9 @@ export function useDrawingCanvas(
           { mode: "text-bottom-left", x: rect.left, y: rect.top + rect.height },
           { mode: "text-left", x: rect.left, y: rect.top + rect.height / 2 },
         ];
-        const handle = handles.find((item) => Math.hypot(local.x - item.x, local.y - item.y) <= handleThreshold);
+        const handle = handles.find(
+          (item) => Math.hypot(local.x - item.x, local.y - item.y) <= handleThreshold,
+        );
         if (handle) dragMode = handle.mode;
       }
     }
@@ -1076,9 +1012,7 @@ export function useDrawingCanvas(
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handlePointerMoveCapture = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handlePointerMoveCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const local = getLocalPointer(event);
 
     if (!local) return;
@@ -1089,10 +1023,8 @@ export function useDrawingCanvas(
       !refs.penDraftRef.current &&
       !armedOrderLineId
     ) {
-      const estimateHit =
-        findPendingOrderEstimatedLiquidationHit(local.x, local.y);
-      const estimateHideHit =
-        findPendingOrderEstimatedLiquidationHideHit(local.x, local.y);
+      const estimateHit = findPendingOrderEstimatedLiquidationHit(local.x, local.y);
+      const estimateHideHit = findPendingOrderEstimatedLiquidationHideHit(local.x, local.y);
       const chaseHit = findPendingOrderChaseHit(local.x, local.y);
       const cancelHit = findPendingOrderCancelHit(local.x, local.y);
 
@@ -1102,9 +1034,7 @@ export function useDrawingCanvas(
         setCancelTooltip(null);
         setChaseTooltip(null);
         setEstimatedLiquidationTooltip({
-          x:
-            estimateHit.rects.estimated.x +
-            estimateHit.rects.estimated.width / 2,
+          x: estimateHit.rects.estimated.x + estimateHit.rects.estimated.width / 2,
           y: estimateHit.rects.estimated.y,
         });
         clearHoveredDrawingInfo();
@@ -1209,23 +1139,16 @@ export function useDrawingCanvas(
       // candle's pixel width would keep landing on that candle's one
       // shared time, so the stroke reduces to a vertical jog per candle
       // instead of tracking the mouse's actual path.
-      const continuousChartPoint =
-        coord.screenToChartPoint(local.x, local.y, true) ?? chartPoint;
+      const continuousChartPoint = coord.screenToChartPoint(local.x, local.y, true) ?? chartPoint;
 
       const previousPoint = penDraft.points[penDraft.points.length - 1];
       const previousScreen = coord.chartPointToScreen(previousPoint, false);
-      const currentScreen = coord.chartPointToScreen(
-        continuousChartPoint,
-        false,
-      );
+      const currentScreen = coord.chartPointToScreen(continuousChartPoint, false);
 
       if (
         !previousScreen ||
         !currentScreen ||
-        Math.hypot(
-          currentScreen.x - previousScreen.x,
-          currentScreen.y - previousScreen.y,
-        ) >= 2
+        Math.hypot(currentScreen.x - previousScreen.x, currentScreen.y - previousScreen.y) >= 2
       ) {
         const updatedPen: PenDrawing = {
           ...penDraft,
@@ -1327,9 +1250,7 @@ export function useDrawingCanvas(
       drawingsApi.replaceDrawingWithoutHistory(original.id, {
         ...original,
         price: original.price + priceDelta,
-        ...(original.orderId !== undefined
-          ? { orderPricePending: true }
-          : {}),
+        ...(original.orderId !== undefined ? { orderPricePending: true } : {}),
       });
 
       return;
@@ -1364,9 +1285,7 @@ export function useDrawingCanvas(
     drawingsApi.replaceDrawingWithoutHistory(original.id, {
       ...original,
       start: {
-        time: Math.round(
-          Number(original.start.time) + timeDelta,
-        ) as UTCTimestamp,
+        time: Math.round(Number(original.start.time) + timeDelta) as UTCTimestamp,
         price: original.start.price + priceDelta,
       },
       end: {
@@ -1402,17 +1321,13 @@ export function useDrawingCanvas(
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
 
-      const completed = refs.drawingsRef.current.find(
-        (drawing) => drawing.id === penDraft.id,
-      );
+      const completed = refs.drawingsRef.current.find((drawing) => drawing.id === penDraft.id);
 
       if (!completed || completed.type !== "pen") return;
 
       if (completed.points.length < 2) {
         drawingsApi.syncDrawings(
-          refs.drawingsRef.current.filter(
-            (drawing) => drawing.id !== completed.id,
-          ),
+          refs.drawingsRef.current.filter((drawing) => drawing.id !== completed.id),
         );
         drawingsApi.setSelectedId(null);
         return;
@@ -1433,9 +1348,7 @@ export function useDrawingCanvas(
     event.preventDefault();
     event.stopPropagation();
 
-    const after = refs.drawingsRef.current.find(
-      (drawing) => drawing.id === drag.drawingId,
-    );
+    const after = refs.drawingsRef.current.find((drawing) => drawing.id === drag.drawingId);
 
     refs.dragRef.current = null;
 
@@ -1520,11 +1433,7 @@ export function useDrawingCanvas(
 
   const openTradeMenuAt = (clientX: number, clientY: number): boolean => {
     if (refs.toolRef.current !== "cursor") return false;
-    if (
-      refs.dragRef.current ||
-      refs.penDraftRef.current ||
-      refs.pendingStartRef.current
-    )
+    if (refs.dragRef.current || refs.penDraftRef.current || refs.pendingStartRef.current)
       return false;
 
     const wrap = refs.chartWrapRef.current;
@@ -1537,20 +1446,14 @@ export function useDrawingCanvas(
     const localY = clientY - rect.top;
     const paneSize = chart.paneSize();
 
-    if (
-      localX < 0 ||
-      localY < 0 ||
-      localX > paneSize.width ||
-      localY > paneSize.height
-    ) {
+    if (localX < 0 || localY < 0 || localX > paneSize.width || localY > paneSize.height) {
       return false;
     }
 
     if (coord.findDrawingAt(localX, localY, isDrawingInteractive)) return false;
 
     const point = coord.screenToChartPoint(localX, localY);
-    const marketPrice =
-      marketData.lastPrice ?? refs.lastCandleRef.current?.close ?? null;
+    const marketPrice = marketData.lastPrice ?? refs.lastCandleRef.current?.close ?? null;
 
     if (!point || marketPrice === null) return false;
 

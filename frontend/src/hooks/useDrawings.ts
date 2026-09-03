@@ -42,7 +42,7 @@ type SymbolDrawingsState = {
 const normalizeSymbol = (symbol: string) => symbol.toUpperCase();
 
 /**
- * FEATURE: drawing-move feedback should fire only for real geometry changes,
+ * drawing-move feedback should fire only for real geometry changes,
  * not unrelated updates such as color/text alignment edits. Keeping the
  * geometry signature here lets every movement path that records an undo entry
  * (drag, click-move-click, resize, group move) share one reliable detector.
@@ -95,13 +95,11 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
   const [drawingSets, setDrawingSets] = useState<SavedDrawingSet[]>(() =>
     loadStoredDrawingSets(drawingSetsStorageKey(normalizedSymbol)),
   );
-  const [activeDrawingSetId, setActiveDrawingSetId] = useState<string | null>(
-    () => localStorage.getItem(activeDrawingSetStorageKey(normalizedSymbol)),
+  const [activeDrawingSetId, setActiveDrawingSetId] = useState<string | null>(() =>
+    localStorage.getItem(activeDrawingSetStorageKey(normalizedSymbol)),
   );
   const [selectedId, setSelectedIdState] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(
-    null,
-  );
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   /*
    * The canvas render loop and hit-testing (useDrawingCanvas /
@@ -121,7 +119,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
   }
 
   const setTool = (nextTool: DrawingTool) => {
-    // FEATURE: the dashed marquee is a real toolbar tool, while the selected
+    // the dashed marquee is a real toolbar tool, while the selected
     // group itself remains ref-backed for the canvas. Entering starts a fresh
     // group; leaving clears both the marquee and its selection.
     const wasGroupSelecting = refs.toolRef.current === "group-select";
@@ -148,10 +146,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     setSelectedIdState(id);
   };
 
-  const syncDrawings = (
-    next: Drawing[],
-    options: { syncActiveDrawingSet?: boolean } = {},
-  ) => {
+  const syncDrawings = (next: Drawing[], options: { syncActiveDrawingSet?: boolean } = {}) => {
     refs.drawingsRef.current = next;
     setDrawingState({
       symbol: normalizedSymbol,
@@ -164,14 +159,10 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     // and must never become part of a saved set.
     if (options.syncActiveDrawingSet === false || !activeDrawingSetId) return;
 
-    const current = next.filter(
-      (drawing) => !(drawing.type === "horizontal" && drawing.orderSide),
-    );
+    const current = next.filter((drawing) => !(drawing.type === "horizontal" && drawing.orderSide));
 
     setDrawingSets((previousSets) => {
-      const activeSet = previousSets.find(
-        (set) => set.id === activeDrawingSetId,
-      );
+      const activeSet = previousSets.find((set) => set.id === activeDrawingSetId);
 
       if (!activeSet) return previousSets;
 
@@ -209,7 +200,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     refs.redoRef.current = [];
 
     /*
-     * FEATURE: after a persistent chart tool is actually moved/resized, emit
+     * after a persistent chart tool is actually moved/resized, emit
      * one app-level event so the UI can offer an immediate Undo action plus
      * the Ctrl+Z hint. Exchange order lines are excluded because moving those
      * already has its own success/error toast and should not look like a plain
@@ -218,8 +209,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     if (
       action.type === "update" &&
       !(action.after.type === "horizontal" && action.after.orderSide) &&
-      drawingGeometrySignature(action.before) !==
-        drawingGeometrySignature(action.after)
+      drawingGeometrySignature(action.before) !== drawingGeometrySignature(action.after)
     ) {
       window.dispatchEvent(
         new CustomEvent("drawing-geometry-moved", {
@@ -257,51 +247,38 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
 
   const replaceDrawingWithoutHistory = (id: string, replacement: Drawing) => {
     syncDrawings(
-      refs.drawingsRef.current.map((drawing) =>
-        drawing.id === id ? replacement : drawing,
-      ),
+      refs.drawingsRef.current.map((drawing) => (drawing.id === id ? replacement : drawing)),
     );
   };
 
   /*
-   * FIX (limit-order cancel lifecycle): cancelling an exchange order is not a
+   * cancelling an exchange order is not a
    * user drawing edit, so removing its chart line after Binance confirms the
    * cancellation must not create an undo/redo entry that could resurrect a
    * dead order. This helper removes only the visual order drawing/history-free.
    */
-const removeDrawingWithoutHistory = (id: string) => {
-  syncDrawings(
-    refs.drawingsRef.current.filter((drawing) => drawing.id !== id),
-  );
+  const removeDrawingWithoutHistory = (id: string) => {
+    syncDrawings(refs.drawingsRef.current.filter((drawing) => drawing.id !== id));
 
-  // FIX: setSelectedId is a wrapper, not a React state setter, so read the
-  // current selection from the ref and clear it only if the removed drawing
-  // was selected.
-  if (refs.selectedIdRef.current === id) {
-    setSelectedId(null);
-  }
+    // setSelectedId is a wrapper, not a React state setter, so read the
+    // current selection from the ref and clear it only if the removed drawing
+    // was selected.
+    if (refs.selectedIdRef.current === id) {
+      setSelectedId(null);
+    }
 
-  setContextMenu(null);
-};
+    setContextMenu(null);
+  };
 
-  const updateDrawing = (
-    id: string,
-    updater: (drawing: Drawing) => Drawing,
-  ) => {
-    const current = refs.drawingsRef.current.find(
-      (drawing) => drawing.id === id,
-    );
+  const updateDrawing = (id: string, updater: (drawing: Drawing) => Drawing) => {
+    const current = refs.drawingsRef.current.find((drawing) => drawing.id === id);
 
     if (!current) return;
 
     const before = cloneDrawing(current);
     const after = updater(cloneDrawing(current));
 
-    syncDrawings(
-      refs.drawingsRef.current.map((drawing) =>
-        drawing.id === id ? after : drawing,
-      ),
-    );
+    syncDrawings(refs.drawingsRef.current.map((drawing) => (drawing.id === id ? after : drawing)));
 
     pushHistory({
       type: "update",
@@ -351,18 +328,14 @@ const removeDrawingWithoutHistory = (id: string) => {
   };
 
   const deleteAllPenDrawings = () => {
-    const penDrawings = refs.drawingsRef.current.filter(
-      (drawing) => drawing.type === "pen",
-    );
+    const penDrawings = refs.drawingsRef.current.filter((drawing) => drawing.type === "pen");
 
     if (penDrawings.length === 0) {
       setContextMenu(null);
       return;
     }
 
-    syncDrawings(
-      refs.drawingsRef.current.filter((drawing) => drawing.type !== "pen"),
-    );
+    syncDrawings(refs.drawingsRef.current.filter((drawing) => drawing.type !== "pen"));
 
     refs.undoRef.current = [];
     refs.redoRef.current = [];
@@ -382,8 +355,7 @@ const removeDrawingWithoutHistory = (id: string) => {
   const deleteDrawingsByTimeframe = (timeframe: Interval) => {
     const matching = refs.drawingsRef.current.filter(
       (drawing) =>
-        drawing.timeframe === timeframe &&
-        !(drawing.type === "horizontal" && drawing.orderSide),
+        drawing.timeframe === timeframe && !(drawing.type === "horizontal" && drawing.orderSide),
     );
 
     if (matching.length === 0) {
@@ -395,8 +367,7 @@ const removeDrawingWithoutHistory = (id: string) => {
       refs.drawingsRef.current.filter(
         (drawing) =>
           !(
-            drawing.timeframe === timeframe &&
-            !(drawing.type === "horizontal" && drawing.orderSide)
+            drawing.timeframe === timeframe && !(drawing.type === "horizontal" && drawing.orderSide)
           ),
       ),
     );
@@ -419,15 +390,14 @@ const removeDrawingWithoutHistory = (id: string) => {
    * before the `timeframe` field existed (see the comment on it in
    * types/drawing.ts) simply isn't counted under any timeframe here.
    */
-  const drawingCountsByTimeframe = intervals.reduce<
-    Partial<Record<Interval, number>>
-  >((counts, interval) => {
-    const count = regularDrawings.filter(
-      (drawing) => drawing.timeframe === interval,
-    ).length;
-    if (count > 0) counts[interval] = count;
-    return counts;
-  }, {});
+  const drawingCountsByTimeframe = intervals.reduce<Partial<Record<Interval, number>>>(
+    (counts, interval) => {
+      const count = regularDrawings.filter((drawing) => drawing.timeframe === interval).length;
+      if (count > 0) counts[interval] = count;
+      return counts;
+    },
+    {},
+  );
 
   const saveCurrentDrawingSet = (name: string) => {
     const trimmedName = name.trim();
@@ -486,9 +456,7 @@ const removeDrawingWithoutHistory = (id: string) => {
     if (!trimmedName) return false;
 
     const duplicate = drawingSets.some(
-      (set) =>
-        set.id !== setId &&
-        set.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
+      (set) => set.id !== setId && set.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase(),
     );
     if (duplicate) return false;
 
@@ -537,9 +505,7 @@ const removeDrawingWithoutHistory = (id: string) => {
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        refs.candleRef.current
-          ?.priceScale()
-          .applyOptions({ autoScale: false });
+        refs.candleRef.current?.priceScale().applyOptions({ autoScale: false });
       });
     });
 
@@ -549,11 +515,7 @@ const removeDrawingWithoutHistory = (id: string) => {
 
   const reverseAction = (action: HistoryAction) => {
     if (action.type === "add") {
-      syncDrawings(
-        refs.drawingsRef.current.filter(
-          (drawing) => drawing.id !== action.drawing.id,
-        ),
-      );
+      syncDrawings(refs.drawingsRef.current.filter((drawing) => drawing.id !== action.drawing.id));
 
       return;
     }
@@ -566,9 +528,7 @@ const removeDrawingWithoutHistory = (id: string) => {
 
     syncDrawings(
       refs.drawingsRef.current.map((drawing) =>
-        drawing.id === action.before.id
-          ? cloneDrawing(action.before)
-          : drawing,
+        drawing.id === action.before.id ? cloneDrawing(action.before) : drawing,
       ),
     );
   };
@@ -581,11 +541,7 @@ const removeDrawingWithoutHistory = (id: string) => {
     }
 
     if (action.type === "delete") {
-      syncDrawings(
-        refs.drawingsRef.current.filter(
-          (drawing) => drawing.id !== action.drawing.id,
-        ),
-      );
+      syncDrawings(refs.drawingsRef.current.filter((drawing) => drawing.id !== action.drawing.id));
 
       return;
     }
@@ -640,10 +596,7 @@ const removeDrawingWithoutHistory = (id: string) => {
     setContextMenu(null);
   };
 
-  const changeTextAlign = (
-    drawingId: string,
-    align: "left" | "center" | "right",
-  ) => {
+  const changeTextAlign = (drawingId: string, align: "left" | "center" | "right") => {
     updateDrawing(drawingId, (drawing) =>
       drawing.type === "text" ? { ...drawing, align } : drawing,
     );
@@ -687,13 +640,9 @@ const removeDrawingWithoutHistory = (id: string) => {
     });
 
     if (changes.length > 0) {
-      const replacements = new Map(
-        changes.map(({ after }) => [after.id, after]),
-      );
+      const replacements = new Map(changes.map(({ after }) => [after.id, after]));
       syncDrawings(
-        refs.drawingsRef.current.map(
-          (drawing) => replacements.get(drawing.id) ?? drawing,
-        ),
+        refs.drawingsRef.current.map((drawing) => replacements.get(drawing.id) ?? drawing),
       );
       changes.forEach(({ before, after }) =>
         pushHistory({ type: "update", before, after: cloneDrawing(after) }),
@@ -713,13 +662,9 @@ const removeDrawingWithoutHistory = (id: string) => {
    */
   useEffect(() => {
     const next = loadStoredDrawings(drawingsStorageKey(normalizedSymbol));
-    const nextDrawingSets = loadStoredDrawingSets(
-      drawingSetsStorageKey(normalizedSymbol),
-    );
+    const nextDrawingSets = loadStoredDrawingSets(drawingSetsStorageKey(normalizedSymbol));
     setDrawingSets(nextDrawingSets);
-    const storedActiveId = localStorage.getItem(
-      activeDrawingSetStorageKey(normalizedSymbol),
-    );
+    const storedActiveId = localStorage.getItem(activeDrawingSetStorageKey(normalizedSymbol));
     setActiveDrawingSetId(
       storedActiveId && nextDrawingSets.some((set) => set.id === storedActiveId)
         ? storedActiveId
@@ -745,10 +690,7 @@ const removeDrawingWithoutHistory = (id: string) => {
     // Never write that transitional state under the newly selected symbol key.
     if (!isHydrated) return;
 
-    saveDrawings(
-      drawingsStorageKey(drawingState.symbol),
-      drawingState.drawings,
-    );
+    saveDrawings(drawingsStorageKey(drawingState.symbol), drawingState.drawings);
   }, [drawingState, isHydrated]);
 
   return {

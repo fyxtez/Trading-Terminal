@@ -1,10 +1,6 @@
 import type { ScreenPoint } from "../types/drawing";
 
-export function distanceToSegment(
-  point: ScreenPoint,
-  start: ScreenPoint,
-  end: ScreenPoint,
-) {
+export function distanceToSegment(point: ScreenPoint, start: ScreenPoint, end: ScreenPoint) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
 
@@ -67,8 +63,7 @@ export function brightenColor(hex: string, amount = 0.2) {
   const green = parseInt(value.slice(2, 4), 16);
   const blue = parseInt(value.slice(4, 6), 16);
 
-  const lighten = (channel: number) =>
-    Math.round(channel + (255 - channel) * amount);
+  const lighten = (channel: number) => Math.round(channel + (255 - channel) * amount);
 
   return `rgb(${lighten(red)}, ${lighten(green)}, ${lighten(blue)})`;
 }

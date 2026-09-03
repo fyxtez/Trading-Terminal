@@ -53,7 +53,7 @@
 }
 
 /*
- * FEATURE: a lightweight active-tool hint follows the pointer while a drawing
+ * a lightweight active-tool hint follows the pointer while a drawing
  * tool is armed. JavaScript updates only transform/opacity through a ref (see
  * ChartPanel.tsx), keeping pointer moves out of React's render path.
  */
@@ -134,7 +134,10 @@
   color: var(--text-dim);
   cursor: pointer;
   font-size: 15.5px;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 
 .toolbar-reveal-button:hover {
@@ -176,7 +179,7 @@
   white-space: nowrap;
 }
 /*
- * FEATURE: the candle countdown now follows the latest candle, so this
+ * the candle countdown now follows the latest candle, so this
  * absolute wrapper owns its chart-relative position while the badge keeps
  * its existing dropdown/hover behavior unchanged.
  */
@@ -204,7 +207,6 @@
   pointer-events: auto;
 }
 
-
 .chart-text-editor {
   position: absolute;
   z-index: 240;
@@ -222,7 +224,7 @@
 }
 
 /*
- * FEATURE: existing reduce-only TP lines can be resized from a dedicated EDIT
+ * existing reduce-only TP lines can be resized from a dedicated EDIT
  * button. The popover remains attached to the TP line while the chart moves.
  * UX: sizing uses one clean slider plus a live percentage readout so this stays
  * a lightweight chart control instead of looking like a full order form.
@@ -364,7 +366,9 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
-.chart-market-degraded > div { min-width: 0; }
+.chart-market-degraded > div {
+  min-width: 0;
+}
 .chart-market-degraded strong {
   display: block;
   color: var(--red);

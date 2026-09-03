@@ -64,8 +64,7 @@ type ExchangeInfoResponse = {
 };
 
 /*
- * FIX (the actual root cause of "XRP prices only show 1 decimal" and
- * "SL/TP can't be placed precisely"): Binance's USDⓈ-M FUTURES
+ * Binance's USDⓈ-M FUTURES
  * exchangeInfo endpoint - unlike the Spot API - does NOT support a
  * ?symbol= filter. It silently ignores the query string and always
  * returns every symbol on the exchange. The previous version of this
@@ -110,26 +109,17 @@ async function fetchExchangeInfo(): Promise<ExchangeInfoResponse> {
 async function fetchSymbolFilters(symbol: string): Promise<SymbolFilters> {
   const upperSymbol = symbol.toUpperCase();
   const data = await fetchExchangeInfo();
-  const symbolInfo = (data.symbols ?? []).find(
-    (item) => item.symbol === upperSymbol,
-  );
+  const symbolInfo = (data.symbols ?? []).find((item) => item.symbol === upperSymbol);
 
   if (!symbolInfo) {
     throw new Error(`No exchange info returned for ${symbol}`);
   }
 
-  const filters: Array<{ filterType: string; [key: string]: unknown }> =
-    symbolInfo.filters ?? [];
+  const filters: Array<{ filterType: string; [key: string]: unknown }> = symbolInfo.filters ?? [];
 
-  const priceFilter = filters.find(
-    (filter) => filter.filterType === "PRICE_FILTER",
-  );
-  const lotSizeFilter = filters.find(
-    (filter) => filter.filterType === "LOT_SIZE",
-  );
-  const minNotionalFilter = filters.find(
-    (filter) => filter.filterType === "MIN_NOTIONAL",
-  );
+  const priceFilter = filters.find((filter) => filter.filterType === "PRICE_FILTER");
+  const lotSizeFilter = filters.find((filter) => filter.filterType === "LOT_SIZE");
+  const minNotionalFilter = filters.find((filter) => filter.filterType === "MIN_NOTIONAL");
 
   const tickSize = Number(priceFilter?.tickSize ?? "0.1");
   const stepSize = Number(lotSizeFilter?.stepSize ?? "0.001");

@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  getAuthenticatedTradingWebSocketUrl,
-  parseTradingStreamEvent,
-} from "../trading/events";
+import { getAuthenticatedTradingWebSocketUrl, parseTradingStreamEvent } from "../trading/events";
 import type { OrderExecutedEvent } from "../trading/types";
 import { TRADING_API_BASE_URL_CHANGED_EVENT } from "../config/constants";
 import { canUseTradingAccount } from "../desktop/credentials";
@@ -11,11 +8,7 @@ import { publishSystemNotice } from "../diagnostics/events";
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 15_000;
 
-export type ConnectionState =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "disabled";
+export type ConnectionState = "connecting" | "connected" | "disconnected" | "disabled";
 
 type UseTradingStreamOptions = {
   enabled: boolean;
@@ -26,8 +19,7 @@ export function useTradingStream({
   enabled,
   onOrderExecuted,
 }: UseTradingStreamOptions): ConnectionState {
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("connecting");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
 
   const handlerRef = useRef(onOrderExecuted);
   handlerRef.current = onOrderExecuted;
@@ -55,10 +47,7 @@ export function useTradingStream({
         connect();
       }, reconnectDelay);
 
-      reconnectDelay = Math.min(
-        reconnectDelay * 2,
-        MAX_RECONNECT_DELAY_MS,
-      );
+      reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
     };
 
     const connect = async () => {
@@ -111,6 +100,16 @@ export function useTradingStream({
         }
 
         if (event.type === "NOTIFICATION_FAILED") {
+          // Delivery is downstream of consuming the persistent alert. Re-emit
+          // its identity so a missed/early ALERT_TRIGGERED event cannot leave
+          // the already-consumed level visible on the chart.
+          if (event.alert_id && event.symbol) {
+            window.dispatchEvent(
+              new CustomEvent("persistent-price-alert-triggered", {
+                detail: { id: event.alert_id, symbol: event.symbol },
+              }),
+            );
+          }
           publishSystemNotice({
             id: `notification-${event.channel}-${event.occurred_at}`,
             occurredAt: event.occurred_at,
@@ -144,16 +143,12 @@ export function useTradingStream({
       socket.addEventListener("close", (event) => {
         if (disposed) return;
 
-        console.warn(
-          "[trading-ws] closed",
-          event.code,
-          event.reason,
-        );
+        console.warn("[trading-ws] closed", event.code, event.reason);
 
         if (reconnectForBackendChange) {
           reconnectForBackendChange = false;
           reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-        void connect();
+          void connect();
           return;
         }
 
@@ -196,17 +191,11 @@ export function useTradingStream({
       void connect();
     };
 
-    window.addEventListener(
-      TRADING_API_BASE_URL_CHANGED_EVENT,
-      handleApiBaseUrlChanged,
-    );
+    window.addEventListener(TRADING_API_BASE_URL_CHANGED_EVENT, handleApiBaseUrlChanged);
 
     return () => {
       disposed = true;
-      window.removeEventListener(
-        TRADING_API_BASE_URL_CHANGED_EVENT,
-        handleApiBaseUrlChanged,
-      );
+      window.removeEventListener(TRADING_API_BASE_URL_CHANGED_EVENT, handleApiBaseUrlChanged);
 
       if (initialConnectTimer !== null) {
         window.clearTimeout(initialConnectTimer);

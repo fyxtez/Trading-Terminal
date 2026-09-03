@@ -368,7 +368,6 @@
   opacity: 0.78;
 }
 
-
 .trade-secondary {
   background: transparent;
   color: var(--amber);
@@ -569,12 +568,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.045),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.045), transparent);
   animation: tradeMenuSkeleton 1.15s ease-in-out infinite;
 }
 
@@ -633,7 +627,6 @@
   width: 28px;
   height: 28px;
 }
-
 
 .trade-reduce-actions {
   display: grid;

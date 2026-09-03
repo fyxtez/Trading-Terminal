@@ -1,15 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  initializeTradingApiBaseUrl,
-  restartDesktopBackend,
-} from "../../config/constants";
+import { initializeTradingApiBaseUrl, restartDesktopBackend } from "../../config/constants";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./DesktopRuntimeGate.css";
 
-type RuntimeState =
-  | { kind: "starting" }
-  | { kind: "ready" }
-  | { kind: "failed"; message: string };
+type RuntimeState = { kind: "starting" } | { kind: "ready" } | { kind: "failed"; message: string };
 
 function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
@@ -22,8 +16,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
     let current = true;
     void initializeTradingApiBaseUrl().then(
       () => current && setState({ kind: "ready" }),
-      (reason: unknown) =>
-        current && setState({ kind: "failed", message: errorMessage(reason) }),
+      (reason: unknown) => current && setState({ kind: "failed", message: errorMessage(reason) }),
     );
     return () => {
       current = false;
@@ -34,8 +27,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
     setState({ kind: "starting" });
     void restartDesktopBackend().then(
       () => setState({ kind: "ready" }),
-      (reason: unknown) =>
-        setState({ kind: "failed", message: errorMessage(reason) }),
+      (reason: unknown) => setState({ kind: "failed", message: errorMessage(reason) }),
     );
   };
 
@@ -46,7 +38,9 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       <section>
         <img src="/fyxtez-f-mark-alpha.png" alt="" />
         <small>FYXTEZ TERMINAL</small>
-        <h1>{state.kind === "starting" ? "Starting local backend" : "Local backend unavailable"}</h1>
+        <h1>
+          {state.kind === "starting" ? "Starting local backend" : "Local backend unavailable"}
+        </h1>
         {state.kind === "starting" ? (
           <>
             <p>Preparing the private services bundled with this desktop app.</p>
@@ -60,7 +54,9 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
           <p>{state.message}</p>
         )}
         {state.kind === "failed" && (
-          <button type="button" onClick={retry}>RETRY BACKEND</button>
+          <button type="button" onClick={retry}>
+            RETRY BACKEND
+          </button>
         )}
       </section>
     </main>

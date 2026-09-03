@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
-import type {
-  BoxDrawing,
-  Drawing,
-  HorizontalDrawing,
-  TrendDrawing,
-} from "../../types/drawing";
-import {
-  modifyLimitOrder,
-  repriceReduceOrder,
-} from "../../trading/api/orders";
+import type { BoxDrawing, Drawing, HorizontalDrawing, TrendDrawing } from "../../types/drawing";
+import { modifyLimitOrder, repriceReduceOrder } from "../../trading/api/orders";
 import { isStaleOrderError } from "../../trading/errors";
 import { cloneDrawing } from "../../utils/drawings";
 import type { ChartRefs } from "../useChartRefs";
@@ -142,7 +134,7 @@ export function useArmedDrawingInteractions(
       return;
     }
 
-    // FIX: Never send a non-finite/zero/negative drag result to the backend.
+    // Never send a non-finite/zero/negative drag result to the backend.
     // Besides avoiding a guaranteed HTTP 400, restoring the confirmed drawing
     // here prevents TP zones from disappearing while an invalid request fails.
     if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
@@ -167,11 +159,9 @@ export function useArmedDrawingInteractions(
 
     const sideLabel = before.orderSide === "BUY" ? "Long" : "Short";
     const isReduceOrder =
-      before.orderIntent === "REDUCE" ||
-      before.clientOrderId?.startsWith("fe-red-") === true;
+      before.orderIntent === "REDUCE" || before.clientOrderId?.startsWith("fe-red-") === true;
     const isFullTakeProfit =
-      isReduceOrder &&
-      (before.orderReducePct === 100 || before.orderRemainingPct === 0);
+      isReduceOrder && (before.orderReducePct === 100 || before.orderRemainingPct === 0);
     const orderLabel = isFullTakeProfit
       ? "Full TP"
       : isReduceOrder
@@ -235,12 +225,8 @@ export function useArmedDrawingInteractions(
         const confirmed: HorizontalDrawing = {
           ...moved,
           price: result.submitted_price,
-          orderId:
-            typeof result.order?.orderId === "string"
-              ? result.order.orderId
-              : moved.orderId,
-          clientOrderId:
-            result.order?.clientOrderId ?? moved.clientOrderId,
+          orderId: typeof result.order?.orderId === "string" ? result.order.orderId : moved.orderId,
+          clientOrderId: result.order?.clientOrderId ?? moved.clientOrderId,
           orderQuantity: result.submitted_quantity,
           orderPricePending: true,
         };
@@ -258,10 +244,7 @@ export function useArmedDrawingInteractions(
         });
       })
       .catch((error: unknown) => {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to modify limit order";
+        const message = error instanceof Error ? error.message : "Failed to modify limit order";
         const staleOrder = isStaleOrderError(message);
         /*
          * Binance's own matching engine rejects a reduce-only order that
@@ -311,27 +294,19 @@ export function useArmedDrawingInteractions(
 
       if (!chartPoint) return;
 
-      const current = refs.drawingsRef.current.find(
-        (drawing) => drawing.id === armedOrderLineId,
-      );
+      const current = refs.drawingsRef.current.find((drawing) => drawing.id === armedOrderLineId);
 
       if (!current || current.type !== "horizontal") return;
 
       let nextPrice = chartPoint.price;
 
       const isReduceOrder =
-        current.orderIntent === "REDUCE" ||
-        current.clientOrderId?.startsWith("fe-red-") === true;
+        current.orderIntent === "REDUCE" || current.clientOrderId?.startsWith("fe-red-") === true;
 
       if (isReduceOrder && current.orderSide) {
-        const marketPrice =
-          refs.liveMarketPriceRef.current ?? marketData.lastPrice;
+        const marketPrice = refs.liveMarketPriceRef.current ?? marketData.lastPrice;
 
-        if (
-          marketPrice != null &&
-          Number.isFinite(marketPrice) &&
-          marketPrice > 0
-        ) {
+        if (marketPrice != null && Number.isFinite(marketPrice) && marketPrice > 0) {
           const boundaryStep = reduceOrderBoundaryStep(
             marketPrice,
             marketData.tickSize,
@@ -340,10 +315,7 @@ export function useArmedDrawingInteractions(
           nextPrice =
             current.orderSide === "SELL"
               ? Math.max(nextPrice, marketPrice + boundaryStep)
-              : Math.max(
-                  boundaryStep,
-                  Math.min(nextPrice, marketPrice - boundaryStep),
-                );
+              : Math.max(boundaryStep, Math.min(nextPrice, marketPrice - boundaryStep));
         }
       }
 
@@ -358,9 +330,7 @@ export function useArmedDrawingInteractions(
       if (event.button !== 0) return;
 
       const before = armedOrderLineBeforeRef.current;
-      const current = refs.drawingsRef.current.find(
-        (drawing) => drawing.id === armedOrderLineId,
-      );
+      const current = refs.drawingsRef.current.find((drawing) => drawing.id === armedOrderLineId);
 
       armedOrderLineBeforeRef.current = null;
       setArmedOrderLineId(null);
@@ -504,14 +474,11 @@ export function useArmedDrawingInteractions(
       };
       const selected = refs.drawingsRef.current.filter(
         (drawing) =>
-          !isOrderDrawing(drawing) &&
-          drawingIntersectsMarquee(drawing, marquee, refs, coord),
+          !isOrderDrawing(drawing) && drawingIntersectsMarquee(drawing, marquee, refs, coord),
       );
 
       refs.groupSelectedIdsRef.current.clear();
-      selected.forEach((drawing) =>
-        refs.groupSelectedIdsRef.current.add(drawing.id),
-      );
+      selected.forEach((drawing) => refs.groupSelectedIdsRef.current.add(drawing.id));
       drawingsApi.setSelectedId(null);
       drawingsApi.setContextMenu(null);
     };
@@ -558,8 +525,7 @@ export function useArmedDrawingInteractions(
       );
       if (!chartPoint) return;
 
-      const timeDelta =
-        Number(chartPoint.time) - Number(armedGroupMove.pointerStart.time);
+      const timeDelta = Number(chartPoint.time) - Number(armedGroupMove.pointerStart.time);
       const priceDelta = chartPoint.price - armedGroupMove.pointerStart.price;
       const translated = new Map(
         armedGroupMove.before.map((drawing) => [
@@ -568,21 +534,17 @@ export function useArmedDrawingInteractions(
         ]),
       );
 
-      // FEATURE: update the full group in one sync per pointer frame. Calling
+      // update the full group in one sync per pointer frame. Calling
       // replaceDrawingWithoutHistory once per member would persist several
       // partial intermediate group positions and cause avoidable re-renders.
       drawingsApi.syncDrawings(
-        refs.drawingsRef.current.map(
-          (drawing) => translated.get(drawing.id) ?? drawing,
-        ),
+        refs.drawingsRef.current.map((drawing) => translated.get(drawing.id) ?? drawing),
       );
     };
 
     const finishGroupMove = () => {
       const before = armedGroupMove.before;
-      const currentById = new Map(
-        refs.drawingsRef.current.map((drawing) => [drawing.id, drawing]),
-      );
+      const currentById = new Map(refs.drawingsRef.current.map((drawing) => [drawing.id, drawing]));
 
       before.forEach((original) => {
         const current = currentById.get(original.id);
@@ -599,13 +561,9 @@ export function useArmedDrawingInteractions(
     };
 
     const cancelGroupMove = () => {
-      const originalById = new Map(
-        armedGroupMove.before.map((drawing) => [drawing.id, drawing]),
-      );
+      const originalById = new Map(armedGroupMove.before.map((drawing) => [drawing.id, drawing]));
       drawingsApi.syncDrawings(
-        refs.drawingsRef.current.map(
-          (drawing) => originalById.get(drawing.id) ?? drawing,
-        ),
+        refs.drawingsRef.current.map((drawing) => originalById.get(drawing.id) ?? drawing),
       );
       setArmedGroupMove(null);
     };
@@ -663,8 +621,7 @@ export function useArmedDrawingInteractions(
       );
       if (!chartPoint) return;
 
-      const timeDelta =
-        Number(chartPoint.time) - Number(armedTrendMove.pointerStart.time);
+      const timeDelta = Number(chartPoint.time) - Number(armedTrendMove.pointerStart.time);
       const priceDelta = chartPoint.price - armedTrendMove.pointerStart.price;
 
       drawingsApi.replaceDrawingWithoutHistory(before.id, {
@@ -683,7 +640,7 @@ export function useArmedDrawingInteractions(
     const handleConfirmClick = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
-      // FIX: the drop click belongs only to the armed trendline. Capturing
+      // the drop click belongs only to the armed trendline. Capturing
       // and consuming it prevents the same click from selecting a different
       // drawing, panning the chart, or activating a trade control underneath.
       event.preventDefault();

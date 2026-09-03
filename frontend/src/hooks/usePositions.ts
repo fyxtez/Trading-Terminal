@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  closePositionMarket,
-  getPositions,
-  type OpenPosition,
-} from "../trading/api/positions";
+import { closePositionMarket, getPositions, type OpenPosition } from "../trading/api/positions";
 import type { TradeSide } from "../trading/types";
 
 const POST_CLOSE_REFRESH_DELAY_MS = 250;
 
 /*
- * FIX (positions going stale - "Binance shows 0 positions but the app
- * still shows one open" - and the reverse): this used to refresh ONLY in
+ * this used to refresh ONLY in
  * reaction to the "account-state-changed" DOM event, which is dispatched
  * from useTradingStream.ts's handling of the LOCAL trading websocket
  * (browser <-> this app's own backend). That event is itself downstream
@@ -69,37 +64,23 @@ export function usePositions(
     try {
       const result = await getPositions(undefined, force);
 
-      if (
-        !mountedRef.current ||
-        requestId !== refreshRequestIdRef.current
-      ) {
+      if (!mountedRef.current || requestId !== refreshRequestIdRef.current) {
         return;
       }
 
       setPositions(result);
     } catch (caughtError) {
-      if (
-        !mountedRef.current ||
-        requestId !== refreshRequestIdRef.current
-      ) {
+      if (!mountedRef.current || requestId !== refreshRequestIdRef.current) {
         return;
       }
 
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to load positions",
-      );
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load positions");
     } finally {
-      if (
-        mountedRef.current &&
-        requestId === refreshRequestIdRef.current
-      ) {
+      if (mountedRef.current && requestId === refreshRequestIdRef.current) {
         setIsLoading(false);
       }
     }
   }, []);
-
 
   useEffect(() => {
     let refreshTimer: number | null = null;
@@ -170,13 +151,9 @@ export function usePositions(
          * The backend confirmed that the reduce-only market order was filled,
          * so remove the position immediately from the UI.
          */
-        setPositions((current) =>
-          current.filter(
-            (item) => item.symbol.toUpperCase() !== symbol,
-          ),
-        );
+        setPositions((current) => current.filter((item) => item.symbol.toUpperCase() !== symbol));
 
-        // FIX: this hook updates its own `positions` state directly above,
+        // this hook updates its own `positions` state directly above,
         // but never told anything ELSE that the account changed -
         // specifically, PositionBracketOverlay's chart-side TP FULL/STOP
         // LOSS/close controls only refresh reactively off this exact
@@ -213,11 +190,7 @@ export function usePositions(
           return;
         }
 
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : `Unable to close ${symbol}`,
-        );
+        setError(caughtError instanceof Error ? caughtError.message : `Unable to close ${symbol}`);
 
         /*
          * Re-read the account because the exchange may have filled the order

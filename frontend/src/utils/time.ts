@@ -2,8 +2,7 @@ import type { Time } from "lightweight-charts";
 
 // Use whatever timezone the visitor's browser/OS reports instead of a
 // hardcoded one. Falls back to UTC if Intl can't resolve it for some reason.
-export const CHART_TIME_ZONE =
-  Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
+export const CHART_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
 
 export function timeToDate(time: Time): Date {
   if (typeof time === "number") {
@@ -30,7 +29,7 @@ export const localDateFormatter = new Intl.DateTimeFormat("en-GB", {
   month: "2-digit",
 });
 
-// FEATURE: time-axis calendar ticks need calendar labels; formatting every
+// time-axis calendar ticks need calendar labels; formatting every
 // intraday chart tick as HH:mm made consecutive future days all read "02:00".
 export const localMonthFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: CHART_TIME_ZONE,
@@ -61,8 +60,7 @@ export function getLocalZoneLabel() {
     timeZoneName: "short",
   }).formatToParts(now);
 
-  const zoneAbbreviation =
-    parts.find((part) => part.type === "timeZoneName")?.value ?? "";
+  const zoneAbbreviation = parts.find((part) => part.type === "timeZoneName")?.value ?? "";
 
   // Deliberately not showing a city name here: IANA aliases zones that
   // share identical rules to one canonical id (e.g. Europe/Vienna and
@@ -74,9 +72,7 @@ export function getLocalZoneLabel() {
   const absMinutes = Math.abs(offsetMinutes);
   const hours = Math.floor(absMinutes / 60);
   const minutes = absMinutes % 60;
-  const offsetLabel = `UTC${sign}${hours}${
-    minutes ? ":" + String(minutes).padStart(2, "0") : ""
-  }`;
+  const offsetLabel = `UTC${sign}${hours}${minutes ? ":" + String(minutes).padStart(2, "0") : ""}`;
 
   return zoneAbbreviation ? `${zoneAbbreviation} · ${offsetLabel}` : offsetLabel;
 }

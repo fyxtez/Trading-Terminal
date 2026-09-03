@@ -26,7 +26,10 @@
   font-size: 12.5px;
   line-height: 1;
   white-space: nowrap;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 
 .candle-countdown-badge:hover,
@@ -85,7 +88,7 @@
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   /*
-   * FIX: the 1w row's value ("3d 09:47:42") has a space in it, which
+   * the 1w row's value ("3d 09:47:42") has a space in it, which
    * without this wrapped onto its own line below "1w" the moment the row
    * got the least bit tight - looked like the row had broken layout.
    * This keeps the whole value glued together on one line no matter how
@@ -95,7 +98,7 @@
 }
 
 /*
- * FEATURE: the compact move control explicitly unlocks timer placement.
+ * the compact move control explicitly unlocks timer placement.
  * Keeping it separate from the countdown button preserves the existing
  * timeframe dropdown interaction during normal chart use.
  */
@@ -117,7 +120,10 @@
   font-size: 12px;
   line-height: 1;
   opacity: 0.62;
-  transition: opacity 100ms ease, background 100ms ease, color 100ms ease,
+  transition:
+    opacity 100ms ease,
+    background 100ms ease,
+    color 100ms ease,
     border-color 100ms ease;
 }
 
@@ -133,7 +139,7 @@
   color: var(--amber);
 }
 
-/* FEATURE: cursor feedback makes the click → move → click placement state
+/* cursor feedback makes the click → move → click placement state
  * obvious without changing the timer's compact visual footprint. */
 .candle-countdown.move-armed .candle-countdown-badge {
   cursor: grab;

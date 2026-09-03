@@ -7,11 +7,7 @@ import zecIcon from "../assets/symbols/zec.svg";
 import xauIcon from "../assets/symbols/xau.svg";
 import xagIcon from "../assets/symbols/xag.svg";
 import powerIcon from "../assets/symbols/power.jpg";
-import {
-  fetchIconImageUrl,
-  listIcons,
-  type BackendIcon,
-} from "../trading/api/symbols";
+import { fetchIconImageUrl, listIcons, type BackendIcon } from "../trading/api/symbols";
 import { TRADING_API_BASE_URL, TRADING_API_BASE_URL_CHANGED_EVENT } from "./constants";
 
 /**
@@ -70,7 +66,7 @@ type PersistedIconMetadataCache = {
 };
 
 function iconMetadataCacheKey(): string {
-  // FEATURE: icon URLs are backend-specific, so each backend gets its own
+  // icon URLs are backend-specific, so each backend gets its own
   // metadata cache. This prevents a fast local-cache hydrate from pointing an
   // icon at the previously selected local/remote API after a backend switch.
   return `${ICON_METADATA_CACHE_PREFIX}${TRADING_API_BASE_URL.replace(/\/+$/, "")}`;
@@ -167,7 +163,7 @@ export async function refreshSymbolMetadata(): Promise<void> {
     try {
       const { icons } = await listIcons();
 
-      // FEATURE: hydrate icon metadata into memory and persist only the tiny
+      // hydrate icon metadata into memory and persist only the tiny
       // symbol/version map. The actual image bytes stay in the browser HTTP
       // cache rather than localStorage (which is synchronous, quota-limited,
       // and a poor fit for binary/base64 image data). On the next app start the
@@ -194,7 +190,7 @@ export async function refreshSymbolMetadata(): Promise<void> {
 // re-running the fetch keeps icons pointed at whichever backend is
 // actually active.
 if (typeof window !== "undefined") {
-  // FEATURE: populate runtime metadata synchronously from the last successful
+  // populate runtime metadata synchronously from the last successful
   // backend response so opening/searching the symbol list does not briefly show
   // generic placeholders while GET /api/icons is still in flight.
   window.addEventListener(TRADING_API_BASE_URL_CHANGED_EVENT, () => {
@@ -212,7 +208,6 @@ if (typeof window !== "undefined") {
     void refreshSymbolMetadata();
   });
 }
-
 
 export type SymbolInfo = {
   /** Short ticker to show in the UI, e.g. "BTC". */
@@ -236,7 +231,7 @@ export function getSymbolInfo(symbol: string): SymbolInfo {
   return {
     label: base,
     name: BASE_ASSET_NAMES[base] ?? runtime?.name ?? base,
-    // FEATURE: the backend now selects separate verified crypto/TradFi icon
+    // the backend now selects separate verified crypto/TradFi icon
     // sources, so both asset classes can safely use the same cached-image path.
     icon: BASE_ASSET_ICONS[base] ?? runtime?.icon,
   };

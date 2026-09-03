@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   DESKTOP_ONBOARDING_KEY,
@@ -35,6 +29,19 @@ const emptyValues = () => ({
   telegramChatId: "",
 });
 
+function isValidNtfyDestination(value: string): boolean {
+  value = value.trim();
+  if (/^[-_A-Za-z0-9]{1,64}$/.test(value)) return true;
+  try {
+    const parsed = new URL(value);
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 const steps = [
   {
     key: "binance",
@@ -50,7 +57,7 @@ const steps = [
     short: "NTFY",
     title: "Connect ntfy",
     description:
-      "Optionally send price and trade notifications to another device through your private ntfy topic URL.",
+      "Optionally send price and trade notifications to another device through your private ntfy.sh topic.",
   },
   {
     key: "telegram",
@@ -70,21 +77,17 @@ const steps = [
 
 export default function DesktopSetupGate({ children }: { children: ReactNode }) {
   const desktop = isTauri();
-  const [status, setStatus] = useState<DesktopCredentialStatus>(
-    emptyStatus,
-  );
+  const [status, setStatus] = useState<DesktopCredentialStatus>(emptyStatus);
   const [loaded, setLoaded] = useState(!desktop);
   const [showSetup, setShowSetup] = useState(
     () => desktop && localStorage.getItem(DESKTOP_ONBOARDING_KEY) !== "true",
   );
-  const [targetConnection, setTargetConnection] =
-    useState<DesktopConnection | null>(null);
+  const [targetConnection, setTargetConnection] = useState<DesktopConnection | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState(emptyValues);
-  const onboardingComplete =
-    !desktop || localStorage.getItem(DESKTOP_ONBOARDING_KEY) === "true";
+  const onboardingComplete = !desktop || localStorage.getItem(DESKTOP_ONBOARDING_KEY) === "true";
 
   const activeSteps = useMemo(
     () =>
@@ -123,13 +126,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   }, [desktop, openSetup]);
 
   useEffect(() => {
-    if (
-      !desktop ||
-      !loaded ||
-      !showSetup ||
-      targetConnection ||
-      activeSteps.length > 0
-    ) {
+    if (!desktop || !loaded || !showSetup || targetConnection || activeSteps.length > 0) {
       return;
     }
     localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
@@ -183,11 +180,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       setError("Enter both Binance fields, or skip this step.");
       return;
     }
-    if (
-      activeStep?.key === "binance" &&
-      values.binanceApiKey &&
-      !values.binanceNetwork
-    ) {
+    if (activeStep?.key === "binance" && values.binanceApiKey && !values.binanceNetwork) {
       setError("Choose Binance Mainnet or Testnet.");
       return;
     }
@@ -204,6 +197,12 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       Boolean(values.telegramBotToken) !== Boolean(values.telegramChatId)
     ) {
       setError("Enter both Telegram fields, or skip this step.");
+      return;
+    }
+    if (activeStep?.key === "ntfy" && values.ntfyUrl && !isValidNtfyDestination(values.ntfyUrl)) {
+      setError(
+        "Enter an ntfy topic using letters, numbers, dashes or underscores, or a complete http(s) URL.",
+      );
       return;
     }
     setError(null);
@@ -255,11 +254,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               className={`${index === step ? "active" : ""} ${index < step ? "done" : ""}`}
               key={item.short}
             >
-              <b>
-                {index < step
-                  ? "✓"
-                  : String(index + 1).padStart(2, "0")}
-              </b>
+              <b>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</b>
               <span>{item.short}</span>
             </div>
           ))}
@@ -267,14 +262,12 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
 
         <div className="desktop-setup-body">
           <div className="desktop-setup-step-copy">
-            <span>STEP {stepNumber} OF {stepCount}</span>
+            <span>
+              STEP {stepNumber} OF {stepCount}
+            </span>
             <h2>{activeStep.title}</h2>
             <p>{activeStep.description}</p>
-            {configured && (
-              <em>
-                Already configured. Saving new values replaces this connection.
-              </em>
-            )}
+            {configured && <em>Already configured. Saving new values replaces this connection.</em>}
           </div>
 
           {activeStep.key === "binance" && (
@@ -282,8 +275,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               <aside>
                 <strong>Use a dedicated API key</strong>
                 <span>
-                  Enable Futures trading only if needed. Never enable withdrawals.
-                  Prefer an IP restriction when practical.
+                  Enable Futures trading only if needed. Never enable withdrawals. Prefer an IP
+                  restriction when practical.
                 </span>
               </aside>
               <fieldset className="desktop-network-picker">
@@ -320,9 +313,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                   <input
                     type="checkbox"
                     checked={values.confirmMainnet}
-                    onChange={(event) =>
-                      setValue("confirmMainnet", event.target.checked)
-                    }
+                    onChange={(event) => setValue("confirmMainnet", event.target.checked)}
                   />
                   <span>I understand that this connection can use real funds.</span>
                 </label>
@@ -331,9 +322,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 Binance API key
                 <input
                   value={values.binanceApiKey}
-                  onChange={(event) =>
-                    setValue("binanceApiKey", event.target.value)
-                  }
+                  onChange={(event) => setValue("binanceApiKey", event.target.value)}
                   autoComplete="off"
                 />
               </label>
@@ -341,9 +330,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 Binance API secret
                 <input
                   value={values.binanceApiSecret}
-                  onChange={(event) =>
-                    setValue("binanceApiSecret", event.target.value)
-                  }
+                  onChange={(event) => setValue("binanceApiSecret", event.target.value)}
                   type="password"
                   autoComplete="new-password"
                 />
@@ -356,18 +343,21 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               <aside>
                 <strong>What is ntfy?</strong>
                 <span>
-                  ntfy publishes notifications to a topic URL. Treat an
-                  unprotected topic URL as private because anyone who knows it
-                  may receive messages.
+                  Enter the topic name you subscribed to in ntfy. The app adds https://ntfy.sh/
+                  automatically. Use a long, hard-to-guess name because anyone who knows an
+                  unprotected topic can receive its messages.
                 </span>
               </aside>
               <label>
-                Private ntfy publish URL
+                Private ntfy topic
                 <input
                   value={values.ntfyUrl}
                   onChange={(event) => setValue("ntfyUrl", event.target.value)}
-                  type="url"
-                  placeholder="https://ntfy.sh/your-private-topic"
+                  type="text"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="your-private-topic"
                 />
               </label>
             </div>
@@ -378,17 +368,15 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               <aside>
                 <strong>Use your own Telegram bot</strong>
                 <span>
-                  Create a bot through BotFather, then enter its token and the
-                  chat ID that should receive terminal notifications.
+                  Create a bot through BotFather, then enter its token and the chat ID that should
+                  receive terminal notifications.
                 </span>
               </aside>
               <label>
                 Telegram bot token
                 <input
                   value={values.telegramBotToken}
-                  onChange={(event) =>
-                    setValue("telegramBotToken", event.target.value)
-                  }
+                  onChange={(event) => setValue("telegramBotToken", event.target.value)}
                   type="password"
                   autoComplete="new-password"
                 />
@@ -397,9 +385,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 Telegram chat ID
                 <input
                   value={values.telegramChatId}
-                  onChange={(event) =>
-                    setValue("telegramChatId", event.target.value)
-                  }
+                  onChange={(event) => setValue("telegramChatId", event.target.value)}
                   autoComplete="off"
                 />
               </label>
@@ -420,12 +406,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               BACK
             </button>
           ) : onboardingComplete || editingSingleConnection ? (
-            <button
-              className="secondary"
-              type="button"
-              disabled={saving}
-              onClick={closeSetup}
-            >
+            <button className="secondary" type="button" disabled={saving} onClick={closeSetup}>
               CLOSE
             </button>
           ) : (
@@ -434,21 +415,11 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           <span>Secrets stay in your OS credential manager.</span>
           <div>
             {!editingSingleConnection && (
-              <button
-                className="skip"
-                type="button"
-                disabled={saving}
-                onClick={skip}
-              >
+              <button className="skip" type="button" disabled={saving} onClick={skip}>
                 {isLastStep ? "SKIP & FINISH" : "SKIP STEP"}
               </button>
             )}
-            <button
-              className="primary"
-              type="button"
-              disabled={saving}
-              onClick={next}
-            >
+            <button className="primary" type="button" disabled={saving} onClick={next}>
               {saving
                 ? "SAVING…"
                 : editingSingleConnection
@@ -480,7 +451,14 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const firstRun = desktop && !onboardingComplete;
   return (
     <DesktopCredentialsContext.Provider value={context}>
-      {firstRun && showSetup ? wizard : <>{children}{wizard}</>}
+      {firstRun && showSetup ? (
+        wizard
+      ) : (
+        <>
+          {children}
+          {wizard}
+        </>
+      )}
     </DesktopCredentialsContext.Provider>
   );
 }

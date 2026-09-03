@@ -47,11 +47,6 @@ const COINGECKO_MARKETS_URL: &str = "https://api.coingecko.com/api/v3/coins/mark
 const COINGECKO_PRO_MARKETS_URL: &str = "https://pro-api.coingecko.com/api/v3/coins/markets";
 const STOCK_LOGO_URL_PREFIX: &str = "https://financialmodelingprep.com/image-stock";
 
-/// Hard cap on the number of distinct symbols this backend will ever cache
-/// an icon for. Pre-seeded majors count against this the same as anything
-/// added on demand.
-pub const MAX_ICONS: usize = 100;
-
 /// Symbols pre-cached at startup, independent of `SymbolRegistry`.
 pub const DEFAULT_SEED_SYMBOLS: &[&str] =
     &["BTC", "SOL", "XRP", "USDT", "USDC", "BNB", "TRX", "HYPE"];
@@ -149,8 +144,8 @@ impl IconStore {
         Ok(store)
     }
 
-    /// Best-effort bulk icon resolution, bypassing the cap. Used both for
-    /// the fixed `DEFAULT_SEED_SYMBOLS` list and for backfilling whatever
+    /// Best-effort bulk icon resolution. Used both for the fixed
+    /// `DEFAULT_SEED_SYMBOLS` list and for backfilling whatever
     /// is already in `SymbolRegistry` at startup (see main.rs) - either
     /// way, never fails the whole process. A symbol that can't be
     /// resolved (not present on Binance's Alpha token list or CoinGecko,
@@ -158,7 +153,7 @@ impl IconStore {
     /// missing icon should never be able to take the whole API down.
     pub async fn seed(&self, symbols: &[&str]) {
         for &symbol in symbols {
-            match self.ensure_cached(symbol, true).await {
+            match self.ensure_cached(symbol).await {
                 Ok(Some(_)) => {
                     tracing::info!(symbol, "Seeded token icon");
                 }
@@ -176,13 +171,13 @@ impl IconStore {
         }
     }
 
-    /// FEATURE: startup backfill for MEXC-only crypto symbols. Unlike Binance
+    /// startup backfill for MEXC-only crypto symbols. Unlike Binance
     /// symbols, these intentionally skip Binance Alpha because a matching
     /// ticker there could describe a different asset; CoinGecko is the neutral
     /// metadata source used to populate the same local icon cache.
     pub async fn seed_mexc(&self, symbols: &[&str]) {
         for &symbol in symbols {
-            match self.ensure_cached_from_mexc_with_cap(symbol, true).await {
+            match self.ensure_cached_from_mexc(symbol).await {
                 Ok(Some(_)) => tracing::info!(symbol, "Seeded MEXC token icon"),
                 Ok(None) => {
                     tracing::warn!(symbol, "No CoinGecko icon found for registered MEXC symbol")
@@ -194,11 +189,11 @@ impl IconStore {
         }
     }
 
-    /// FEATURE: startup backfill for verified TradFi logos. Equity/ETF symbols
+    /// startup backfill for verified TradFi logos. Equity/ETF symbols
     /// use a stock-logo endpoint, while commodities use explicit URLs below.
     pub async fn seed_tradfi(&self, symbols: &[&str]) {
         for &symbol in symbols {
-            match self.ensure_cached_tradfi(symbol, true).await {
+            match self.ensure_cached_tradfi(symbol).await {
                 Ok(Some(_)) => tracing::info!(symbol, "Seeded TradFi icon"),
                 Ok(None) => tracing::warn!(symbol, "No TradFi icon source configured"),
                 Err(error) => tracing::warn!(symbol, %error, "Failed to seed TradFi icon"),
@@ -224,23 +219,13 @@ impl IconStore {
         Ok(Some((bytes, entry.content_type)))
     }
 
-    /// True if `symbol` is already cached, or there's still room under
-    /// `MAX_ICONS` to cache a brand-new one. Callers should check this
-    /// BEFORE registering a new symbol elsewhere, so a rejected icon-cache
-    /// slot never leaves a symbol half-registered.
-    pub async fn has_room_for(&self, symbol: &str) -> AppResult<bool> {
-        let base = normalize_icon_symbol(symbol)?;
-        let entries = self.entries.read().await;
-        Ok(entries.contains_key(&base) || entries.len() < MAX_ICONS)
-    }
-
-    /// FIX: remove a token image cached before a Binance contract was known to
+    /// remove a token image cached before a Binance contract was known to
     /// be TradFi. This is deliberately separate from normal registry deletion,
     /// which continues to retain valid crypto icons for inexpensive re-adds.
     pub async fn remove_misclassified(&self, symbol: &str) -> AppResult<()> {
         let base = normalize_icon_symbol(symbol)?;
         let mut entries = self.entries.write().await;
-        // FIX: only purge old crypto-source collisions. Once a valid TradFi
+        // only purge old crypto-source collisions. Once a valid TradFi
         // icon has been cached, future restarts must retain it cheaply.
         if entries.get(&base).is_some_and(|entry| {
             entry.source_url.starts_with(STOCK_LOGO_URL_PREFIX)
@@ -269,48 +254,35 @@ impl IconStore {
     /// expected outcome for majors outside the Alpha program, not a
     /// failure of this store.
     pub async fn ensure_cached_from_binance(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
-        self.ensure_cached(symbol, false).await
+        self.ensure_cached(symbol).await
     }
 
-    /// FEATURE: dynamically resolves MEXC artwork through exchange, DEX, and
+    /// dynamically resolves MEXC artwork through exchange, DEX, and
     /// CoinGecko metadata, then stores it in the existing manifest-backed cache.
     /// MEXC's official futures contract payload itself supplies no logo URL.
     pub async fn ensure_cached_from_mexc(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
-        self.ensure_cached_from_mexc_with_cap(symbol, false).await
+        self.ensure_cached_from_mexc_inner(symbol).await
     }
 
-    /// FEATURE: TradFi has its own resolver so stock tickers never pass through
+    /// TradFi has its own resolver so stock tickers never pass through
     /// Binance Alpha or CoinGecko token matching.
     pub async fn ensure_cached_from_tradfi(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
-        self.ensure_cached_tradfi(symbol, false).await
+        self.ensure_cached_tradfi(symbol).await
     }
 
-    async fn ensure_cached_tradfi(
-        &self,
-        symbol: &str,
-        bypass_cap: bool,
-    ) -> AppResult<Option<IconEntry>> {
+    async fn ensure_cached_tradfi(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
         let base = normalize_base_symbol(symbol)?;
         let icon_url = tradfi_icon_url(&base);
-        self.cache_resolved_icon(base.clone(), icon_url, "tradfi", base, bypass_cap)
+        self.cache_resolved_icon(base.clone(), icon_url, "tradfi", base)
             .await
             .map(Some)
     }
 
-    async fn ensure_cached(&self, symbol: &str, bypass_cap: bool) -> AppResult<Option<IconEntry>> {
+    async fn ensure_cached(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
         let base = normalize_icon_symbol(symbol)?;
 
         if let Some(existing) = self.entries.read().await.get(&base).cloned() {
             return Ok(Some(existing));
-        }
-
-        if !bypass_cap {
-            let entries = self.entries.read().await;
-            if entries.len() >= MAX_ICONS {
-                return Err(AppError::Invalid(format!(
-                    "icon cache is full ({MAX_ICONS} symbols); remove an unused symbol before adding another"
-                )));
-            }
         }
 
         let (icon_url, source_label, matched_symbol) =
@@ -322,28 +294,18 @@ impl IconStore {
                 },
             };
 
-        self.cache_resolved_icon(base, icon_url, source_label, matched_symbol, bypass_cap)
+        self.cache_resolved_icon(base, icon_url, source_label, matched_symbol)
             .await
             .map(Some)
     }
 
-    async fn ensure_cached_from_mexc_with_cap(
-        &self,
-        symbol: &str,
-        bypass_cap: bool,
-    ) -> AppResult<Option<IconEntry>> {
+    async fn ensure_cached_from_mexc_inner(&self, symbol: &str) -> AppResult<Option<IconEntry>> {
         let base = normalize_icon_symbol(symbol)?;
 
         if let Some(existing) = self.entries.read().await.get(&base).cloned() {
             return Ok(Some(existing));
         }
-        if !bypass_cap && self.entries.read().await.len() >= MAX_ICONS {
-            return Err(AppError::Invalid(format!(
-                "icon cache is full ({MAX_ICONS} symbols); remove an unused symbol before adding another"
-            )));
-        }
-
-        // FIX: freshly listed MEXC Meme+/on-chain tokens may be absent from both
+        // freshly listed MEXC Meme+/on-chain tokens may be absent from both
         // MEXC's legacy spot-asset payload and CoinGecko for several days.
         // Try DexScreener between them because it indexes the token's live DEX
         // pair and artwork immediately; this fixes BASECAT without hardcoding it.
@@ -376,7 +338,7 @@ impl IconStore {
             },
         };
 
-        self.cache_resolved_icon(base, icon_url, source, matched_id, bypass_cap)
+        self.cache_resolved_icon(base, icon_url, source, matched_id)
             .await
             .map(Some)
     }
@@ -387,17 +349,10 @@ impl IconStore {
         icon_url: String,
         source_label: &str,
         matched_symbol: String,
-        bypass_cap: bool,
     ) -> AppResult<IconEntry> {
         if let Some(existing) = self.entries.read().await.get(&base).cloned() {
             return Ok(existing);
         }
-        if !bypass_cap && self.entries.read().await.len() >= MAX_ICONS {
-            return Err(AppError::Invalid(format!(
-                "icon cache is full ({MAX_ICONS} symbols); remove an unused symbol before adding another"
-            )));
-        }
-
         let (bytes, content_type) = self.download(&icon_url).await?;
         if !is_supported_image(&bytes) {
             return Err(AppError::Config(format!(
@@ -416,19 +371,11 @@ impl IconStore {
 
         fs::write(self.dir.join(&file_name), &bytes).await?;
 
-        // Re-check under the write lock: another concurrent request may
-        // have already cached this exact symbol (or filled the cache)
-        // while we were downloading.
+        // Re-check under the write lock because another concurrent request may
+        // have cached this exact symbol while the image was downloading.
         let mut entries = self.entries.write().await;
         if let Some(existing) = entries.get(&base) {
             return Ok(existing.clone());
-        }
-        if !bypass_cap && entries.len() >= MAX_ICONS {
-            // Roll back the file we just wrote; another request won the race.
-            let _ = fs::remove_file(self.dir.join(&file_name)).await;
-            return Err(AppError::Invalid(format!(
-                "icon cache is full ({MAX_ICONS} symbols); remove an unused symbol before adding another"
-            )));
         }
 
         entries.insert(base.clone(), entry.clone());
@@ -497,7 +444,7 @@ impl IconStore {
         Ok(fallback)
     }
 
-    /// FEATURE: MEXC's trading API confirms contracts but omits artwork; its
+    /// MEXC's trading API confirms contracts but omits artwork; its
     /// public web asset metadata contains the same token icon shown by MEXC's
     /// own UI. Parse defensively because this web payload is less stable than
     /// the documented trading API, and fall back to CoinGecko on any miss.
@@ -511,7 +458,7 @@ impl IconStore {
         Ok(find_mexc_asset_image_url(&payload))
     }
 
-    /// FEATURE: resolve artwork for just-listed MEXC tokens through their DEX
+    /// resolve artwork for just-listed MEXC tokens through their DEX
     /// pairs. Exact base-symbol matching prevents quote-token false positives;
     /// highest liquidity makes the canonical pair win when several exist.
     async fn lookup_dexscreener_icon_url(&self, base: &str) -> AppResult<Option<(String, String)>> {
@@ -576,7 +523,7 @@ impl IconStore {
     async fn lookup_coingecko_icon_url(&self, base: &str) -> AppResult<Option<(String, String)>> {
         let lower_base = base.to_ascii_lowercase();
 
-        // FEATURE: production deployments can opt into CoinGecko's supported
+        // production deployments can opt into CoinGecko's supported
         // authentication without placing secrets in the frontend. Demo keys
         // use api.coingecko.com; Pro keys require the separate Pro origin.
         let (url, auth_header) = if let Ok(key) = std::env::var("COINGECKO_PRO_API_KEY") {
@@ -662,7 +609,7 @@ impl IconStore {
 fn normalize_icon_symbol(raw: &str) -> AppResult<String> {
     let symbol = raw.trim().to_ascii_uppercase();
 
-    // FIX: Icon seeds intentionally include quote assets USDT and USDC, but
+    // Icon seeds intentionally include quote assets USDT and USDC, but
     // the trading-pair normalizer strips a trailing "USDT" and rejects the
     // empty result. Keep these standalone asset tickers intact for icon-only
     // operations while all ordinary symbols retain the stricter validation.
@@ -703,7 +650,7 @@ fn extension_for(content_type: &str, url: &str) -> &'static str {
 }
 
 fn tradfi_icon_url(base: &str) -> String {
-    // FEATURE: commodities do not have stock tickers, so map them to explicit
+    // commodities do not have stock tickers, so map them to explicit
     // asset icons. Equities and ETFs use the exact exchange ticker against the
     // stock-only provider, avoiding the crypto ticker collisions fixed above.
     let special = match base {
@@ -729,7 +676,7 @@ fn tradfi_icon_url(base: &str) -> String {
 fn find_mexc_asset_image_url(value: &Value) -> Option<String> {
     match value {
         Value::Object(fields) => {
-            // FIX: prefer explicitly named artwork fields before recursively
+            // prefer explicitly named artwork fields before recursively
             // inspecting nested network metadata, which may contain a chain
             // logo that is not the requested token's own icon.
             for (key, candidate) in fields {
@@ -765,7 +712,7 @@ fn normalize_mexc_image_url(raw: &str) -> Option<String> {
 }
 
 fn dex_pair_liquidity(pair: &Value) -> f64 {
-    // FIX: DexScreener can encode numeric fields as either JSON numbers or
+    // DexScreener can encode numeric fields as either JSON numbers or
     // strings; accepting both keeps canonical-pair ranking stable over time.
     let value = pair.pointer("/liquidity/usd");
     value

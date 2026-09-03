@@ -48,16 +48,13 @@ function normalizeCandles(candles: CandlestickData[]): CandlestickData[] {
   return [...byTime.values()].sort((a, b) => Number(a.time) - Number(b.time));
 }
 
-function aggregateCandles(
-  candles: CandlestickData[],
-  targetIntervalMs: number,
-): CandlestickData[] {
+function aggregateCandles(candles: CandlestickData[], targetIntervalMs: number): CandlestickData[] {
   const buckets = new Map<number, CandlestickData[]>();
 
   for (const candle of candles) {
     const seconds = Number(candle.time);
-    const bucketSeconds = Math.floor((seconds * 1000) / targetIntervalMs) *
-      (targetIntervalMs / 1000);
+    const bucketSeconds =
+      Math.floor((seconds * 1000) / targetIntervalMs) * (targetIntervalMs / 1000);
     const group = buckets.get(bucketSeconds) ?? [];
     group.push(candle);
     buckets.set(bucketSeconds, group);
@@ -111,18 +108,18 @@ async function fetchMexcRange(
   startSeconds?: number,
   endSeconds?: number,
 ): Promise<CandlestickData[]> {
-  const normalizedStart = startSeconds === undefined
-    ? undefined
-    : Math.max(0, Math.floor(startSeconds));
-  const normalizedEnd = endSeconds === undefined
-    ? undefined
-    : Math.max(0, Math.floor(endSeconds));
+  const normalizedStart =
+    startSeconds === undefined ? undefined : Math.max(0, Math.floor(startSeconds));
+  const normalizedEnd = endSeconds === undefined ? undefined : Math.max(0, Math.floor(endSeconds));
 
   // Large requested histories on weekly/monthly charts can extend farther
   // back than the Unix epoch. Do not send an invalid `start=0&end=0` range
   // to the backend when that happens; that range simply contains no candles.
-  if (normalizedStart !== undefined && normalizedEnd !== undefined &&
-      normalizedStart >= normalizedEnd) {
+  if (
+    normalizedStart !== undefined &&
+    normalizedEnd !== undefined &&
+    normalizedStart >= normalizedEnd
+  ) {
     return [];
   }
 
@@ -137,15 +134,14 @@ async function fetchMexcRange(
     headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
   }
 
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`,
-    { headers },
-  );
+  const response = await fetch(`${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`, {
+    headers,
+  });
 
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;
     try {
-      const body = await response.json() as { error?: unknown; message?: unknown };
+      const body = (await response.json()) as { error?: unknown; message?: unknown };
       if (typeof body.error === "string") detail = body.error;
       else if (typeof body.message === "string") detail = body.message;
     } catch {
@@ -225,15 +221,12 @@ async function fetchMexcKlines(
   }
 
   const chunks = await Promise.all(
-    ranges.map(({ start, end }) =>
-      fetchMexcRange(config, selectedInterval, start, end)
-    ),
+    ranges.map(({ start, end }) => fetchMexcRange(config, selectedInterval, start, end)),
   );
 
   const merged = normalizeCandles(chunks.flat());
-  const normalized = selectedInterval === "12h"
-    ? aggregateCandles(merged, intervalMs["12h"])
-    : merged;
+  const normalized =
+    selectedInterval === "12h" ? aggregateCandles(merged, intervalMs["12h"]) : merged;
   return normalized.slice(-total);
 }
 
@@ -265,9 +258,8 @@ export async function fetchOlderKlines(
     const endSeconds = Math.floor(endTimeMs / 1000);
     const startSeconds = Math.max(0, endSeconds - Math.floor((rawRequested * rawStepMs) / 1000));
     const rawCandles = await fetchMexcRange(config, selectedInterval, startSeconds, endSeconds);
-    const candles = selectedInterval === "12h"
-      ? aggregateCandles(rawCandles, intervalMs["12h"])
-      : rawCandles;
+    const candles =
+      selectedInterval === "12h" ? aggregateCandles(rawCandles, intervalMs["12h"]) : rawCandles;
     return candles.slice(-requested);
   }
 
@@ -304,9 +296,8 @@ export async function fetchLatestKline(
     const rawStepMs = selectedInterval === "12h" ? intervalMs["4h"] : intervalMs[selectedInterval];
     const startSeconds = Math.max(0, endSeconds - Math.floor((rawStepMs * 4) / 1000));
     const rawCandles = await fetchMexcRange(config, selectedInterval, startSeconds, endSeconds);
-    const candles = selectedInterval === "12h"
-      ? aggregateCandles(rawCandles, intervalMs["12h"])
-      : rawCandles;
+    const candles =
+      selectedInterval === "12h" ? aggregateCandles(rawCandles, intervalMs["12h"]) : rawCandles;
     return candles[candles.length - 1] ?? null;
   }
 
@@ -339,10 +330,7 @@ export function mergeLatestCandle(
 }
 
 /** Retained for callers outside the polling hook; only Binance exposes this URL. */
-export function buildMarketStreamUrl(
-  selectedInterval: Interval,
-  symbol: string,
-): string {
+export function buildMarketStreamUrl(selectedInterval: Interval, symbol: string): string {
   const config = getSymbolConfig(symbol);
   if (config.source !== "binance") {
     throw new Error(`WebSocket market stream is not configured for ${config.source}`);

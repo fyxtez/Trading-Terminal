@@ -9,22 +9,10 @@ import {
   placeMarketOrder,
   getOpenOrders,
 } from "../trading/api/orders";
-import {
-  executePositionIntent,
-  getPositions,
-  type PositionSide,
-} from "../trading/api/positions";
-import {
-  getCachedSymbolFilters,
-  getSymbolFilters,
-  roundToStep,
-} from "../trading/api/exchangeInfo";
+import { executePositionIntent, getPositions, type PositionSide } from "../trading/api/positions";
+import { getCachedSymbolFilters, getSymbolFilters, roundToStep } from "../trading/api/exchangeInfo";
 import { getSizing } from "../trading/api/sizing";
-import {
-  getCurrentLeverage,
-  getMaxLeverage,
-  updateLeverage,
-} from "../trading/api/leverage";
+import { getCurrentLeverage, getMaxLeverage, updateLeverage } from "../trading/api/leverage";
 import { saveStop } from "../trading/stopLoss";
 import type { ConnectionState } from "./useTradingStream";
 import type {
@@ -58,8 +46,7 @@ export type AutoMarketDraft = {
 
 const TOAST_LIFETIME_MS = { success: 4000, error: 6000 } as const;
 /*
- * FIX (Positions panel not auto-opening after a market/auto-market
- * order): this used to dispatch ONLY "trading-state-changed". That's
+ * this used to dispatch ONLY "trading-state-changed". That's
  * exactly what useOpenOrders.ts listens for, but the auto-open-panel
  * logic in App.tsx (which already has a well-built retry loop
  * specifically for "a market order just filled but the position
@@ -113,7 +100,7 @@ export function useTradeMenu(
   const [tradeToast, setTradeToast] = useState<TradeToastState | null>(null);
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const [balanceRevision, setBalanceRevision] = useState(0);
-  // FIX: keep the backend's persisted margin fraction alongside the balance
+  // keep the backend's persisted margin fraction alongside the balance
   // so AUTO MARKET can display the value it actually uses instead of the old
   // hardcoded "1%" label.
   const [marginPct, setMarginPct] = useState<number | null>(null);
@@ -130,8 +117,7 @@ export function useTradeMenu(
   const [isLoadingPosition, setIsLoadingPosition] = useState(false);
   const tradeStateRequestIdRef = useRef(0);
   const [reducePct, setReducePct] = useState(100);
-  const [autoMarketDraft, setAutoMarketDraft] =
-    useState<AutoMarketDraft | null>(null);
+  const [autoMarketDraft, setAutoMarketDraft] = useState<AutoMarketDraft | null>(null);
   const isSubmittingTrade = pendingTradeAction !== null;
 
   // --- Leverage slider (LIMIT/MARKET entry orders) ------------------------
@@ -182,8 +168,7 @@ export function useTradeMenu(
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
 
       /*
-       * FIX (available balance stayed stale after funding Binance Futures):
-       * ACCOUNT_UPDATE reaches the browser before the backend's debounced REST
+       * * ACCOUNT_UPDATE reaches the browser before the backend's debounced REST
        * reconciliation has populated availableBalance (Binance's push payload
        * only contains walletBalance). Wait slightly longer than that backend
        * debounce, then re-run the trade-state fetch below. Coalescing bursts
@@ -198,18 +183,12 @@ export function useTradeMenu(
     window.addEventListener("account-state-changed", handleAccountStateChanged);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      window.removeEventListener(
-        "account-state-changed",
-        handleAccountStateChanged,
-      );
+      window.removeEventListener("account-state-changed", handleAccountStateChanged);
     };
   }, []);
   useEffect(() => {
     if (!tradeToast || tradeToast.kind === "pending") return;
-    const timer = window.setTimeout(
-      () => setTradeToast(null),
-      TOAST_LIFETIME_MS[tradeToast.kind],
-    );
+    const timer = window.setTimeout(() => setTradeToast(null), TOAST_LIFETIME_MS[tradeToast.kind]);
     return () => window.clearTimeout(timer);
   }, [tradeToast]);
 
@@ -236,139 +215,132 @@ export function useTradeMenu(
       getMaxLeverage(symbol),
       getCurrentLeverage(symbol),
       getOpenOrders(symbol, controller.signal),
-    ]).then(([balanceResult, positionsResult, sizingResult, maxResult, currentResult, openOrdersResult]) => {
-      if (
-        controller.signal.aborted ||
-        requestId !== tradeStateRequestIdRef.current
-      ) {
-        return;
-      }
+    ]).then(
+      ([
+        balanceResult,
+        positionsResult,
+        sizingResult,
+        maxResult,
+        currentResult,
+        openOrdersResult,
+      ]) => {
+        if (controller.signal.aborted || requestId !== tradeStateRequestIdRef.current) {
+          return;
+        }
 
-      // Balance must not become unavailable merely because leverage loading
-      // failed. Handle every backend request independently.
-      if (balanceResult.status === "fulfilled") {
-        setAvailableBalance(balanceResult.value);
-        setBalanceError(null);
-      } else {
-        setAvailableBalance(null);
-        setBalanceError(
-          balanceResult.reason instanceof Error
-            ? balanceResult.reason.message
-            : "Unable to load available balance",
-        );
-      }
-
-      if (positionsResult.status === "fulfilled") {
-        const current = positionsResult.value.find(
-          (position) => position.symbol.toUpperCase() === symbol.toUpperCase(),
-        );
-        setPositionSide(current?.side ?? null);
-        setPositionQuantity(current?.quantity ?? 0);
-
-        /*
-         * FIX (confusing "notional below min_notional"/"already reserved"
-         * errors when reducing): this reduce panel used to compute
-         * "Close now"/"Remaining" against the RAW position quantity,
-         * with zero awareness that some of it might already be claimed
-         * by other resting reduce-only orders (an existing TP/SL limit,
-         * a previous partial reduce, etc.). So the slider happily let
-         * you drag to e.g. 50%, showing a plausible "Close now" figure -
-         * but the backend (correctly) only has whatever's left AFTER
-         * those other orders' reservations to actually work with, so the
-         * real submitted quantity ended up far smaller than what the
-         * panel showed, sometimes small enough to fail Binance's
-         * min_notional outright. Computing this here means the panel can
-         * show the same "available after other orders" figure the
-         * backend is actually going to use, instead of a number that
-         * looks achievable but isn't.
-         */
-        if (openOrdersResult.status === "fulfilled" && current) {
-          const reduceSide = current.side === "LONG" ? "SELL" : "BUY";
-          const reserved = openOrdersResult.value.reduce((total, order) => {
-            if (
-              !order.reduceOnly ||
-              order.side !== reduceSide ||
-              order.symbol.toUpperCase() !== symbol.toUpperCase()
-            ) {
-              return total;
-            }
-
-            const orig = Number(order.origQty);
-            const executed = Number(order.executedQty);
-            const remaining =
-              Number.isFinite(orig) && Number.isFinite(executed)
-                ? Math.max(0, orig - executed)
-                : 0;
-
-            return total + remaining;
-          }, 0);
-
-          setReservedReduceQuantity(reserved);
+        // Balance must not become unavailable merely because leverage loading
+        // failed. Handle every backend request independently.
+        if (balanceResult.status === "fulfilled") {
+          setAvailableBalance(balanceResult.value);
+          setBalanceError(null);
         } else {
+          setAvailableBalance(null);
+          setBalanceError(
+            balanceResult.reason instanceof Error
+              ? balanceResult.reason.message
+              : "Unable to load available balance",
+          );
+        }
+
+        if (positionsResult.status === "fulfilled") {
+          const current = positionsResult.value.find(
+            (position) => position.symbol.toUpperCase() === symbol.toUpperCase(),
+          );
+          setPositionSide(current?.side ?? null);
+          setPositionQuantity(current?.quantity ?? 0);
+
+          /*
+           * this reduce panel used to compute
+           * "Close now"/"Remaining" against the RAW position quantity,
+           * with zero awareness that some of it might already be claimed
+           * by other resting reduce-only orders (an existing TP/SL limit,
+           * a previous partial reduce, etc.). So the slider happily let
+           * you drag to e.g. 50%, showing a plausible "Close now" figure -
+           * but the backend (correctly) only has whatever's left AFTER
+           * those other orders' reservations to actually work with, so the
+           * real submitted quantity ended up far smaller than what the
+           * panel showed, sometimes small enough to fail Binance's
+           * min_notional outright. Computing this here means the panel can
+           * show the same "available after other orders" figure the
+           * backend is actually going to use, instead of a number that
+           * looks achievable but isn't.
+           */
+          if (openOrdersResult.status === "fulfilled" && current) {
+            const reduceSide = current.side === "LONG" ? "SELL" : "BUY";
+            const reserved = openOrdersResult.value.reduce((total, order) => {
+              if (
+                !order.reduceOnly ||
+                order.side !== reduceSide ||
+                order.symbol.toUpperCase() !== symbol.toUpperCase()
+              ) {
+                return total;
+              }
+
+              const orig = Number(order.origQty);
+              const executed = Number(order.executedQty);
+              const remaining =
+                Number.isFinite(orig) && Number.isFinite(executed)
+                  ? Math.max(0, orig - executed)
+                  : 0;
+
+              return total + remaining;
+            }, 0);
+
+            setReservedReduceQuantity(reserved);
+          } else {
+            setReservedReduceQuantity(0);
+          }
+        } else {
+          setPositionSide(null);
+          setPositionQuantity(0);
           setReservedReduceQuantity(0);
         }
-      } else {
-        setPositionSide(null);
-        setPositionQuantity(0);
-        setReservedReduceQuantity(0);
-      }
 
-      const personalMax =
-        sizingResult.status === "fulfilled"
-          ? Number(sizingResult.value.max_leverage)
-          : Number.NaN;
+        const personalMax =
+          sizingResult.status === "fulfilled"
+            ? Number(sizingResult.value.max_leverage)
+            : Number.NaN;
 
-      // FIX: AUTO MARKET sizing is backend-owned; mirror its returned
-      // margin_pct strictly for display so the menu cannot claim 1% while an
-      // updated setting (for example 2%) is used to place the real order.
-      setMarginPct(
-        sizingResult.status === "fulfilled"
-          ? sizingResult.value.margin_pct
-          : null,
-      );
-      const exchangeMax =
-        maxResult.status === "fulfilled"
-          ? Number(maxResult.value.max_leverage)
-          : Number.NaN;
+        // AUTO MARKET sizing is backend-owned; mirror its returned
+        // margin_pct strictly for display so the menu cannot claim 1% while an
+        // updated setting (for example 2%) is used to place the real order.
+        setMarginPct(sizingResult.status === "fulfilled" ? sizingResult.value.margin_pct : null);
+        const exchangeMax =
+          maxResult.status === "fulfilled" ? Number(maxResult.value.max_leverage) : Number.NaN;
 
-      // Prefer the configured Settings maximum. Apply the exchange cap only
-      // when it loaded successfully. Never leave the slider on the temporary
-      // 20x fallback just because another request failed.
-      const effectiveMax =
-        Number.isFinite(personalMax) && personalMax >= 2
-          ? Number.isFinite(exchangeMax) && exchangeMax >= 2
-            ? Math.min(personalMax, exchangeMax)
-            : personalMax
-          : Number.isFinite(exchangeMax) && exchangeMax >= 2
-            ? exchangeMax
-            : FALLBACK_MAX_LEVERAGE;
+        // Prefer the configured Settings maximum. Apply the exchange cap only
+        // when it loaded successfully. Never leave the slider on the temporary
+        // 20x fallback just because another request failed.
+        const effectiveMax =
+          Number.isFinite(personalMax) && personalMax >= 2
+            ? Number.isFinite(exchangeMax) && exchangeMax >= 2
+              ? Math.min(personalMax, exchangeMax)
+              : personalMax
+            : Number.isFinite(exchangeMax) && exchangeMax >= 2
+              ? exchangeMax
+              : FALLBACK_MAX_LEVERAGE;
 
-      setMaxLeverage(effectiveMax);
+        setMaxLeverage(effectiveMax);
 
-      if (currentResult.status === "fulfilled") {
-        const configuredLeverage = Number(currentResult.value.leverage);
-        if (Number.isFinite(configuredLeverage)) {
-          setLeverageState(clampLeverage(configuredLeverage, effectiveMax));
+        if (currentResult.status === "fulfilled") {
+          const configuredLeverage = Number(currentResult.value.leverage);
+          if (Number.isFinite(configuredLeverage)) {
+            setLeverageState(clampLeverage(configuredLeverage, effectiveMax));
+          }
+        } else {
+          console.warn(
+            `[leverage] unable to load current leverage for ${symbol}`,
+            currentResult.reason,
+          );
         }
-      } else {
-        console.warn(
-          `[leverage] unable to load current leverage for ${symbol}`,
-          currentResult.reason,
-        );
-      }
 
-      setIsLoadingBalance(false);
-      setIsLoadingPosition(false);
-    });
+        setIsLoadingBalance(false);
+        setIsLoadingPosition(false);
+      },
+    );
 
     return () => controller.abort();
-  }, [
-    tradeMenu,
-    backendConnection,
-    symbol,
-    executionEnabled,
-    balanceRevision,
-  ]);
+  }, [tradeMenu, backendConnection, symbol, executionEnabled, balanceRevision]);
 
   const openTradeMenu = (
     clientX: number,
@@ -429,9 +401,7 @@ export function useTradeMenu(
     } catch (error) {
       if (requestId !== leverageRequestIdRef.current) return;
 
-      setLeverageError(
-        error instanceof Error ? error.message : "Failed to update leverage",
-      );
+      setLeverageError(error instanceof Error ? error.message : "Failed to update leverage");
     } finally {
       if (requestId === leverageRequestIdRef.current) {
         setIsUpdatingLeverage(false);
@@ -468,15 +438,12 @@ export function useTradeMenu(
               : null;
 
     if (price === null) {
-      console.warn(
-        "[trade-marker] market fill did not contain a usable price",
-        order,
-      );
+      console.warn("[trade-marker] market fill did not contain a usable price", order);
       return;
     }
 
     onMarketOrderFilled({
-      // FIX: prefer the ACTUAL order response's own symbol (Binance
+      // prefer the ACTUAL order response's own symbol (Binance
       // always returns this) over the hook's closure `symbol` - this
       // hook is already scoped to one symbol so the two almost always
       // agree, but preferring the response's own value costs nothing
@@ -484,16 +451,12 @@ export function useTradeMenu(
       // in-flight across a symbol switch.
       symbol: order?.symbol ?? symbol,
       side,
-      time: Math.floor(
-        (order?.updateTime ?? order?.transactTime ?? Date.now()) / 1000,
-      ),
+      time: Math.floor((order?.updateTime ?? order?.transactTime ?? Date.now()) / 1000),
       price,
     });
   };
 
-  const limitOrderFilledImmediately = (
-    order?: BinanceOrderResponse | null,
-  ): boolean => {
+  const limitOrderFilledImmediately = (order?: BinanceOrderResponse | null): boolean => {
     if (!order) return false;
 
     if (order.status?.toUpperCase() === "FILLED") {
@@ -521,7 +484,7 @@ export function useTradeMenu(
       const isLimit = orderType === "LIMIT";
       let executionPrice = isLimit ? tradeMenu.selectedPrice : tradeMenu.marketPrice;
 
-      // FIX: the frontend still needs symbol filters for limit-price rounding
+      // the frontend still needs symbol filters for limit-price rounding
       // and display precision, but quantity sizing belongs to the backend so
       // it can use the authoritative available balance and margin_pct.
       const filters = await getSymbolFilters(symbol);
@@ -532,7 +495,7 @@ export function useTradeMenu(
           symbol,
           side,
           price: executionPrice,
-          // FIX: omitting quantity makes orders.ts request configured-margin
+          // omitting quantity makes orders.ts request configured-margin
           // sizing instead of silently restoring the old fixed-$50 trade.
           // The leverage the user picked on the slider (see
           // changeLeverage/commitLeverage above), which the backend was
@@ -555,9 +518,9 @@ export function useTradeMenu(
             quantity: result.submitted_quantity,
             timeInForce: "GTC",
             intent: "ENTRY",
-            // FEATURE: attach the backend's Binance-bracket-aware estimate so
+            // attach the backend's Binance-bracket-aware estimate so
             // the canvas can show EST. LIQ before this LIMIT becomes a position.
-            // FEATURE: prefer the backend's Binance-bracket-aware estimate,
+            // prefer the backend's Binance-bracket-aware estimate,
             // but keep the visual available when an older backend (or a
             // response without the transient estimate) is still running.
             estimatedLiquidationPrice:
@@ -573,7 +536,7 @@ export function useTradeMenu(
         const result = await placeMarketOrder({
           symbol,
           side,
-          // FIX: MARKET now follows the same persisted margin percentage as
+          // MARKET now follows the same persisted margin percentage as
           // LIMIT and AUTO MARKET; the backend fetches its reference price.
           leverage,
         });
@@ -615,9 +578,7 @@ export function useTradeMenu(
       side === "BUY"
         ? tradeMenu.marketPrice - initialDistance
         : tradeMenu.marketPrice + initialDistance;
-    const rawStop = selectedPriceIsValid
-      ? tradeMenu.selectedPrice
-      : fallbackStop;
+    const rawStop = selectedPriceIsValid ? tradeMenu.selectedPrice : fallbackStop;
 
     setAutoMarketDraft({
       side,
@@ -628,9 +589,7 @@ export function useTradeMenu(
 
   const updateAutoMarketStopLoss = (stopLoss: number) => {
     if (!Number.isFinite(stopLoss) || stopLoss <= 0) return;
-    setAutoMarketDraft((current) =>
-      current ? { ...current, stopLoss } : current,
-    );
+    setAutoMarketDraft((current) => (current ? { ...current, stopLoss } : current));
   };
 
   const cancelAutoMarket = () => {
@@ -641,10 +600,7 @@ export function useTradeMenu(
   const submitAutoMarket = async () => {
     if (!autoMarketDraft || isSubmittingTrade) return;
 
-    const action = `AUTO_MARKET_${autoMarketDraft.side}` as Exclude<
-      PendingTradeAction,
-      null
-    >;
+    const action = `AUTO_MARKET_${autoMarketDraft.side}` as Exclude<PendingTradeAction, null>;
     setPendingTradeAction(action);
     setTradeToast(null);
 
@@ -657,18 +613,13 @@ export function useTradeMenu(
         stopLoss,
       });
 
-      emitMarketMarker(
-        autoMarketDraft.side,
-        result.order,
-        result.entry_reference_price,
-      );
+      emitMarketMarker(autoMarketDraft.side, result.order, result.entry_reference_price);
 
       // The stop selected in the pre-trade overlay is not merely a sizing
       // input: once the market entry fills, immediately create the real
       // closePosition STOP_MARKET order and save it so the live position
       // bracket recognises that protection already exists.
-      const stopSide: TradeSide =
-        autoMarketDraft.side === "BUY" ? "SELL" : "BUY";
+      const stopSide: TradeSide = autoMarketDraft.side === "BUY" ? "SELL" : "BUY";
       let stopResponse: Awaited<ReturnType<typeof placeFullStopLoss>> | null = null;
       let lastStopError: unknown = null;
 
@@ -689,19 +640,14 @@ export function useTradeMenu(
         }
       }
 
-      // FIX: this used to be `Number(stopResponse?.algo?.algoId)` -
+      // this used to be `Number(stopResponse?.algo?.algoId)` -
       // converting the (now correctly string-typed) algoId through JS's
       // Number() would silently reintroduce the exact precision loss
       // safeJson.ts's parseOrderJsonText exists to prevent. Validate it's
       // a well-formed positive integer string instead of ever actually
       // converting it to a number for storage.
       const algoId = stopResponse?.algo?.algoId;
-      if (
-        !stopResponse ||
-        typeof algoId !== "string" ||
-        !/^\d+$/.test(algoId) ||
-        algoId === "0"
-      ) {
+      if (!stopResponse || typeof algoId !== "string" || !/^\d+$/.test(algoId) || algoId === "0") {
         setAutoMarketDraft(null);
         dispatchTradingStateChanged();
         throw new Error(
@@ -713,7 +659,7 @@ export function useTradeMenu(
         );
       }
 
-      // FIX: this used to be `saveStop({ symbol: ..., ... })` with no
+      // this used to be `saveStop({ symbol: ..., ... })` with no
       // second argument. It happened to still work here (the stop
       // object is truthy, and stopLoss.ts's implementation keys off
       // `stop.symbol` in that branch, not the missing param) - but
@@ -739,10 +685,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to submit auto market order",
+        message: error instanceof Error ? error.message : "Failed to submit auto market order",
       });
     } finally {
       setPendingTradeAction(null);
@@ -755,7 +698,7 @@ export function useTradeMenu(
     setTradeToast(null);
 
     try {
-      // FIX: ADD sizing is backend-owned now. Omitting quantity makes the
+      // ADD sizing is backend-owned now. Omitting quantity makes the
       // backend allocate the configured margin percentage again (about 2% of
       // available balance in the reported setup) at the leverage already on
       // the open position, instead of adding a fixed 50 USDT notional whose
@@ -811,9 +754,7 @@ export function useTradeMenu(
   const submitReduce = async (orderType: TradeOrderType) => {
     if (!tradeMenu || !positionSide || isSubmittingTrade) return;
 
-    setPendingTradeAction(
-      orderType === "LIMIT" ? "LIMIT_REDUCE" : "MARKET_REDUCE",
-    );
+    setPendingTradeAction(orderType === "LIMIT" ? "LIMIT_REDUCE" : "MARKET_REDUCE");
     setTradeToast(null);
 
     try {
@@ -868,8 +809,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to reduce position",
+        message: error instanceof Error ? error.message : "Failed to reduce position",
       });
     } finally {
       setPendingTradeAction(null);

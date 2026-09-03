@@ -10,7 +10,7 @@ import type { MarketOrderFill } from "../trading/types";
 import { isStaleOrderError } from "../trading/errors";
 
 /*
- * FIX: same resilience gap as usePositions.ts (see the comment there for
+ * same resilience gap as usePositions.ts (see the comment there for
  * the full story) - this used to refresh open orders ONLY in reaction to
  * "trading-state-changed"/"orders-state-changed" DOM events. If one of
  * those is ever missed anywhere upstream (the backend's own connection
@@ -49,36 +49,35 @@ export function useOpenOrders(
     };
   }, []);
 
-  const refresh = useCallback(async (force = false) => {
-    const requestId = ++requestIdRef.current;
+  const refresh = useCallback(
+    async (force = false) => {
+      const requestId = ++requestIdRef.current;
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const nextOrders = await getOpenOrders(symbol ?? undefined, undefined, force);
+      try {
+        const nextOrders = await getOpenOrders(symbol ?? undefined, undefined, force);
 
-      if (!mountedRef.current || requestId !== requestIdRef.current) {
-        return;
+        if (!mountedRef.current || requestId !== requestIdRef.current) {
+          return;
+        }
+
+        setOrders(nextOrders);
+      } catch (caughtError) {
+        if (!mountedRef.current || requestId !== requestIdRef.current) {
+          return;
+        }
+
+        setError(caughtError instanceof Error ? caughtError.message : "Unable to load open orders");
+      } finally {
+        if (mountedRef.current && requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
-
-      setOrders(nextOrders);
-    } catch (caughtError) {
-      if (!mountedRef.current || requestId !== requestIdRef.current) {
-        return;
-      }
-
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to load open orders",
-      );
-    } finally {
-      if (mountedRef.current && requestId === requestIdRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [symbol]);
+    },
+    [symbol],
+  );
 
   useEffect(() => {
     void refresh(true);
@@ -129,9 +128,7 @@ export function useOpenOrders(
 
         if (!mountedRef.current) return;
 
-        setOrders((current) =>
-          current.filter((item) => item.orderId !== order.orderId),
-        );
+        setOrders((current) => current.filter((item) => item.orderId !== order.orderId));
       } catch (caughtError) {
         if (!mountedRef.current) return;
 
@@ -143,7 +140,7 @@ export function useOpenOrders(
         setError(message);
 
         /*
-         * FIX (ghost order never disappearing): this used to only call
+         * this used to only call
          * refresh() here and hope it eventually cleaned things up. But
          * if this order genuinely doesn't exist anymore (confirmed by
          * Binance's own rejection, not a guess), waiting on refresh()
@@ -159,9 +156,7 @@ export function useOpenOrders(
          * succeed.
          */
         if (isStaleOrderError(message)) {
-          setOrders((current) =>
-            current.filter((item) => item.orderId !== order.orderId),
-          );
+          setOrders((current) => current.filter((item) => item.orderId !== order.orderId));
         }
 
         void refresh(true);
@@ -174,7 +169,6 @@ export function useOpenOrders(
     [cancellingOrderId, refresh],
   );
 
-
   const updateReduceOrder = useCallback(
     async (order: OpenOrder, reducePct: number) => {
       if (updatingOrderId !== null) return;
@@ -183,11 +177,7 @@ export function useOpenOrders(
       setError(null);
 
       try {
-        const result = await updateBinanceReduceOrder(
-          order.symbol,
-          order.orderId,
-          reducePct,
-        );
+        const result = await updateBinanceReduceOrder(order.symbol, order.orderId, reducePct);
 
         if (!mountedRef.current) return result;
 
@@ -209,9 +199,7 @@ export function useOpenOrders(
         // on refresh() (which can itself keep failing) to notice a
         // confirmed-gone order and remove it from the list.
         if (isStaleOrderError(message)) {
-          setOrders((current) =>
-            current.filter((item) => item.orderId !== order.orderId),
-          );
+          setOrders((current) => current.filter((item) => item.orderId !== order.orderId));
         }
 
         void refresh(true);
@@ -225,7 +213,6 @@ export function useOpenOrders(
     [refresh, updatingOrderId],
   );
 
-
   const chaseOrder = useCallback(
     async (order: OpenOrder) => {
       if (chasingOrderId !== null) return null;
@@ -234,16 +221,11 @@ export function useOpenOrders(
       setError(null);
 
       try {
-        const result = await chaseBinanceLimitOrder(
-          order.symbol,
-          order.orderId,
-        );
+        const result = await chaseBinanceLimitOrder(order.symbol, order.orderId);
 
         if (!mountedRef.current) return result;
 
-        setOrders((current) =>
-          current.filter((item) => item.orderId !== order.orderId),
-        );
+        setOrders((current) => current.filter((item) => item.orderId !== order.orderId));
 
         const averagePrice = Number(result.market_order.avgPrice);
         const responsePrice = Number(result.market_order.price);
@@ -255,20 +237,13 @@ export function useOpenOrders(
               ? responsePrice
               : Number(order.price);
 
-        if (
-          onMarketOrderFilled &&
-          Number.isFinite(markerPrice) &&
-          markerPrice > 0
-        ) {
+        if (onMarketOrderFilled && Number.isFinite(markerPrice) && markerPrice > 0) {
           onMarketOrderFilled({
             symbol: result.market_order.symbol ?? order.symbol,
             side: result.side,
             time: Math.floor(
-              (
-                result.market_order.updateTime ??
-                result.market_order.transactTime ??
-                Date.now()
-              ) / 1000,
+              (result.market_order.updateTime ?? result.market_order.transactTime ?? Date.now()) /
+                1000,
             ),
             price: markerPrice,
           });
@@ -290,9 +265,7 @@ export function useOpenOrders(
 
         // Same reasoning as cancelOrder/updateReduceOrder's own catches.
         if (isStaleOrderError(message)) {
-          setOrders((current) =>
-            current.filter((item) => item.orderId !== order.orderId),
-          );
+          setOrders((current) => current.filter((item) => item.orderId !== order.orderId));
         }
 
         void refresh(true);

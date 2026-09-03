@@ -234,7 +234,7 @@
   background: rgba(245, 166, 35, 0.78);
 }
 
-/* FEATURE: keep symbol search visible while the categorized list scrolls so a
+/* keep symbol search visible while the categorized list scrolls so a
  * large registry never forces the user to hunt manually through every group. */
 .chart-tab-add-search-wrap {
   position: sticky;
@@ -273,7 +273,7 @@
   text-align: center;
 }
 
-/* FEATURE: category separators match the primary symbol switcher so the tab
+/* category separators match the primary symbol switcher so the tab
  * picker stays scannable even after many dynamic markets have been registered. */
 .chart-tab-add-category + .chart-tab-add-category {
   margin-top: 5px;
@@ -318,7 +318,7 @@
   background: var(--bg-hover);
 }
 
-/* FEATURE: arrow-key navigation needs a persistent visual target while the
+/* arrow-key navigation needs a persistent visual target while the
  * search input keeps focus, so keyboard selection is as clear as mouse hover. */
 .chart-tab-add-menu button.keyboard-highlighted {
   outline: 1px solid rgba(245, 166, 35, 0.55);
@@ -356,7 +356,7 @@
   }
 }
 
-/* FEATURE: keep the tab context menu visually inside the chart-tab design
+/* keep the tab context menu visually inside the chart-tab design
  * system instead of looking like a separate browser/native popup. Reusing the
  * same surface, border, text and hover tokens makes it match active tabs. */
 .chart-tab-context-menu {
@@ -401,8 +401,7 @@
   cursor: default;
 }
 
-
-/* FEATURE: destructive tab deletion is confirmed inline so an accidental
+/* destructive tab deletion is confirmed inline so an accidental
  * right-click action cannot stop backend tracking without a deliberate Yes. */
 .chart-tab-delete-confirm {
   padding: 4px 4px 3px;

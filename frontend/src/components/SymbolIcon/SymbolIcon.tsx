@@ -15,7 +15,7 @@ type SymbolIconProps = {
 export default function SymbolIcon({ symbol, className = "" }: SymbolIconProps) {
   const info = getSymbolInfo(symbol);
   const candidates = useMemo(
-    // FIX: do not guess MEXC artwork from the ticker because unrelated tokens
+    // do not guess MEXC artwork from the ticker because unrelated tokens
     // can share a symbol. Only bundled, backend-verified, or explicitly mapped
     // assets from config/symbols.ts are accepted before the neutral fallback.
     () => Array.from(new Set([info.icon].filter(Boolean) as string[])),

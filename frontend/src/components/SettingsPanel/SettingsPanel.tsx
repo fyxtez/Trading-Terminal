@@ -6,11 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { getAvailableBalance } from "../../trading/api/account";
-import {
-  getSizing,
-  updateSizing,
-  type SizingConfig,
-} from "../../trading/api/sizing";
+import { getSizing, updateSizing, type SizingConfig } from "../../trading/api/sizing";
 import type { ConnectionState } from "../../hooks/useTradingStream";
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import type { PriceAlert } from "../../types/alert";
@@ -18,18 +14,13 @@ import type { SavedDrawingSet } from "../../types/drawing";
 import { priceAlertsStorageKey } from "../../config/constants";
 import { formatSymbolPair } from "../../config/symbols";
 import { loadStoredAlerts } from "../../utils/alerts";
-import {
-  listAllPersistentPriceAlerts,
-  type ListedPriceAlert,
-} from "../../trading/api/priceAlerts";
+import { listAllPersistentPriceAlerts, type ListedPriceAlert } from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
-import {
-  AvailableBalanceCard,
-  DesktopConnectionsSection,
-} from "./SettingsSummaryCards";
+import { AvailableBalanceCard, DesktopConnectionsSection } from "./SettingsSummaryCards";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import DiagnosticsSection from "./DiagnosticsSection";
+import { buildSettingsSearchModel } from "./settingsSearch";
 import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
 
@@ -53,7 +44,7 @@ type SettingsPanelProps = {
   backendConnection: ConnectionState;
   diagnostics: OperationalDiagnostics;
   currentSymbol: string;
-  /** FEATURE: all registered symbols plus the live active-symbol list let the
+  /** all registered symbols plus the live active-symbol list let the
    * settings panel aggregate browser-owned alerts even when persistence is off. */
   availableSymbols: readonly string[];
   activePriceAlerts: PriceAlert[];
@@ -95,7 +86,7 @@ type SettingsPanelProps = {
    */
   showCandleCountdown: boolean;
   onShowCandleCountdownChange: (enabled: boolean) => void;
-  /** FEATURE: chart watermark is independently hideable and remains a local-only display preference. */
+  /** chart watermark is independently hideable and remains a local-only display preference. */
   showWatermark: boolean;
   onShowWatermarkChange: (enabled: boolean) => void;
   /** Whether the active drawing-set name badge is shown on the chart. */
@@ -159,18 +150,14 @@ const FIELD_META: Record<
 
 const AUTO_SAVE_DELAY_MS = 500;
 const MARGIN_SECTION_VISIBLE_KEY = "fyxtez.settings.marginSectionVisible";
-const DRAWING_SETS_SECTION_VISIBLE_KEY =
-  "fyxtez.settings.drawingSetsSectionVisible";
-const CHART_DISPLAY_SECTION_VISIBLE_KEY =
-  "fyxtez.settings.chartDisplaySectionVisible";
-const DRAWINGS_DISPLAY_SECTION_VISIBLE_KEY =
-  "fyxtez.settings.drawingsDisplaySectionVisible";
+const DRAWING_SETS_SECTION_VISIBLE_KEY = "fyxtez.settings.drawingSetsSectionVisible";
+const CHART_DISPLAY_SECTION_VISIBLE_KEY = "fyxtez.settings.chartDisplaySectionVisible";
+const DRAWINGS_DISPLAY_SECTION_VISIBLE_KEY = "fyxtez.settings.drawingsDisplaySectionVisible";
 const PNL_SECTION_VISIBLE_KEY = "fyxtez.settings.pnlSectionVisible";
 const ALERTS_SECTION_VISIBLE_KEY = "fyxtez.settings.alertsSectionVisible";
 const THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY =
   "fyxtez.settings.thirdPartyConnectionsSectionVisible";
-const DIAGNOSTICS_SECTION_VISIBLE_KEY =
-  "fyxtez.settings.diagnosticsSectionVisible";
+const DIAGNOSTICS_SECTION_VISIBLE_KEY = "fyxtez.settings.diagnosticsSectionVisible";
 
 function readStoredSectionVisibility(key: string): boolean {
   try {
@@ -238,7 +225,7 @@ export default function SettingsPanel({
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  // FEATURE: the account-wide list has its own loading/error state so a failed
+  // the account-wide list has its own loading/error state so a failed
   // refresh never blocks the rest of the settings panel.
   const [listedPriceAlerts, setListedPriceAlerts] = useState<ListedPriceAlert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
@@ -251,33 +238,23 @@ export default function SettingsPanel({
   const [savingField, setSavingField] = useState<SizingField | null>(null);
   const [sizingError, setSizingError] = useState<string | null>(null);
   const [drawingSetName, setDrawingSetName] = useState("");
-  const [drawingSetMessage, setDrawingSetMessage] = useState<string | null>(
-    null,
-  );
-  const [renamingDrawingSetId, setRenamingDrawingSetId] = useState<
-    string | null
-  >(null);
+  const [drawingSetMessage, setDrawingSetMessage] = useState<string | null>(null);
+  const [renamingDrawingSetId, setRenamingDrawingSetId] = useState<string | null>(null);
   const [renamingDrawingSetName, setRenamingDrawingSetName] = useState("");
-  const [deleteConfirmationId, setDeleteConfirmationId] = useState<
-    string | null
-  >(null);
-  const [isNewDrawingSetConfirmationOpen, setIsNewDrawingSetConfirmationOpen] =
-    useState(false);
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
+  const [isNewDrawingSetConfirmationOpen, setIsNewDrawingSetConfirmationOpen] = useState(false);
   const [isMarginSectionVisible, setIsMarginSectionVisible] = useState(() =>
     readStoredSectionVisibility(MARGIN_SECTION_VISIBLE_KEY),
   );
-  const [isDrawingSetsSectionVisible, setIsDrawingSetsSectionVisible] =
-    useState(() =>
-      readStoredSectionVisibility(DRAWING_SETS_SECTION_VISIBLE_KEY),
-    );
-  const [isChartDisplaySectionVisible, setIsChartDisplaySectionVisible] =
-    useState(() =>
-      readStoredSectionVisibility(CHART_DISPLAY_SECTION_VISIBLE_KEY),
-    );
-  const [isDrawingsDisplaySectionVisible, setIsDrawingsDisplaySectionVisible] =
-    useState(() =>
-      readStoredSectionVisibility(DRAWINGS_DISPLAY_SECTION_VISIBLE_KEY),
-    );
+  const [isDrawingSetsSectionVisible, setIsDrawingSetsSectionVisible] = useState(() =>
+    readStoredSectionVisibility(DRAWING_SETS_SECTION_VISIBLE_KEY),
+  );
+  const [isChartDisplaySectionVisible, setIsChartDisplaySectionVisible] = useState(() =>
+    readStoredSectionVisibility(CHART_DISPLAY_SECTION_VISIBLE_KEY),
+  );
+  const [isDrawingsDisplaySectionVisible, setIsDrawingsDisplaySectionVisible] = useState(() =>
+    readStoredSectionVisibility(DRAWINGS_DISPLAY_SECTION_VISIBLE_KEY),
+  );
   const [isPnlSectionVisible, setIsPnlSectionVisible] = useState(() =>
     readStoredSectionVisibility(PNL_SECTION_VISIBLE_KEY),
   );
@@ -285,13 +262,11 @@ export default function SettingsPanel({
     readStoredSectionVisibility(ALERTS_SECTION_VISIBLE_KEY),
   );
   const [isThirdPartyConnectionsSectionVisible, setIsThirdPartyConnectionsSectionVisible] =
-    useState(() =>
-      readStoredSectionVisibility(THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY),
-    );
+    useState(() => readStoredSectionVisibility(THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY));
   const [isDiagnosticsSectionVisible, setIsDiagnosticsSectionVisible] = useState(() =>
     readStoredSectionVisibility(DIAGNOSTICS_SECTION_VISIBLE_KEY),
   );
-  // FEATURE: Settings search keeps a large configuration panel usable without
+  // Settings search keeps a large configuration panel usable without
   // changing the user's persisted HIDE/SHOW preferences for each section.
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
 
@@ -299,7 +274,7 @@ export default function SettingsPanel({
   const saveRequestIdRef = useRef(0);
 
   /*
-   * FIX: the previous attempt at this used a CSS transition-delay on the
+   * the previous attempt at this used a CSS transition-delay on the
    * (non-interpolable) overflow-y property to hold off showing the
    * scrollbar until the panel's own 200ms open-width animation finished.
    * That's a "discrete" property transition, which several browsers
@@ -317,7 +292,7 @@ export default function SettingsPanel({
   const [isFullyOpen, setIsFullyOpen] = useState(false);
 
   useEffect(() => {
-    // FEATURE: triggered alerts can belong to a background symbol, so use the
+    // triggered alerts can belong to a background symbol, so use the
     // existing global event to refresh even when activePriceAlerts did not change.
     const refreshAfterTrigger = () => setAlertsListRevision((value) => value + 1);
     window.addEventListener("persistent-price-alert-triggered", refreshAfterTrigger);
@@ -331,13 +306,14 @@ export default function SettingsPanel({
     const localAlerts = (): ListedPriceAlert[] =>
       availableSymbols.flatMap((symbol) => {
         const normalized = symbol.toUpperCase();
-        const alerts = normalized === currentSymbol.toUpperCase()
-          ? activePriceAlerts
-          : loadStoredAlerts(priceAlertsStorageKey(normalized));
+        const alerts =
+          normalized === currentSymbol.toUpperCase()
+            ? activePriceAlerts
+            : loadStoredAlerts(priceAlertsStorageKey(normalized));
         return alerts.map((alert) => ({ ...alert, symbol: normalized }));
       });
 
-    // FEATURE: persistent mode uses SQLite's account-wide active list; local
+    // persistent mode uses SQLite's account-wide active list; local
     // mode aggregates every registered symbol's per-symbol browser storage.
     if (!persistentAlertsEnabled || backendConnection !== "connected") {
       setListedPriceAlerts(localAlerts());
@@ -352,12 +328,13 @@ export default function SettingsPanel({
 
     let cancelled = false;
     const normalizedCurrentSymbol = currentSymbol.toUpperCase();
-    const currentSymbolAlerts: ListedPriceAlert[] = activePriceAlerts.map(
-      (alert) => ({ ...alert, symbol: normalizedCurrentSymbol }),
-    );
+    const currentSymbolAlerts: ListedPriceAlert[] = activePriceAlerts.map((alert) => ({
+      ...alert,
+      symbol: normalizedCurrentSymbol,
+    }));
 
     /*
-     * FIX: deleting a persistent alert updates usePriceAlerts immediately, but
+     * deleting a persistent alert updates usePriceAlerts immediately, but
      * the settings table used to refetch the backend before DELETE had finished.
      * That stale response could reinsert the removed row until a full page
      * refresh. Treat the already-updated active-symbol React state as
@@ -365,9 +342,7 @@ export default function SettingsPanel({
      * account-wide backend response so removals disappear from this table now.
      */
     setListedPriceAlerts((previous) => [
-      ...previous.filter(
-        (alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol,
-      ),
+      ...previous.filter((alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol),
       ...currentSymbolAlerts,
     ]);
     setIsLoadingAlerts(true);
@@ -376,18 +351,14 @@ export default function SettingsPanel({
       .then((alerts) => {
         if (cancelled) return;
         setListedPriceAlerts([
-          ...alerts.filter(
-            (alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol,
-          ),
+          ...alerts.filter((alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol),
           ...currentSymbolAlerts,
         ]);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setListedPriceAlerts(localAlerts());
-        setAlertsListError(
-          error instanceof Error ? error.message : "Unable to load active alerts",
-        );
+        setAlertsListError(error instanceof Error ? error.message : "Unable to load active alerts");
       })
       .finally(() => {
         if (!cancelled) setIsLoadingAlerts(false);
@@ -408,8 +379,7 @@ export default function SettingsPanel({
   ]);
 
   const sortedListedPriceAlerts = [...listedPriceAlerts].sort(
-    (left, right) =>
-      left.symbol.localeCompare(right.symbol) || right.createdAt - left.createdAt,
+    (left, right) => left.symbol.localeCompare(right.symbol) || right.createdAt - left.createdAt,
   );
 
   useEffect(() => {
@@ -426,10 +396,7 @@ export default function SettingsPanel({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        MARGIN_SECTION_VISIBLE_KEY,
-        String(isMarginSectionVisible),
-      );
+      window.localStorage.setItem(MARGIN_SECTION_VISIBLE_KEY, String(isMarginSectionVisible));
     } catch {
       // Keep the preference in memory when localStorage is unavailable.
     }
@@ -470,10 +437,7 @@ export default function SettingsPanel({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        PNL_SECTION_VISIBLE_KEY,
-        String(isPnlSectionVisible),
-      );
+      window.localStorage.setItem(PNL_SECTION_VISIBLE_KEY, String(isPnlSectionVisible));
     } catch {
       // Keep the preference in memory when localStorage is unavailable.
     }
@@ -481,10 +445,7 @@ export default function SettingsPanel({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        ALERTS_SECTION_VISIBLE_KEY,
-        String(isAlertsSectionVisible),
-      );
+      window.localStorage.setItem(ALERTS_SECTION_VISIBLE_KEY, String(isAlertsSectionVisible));
     } catch {
       // Keep the preference in memory when localStorage is unavailable.
     }
@@ -557,9 +518,7 @@ export default function SettingsPanel({
     }
 
     const loadedSet = drawingSets.find((set) => set.id === setId);
-    setDrawingSetMessage(
-      loadedSet ? `Loaded “${loadedSet.name}”.` : "Drawing set loaded.",
-    );
+    setDrawingSetMessage(loadedSet ? `Loaded “${loadedSet.name}”.` : "Drawing set loaded.");
     setDeleteConfirmationId(null);
     setIsNewDrawingSetConfirmationOpen(false);
   };
@@ -600,10 +559,7 @@ export default function SettingsPanel({
   useEffect(() => {
     if (!isOpen) return;
     if (backendConnection !== "connected") return;
-    if (
-      desktopCredentials.isDesktop &&
-      !desktopCredentials.status.binanceConfigured
-    ) {
+    if (desktopCredentials.isDesktop && !desktopCredentials.status.binanceConfigured) {
       setAvailableBalance(null);
       setBalanceError(null);
       setIsLoadingBalance(false);
@@ -624,9 +580,7 @@ export default function SettingsPanel({
         }
 
         setAvailableBalance(null);
-        setBalanceError(
-          error instanceof Error ? error.message : "Unable to load balance",
-        );
+        setBalanceError(error instanceof Error ? error.message : "Unable to load balance");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -644,9 +598,7 @@ export default function SettingsPanel({
           return;
         }
 
-        setSizingError(
-          error instanceof Error ? error.message : "Unable to load sizing",
-        );
+        setSizingError(error instanceof Error ? error.message : "Unable to load sizing");
       });
 
     return () => controller.abort();
@@ -665,8 +617,7 @@ export default function SettingsPanel({
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
 
       /*
-       * FIX (Settings balance stayed stale after an external Binance funding
-       * transfer): the account event is emitted before the backend finishes
+       * the account event is emitted before the backend finishes
        * its short REST reconciliation for availableBalance. Delay this panel's
        * revision just past that window so an already-open Settings panel reads
        * the reconciled value instead of keeping its initial snapshot forever.
@@ -680,10 +631,7 @@ export default function SettingsPanel({
     window.addEventListener("account-state-changed", handleAccountStateChanged);
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      window.removeEventListener(
-        "account-state-changed",
-        handleAccountStateChanged,
-      );
+      window.removeEventListener("account-state-changed", handleAccountStateChanged);
     };
   }, []);
 
@@ -711,10 +659,7 @@ export default function SettingsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBackendConnected]);
 
-  const saveSizing = async (
-    nextSizing: SizingConfig,
-    field: SizingField,
-  ) => {
+  const saveSizing = async (nextSizing: SizingConfig, field: SizingField) => {
     const requestId = ++saveRequestIdRef.current;
 
     setSavingField(field);
@@ -734,9 +679,7 @@ export default function SettingsPanel({
         return;
       }
 
-      setSizingError(
-        error instanceof Error ? error.message : "Failed to update sizing",
-      );
+      setSizingError(error instanceof Error ? error.message : "Failed to update sizing");
 
       setDraftSizing(sizing);
     } finally {
@@ -746,10 +689,7 @@ export default function SettingsPanel({
     }
   };
 
-  const scheduleSave = (
-    nextSizing: SizingConfig,
-    field: SizingField,
-  ) => {
+  const scheduleSave = (nextSizing: SizingConfig, field: SizingField) => {
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
     }
@@ -770,10 +710,7 @@ export default function SettingsPanel({
 
     const meta = FIELD_META[field];
 
-    if (
-      displayValue < meta.min ||
-      (meta.max !== undefined && displayValue > meta.max)
-    ) {
+    if (displayValue < meta.min || (meta.max !== undefined && displayValue > meta.max)) {
       setSizingError(
         meta.max !== undefined
           ? `${meta.label} must be between ${meta.min} and ${meta.max}${
@@ -815,10 +752,7 @@ export default function SettingsPanel({
     void saveSizing(draftSizing, field);
   };
 
-  const handleKeyDown = (
-    event: KeyboardEvent<HTMLInputElement>,
-    field: SizingField,
-  ) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>, field: SizingField) => {
     if (event.key === "Enter") {
       saveImmediately(field);
       event.currentTarget.blur();
@@ -837,9 +771,7 @@ export default function SettingsPanel({
     }
   };
 
-  const handleResizePointerDown = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (window.matchMedia("(max-width: 720px)").matches || isResizing) return;
 
     event.preventDefault();
@@ -890,165 +822,40 @@ export default function SettingsPanel({
     }, 0);
   };
 
-  const normalizedSettingsSearch = settingsSearchQuery.trim().toLowerCase();
-  const isSearchingSettings = normalizedSettingsSearch.length > 0;
-  const matchesSettingsSearch = (...parts: Array<string | undefined>) =>
-    !isSearchingSettings ||
-    parts
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedSettingsSearch);
-
-  // FEATURE: matching sections auto-expand while searching, but their saved
-  // collapsed/expanded state is left untouched so clearing search restores the
-  // panel exactly as the user had it before typing.
-  const marginSectionTitleMatches = matchesSettingsSearch(
-    "Margin configuration",
-    "margin leverage sizing position order risk",
+  // Matching sections auto-expand while searching without changing their
+  // persisted HIDE/SHOW state.
+  const {
+    isSearchingSettings,
+    marginSectionTitleMatches,
+    matchingSizingFieldNames,
+    showMarginSection,
+    drawingSetsSectionMatches,
+    showDrawingSetsSection,
+    drawingsSectionTitleMatches,
+    drawingOptionMatches,
+    showDrawingsSection,
+    pnlSectionTitleMatches,
+    pnlOptionMatches,
+    showPnlSection,
+    alertsSectionTitleMatches,
+    alertOptionMatches,
+    showAlertsSection,
+    chartDisplaySectionTitleMatches,
+    chartDisplayOptionMatches,
+    showChartDisplaySection,
+    showBalanceCard,
+    showDesktopConnections,
+    showDiagnostics,
+    hasAnySettingsSearchResult,
+  } = buildSettingsSearchModel(
+    settingsSearchQuery,
+    desktopCredentials.isDesktop,
+    (Object.keys(FIELD_META) as SizingField[]).map((field) => ({
+      name: field,
+      label: FIELD_META[field].label,
+      description: FIELD_META[field].description,
+    })),
   );
-  const marginFieldMatches = (Object.keys(FIELD_META) as SizingField[]).some(
-    (field) =>
-      matchesSettingsSearch(
-        FIELD_META[field].label,
-        FIELD_META[field].description,
-        field,
-      ),
-  );
-  const showMarginSection =
-    !isSearchingSettings || marginSectionTitleMatches || marginFieldMatches;
-
-  const drawingSetsSectionMatches = matchesSettingsSearch(
-    "Drawing sets",
-    "save named layouts symbol drawing set rename delete load clear new",
-  );
-  const showDrawingSetsSection =
-    !isSearchingSettings || drawingSetsSectionMatches;
-
-  const drawingsSectionTitleMatches = matchesSettingsSearch(
-    "Drawings",
-    "chart drawings sessions day candle zones kill zone",
-  );
-  const drawingOptionMatches = {
-    showDrawings: matchesSettingsSearch(
-      "Show drawings",
-      "Show all saved drawings on the chart",
-    ),
-    startOfDay: matchesSettingsSearch(
-      "Start of day candle",
-      "vertical marker start chart day daily",
-    ),
-    dayHistory: matchesSettingsSearch(
-      "Day history",
-      "Number of chart days to mark maximum 20 lookback",
-    ),
-    asia: matchesSettingsSearch(
-      "Asia session zone",
-      "Asia session boundaries chart",
-    ),
-    london: matchesSettingsSearch(
-      "London session zone",
-      "London session boundaries chart",
-    ),
-    newYork: matchesSettingsSearch(
-      "New York session zone",
-      "New York session boundaries chart",
-    ),
-    killZone: matchesSettingsSearch(
-      "Show kill zone",
-      "Highlight 13:00 16:00 chart time New York",
-    ),
-  };
-  const showDrawingsSection =
-    !isSearchingSettings ||
-    drawingsSectionTitleMatches ||
-    Object.values(drawingOptionMatches).some(Boolean);
-
-  const pnlSectionTitleMatches = matchesSettingsSearch(
-    "PNL",
-    "profit loss unrealized realized total position",
-  );
-  const pnlOptionMatches = {
-    position: matchesSettingsSearch(
-      "Show PNL",
-      "active symbol unrealized realized PNL card chart",
-    ),
-    total: matchesSettingsSearch(
-      "Show TOTAL PNL",
-      "unrealized PNL total across all open positions chart",
-    ),
-  };
-  const showPnlSection =
-    !isSearchingSettings ||
-    pnlSectionTitleMatches ||
-    Object.values(pnlOptionMatches).some(Boolean);
-
-  const alertsSectionTitleMatches = matchesSettingsSearch(
-    "Alerts",
-    "price alerts persistent active notifications",
-  );
-  const alertOptionMatches = {
-    show: matchesSettingsSearch(
-      "Show price alerts",
-      "pending price alert lines chart right click",
-    ),
-    persistent: matchesSettingsSearch(
-      "Use persistent alerts",
-      "backend store monitor alerts browser closed",
-    ),
-    active: matchesSettingsSearch(
-      "Active alerts",
-      "symbol price side info active alert list",
-    ),
-  };
-  const showAlertsSection =
-    !isSearchingSettings ||
-    alertsSectionTitleMatches ||
-    Object.values(alertOptionMatches).some(Boolean);
-
-  const chartDisplaySectionTitleMatches = matchesSettingsSearch(
-    "Chart display",
-    "chart display visual appearance",
-  );
-  const chartDisplayOptionMatches = {
-    timer: matchesSettingsSearch(
-      "Show candle timer",
-      "countdown current candle close chart",
-    ),
-    watermark: matchesSettingsSearch(
-      "Show watermark",
-      "Fyxtez watermark chart hide watermark",
-    ),
-    drawingSetBadge: matchesSettingsSearch(
-      "Show active drawing set",
-      "currently active drawing set name chart badge",
-    ),
-  };
-  const showChartDisplaySection =
-    !isSearchingSettings ||
-    chartDisplaySectionTitleMatches ||
-    Object.values(chartDisplayOptionMatches).some(Boolean);
-
-  const showBalanceCard = matchesSettingsSearch(
-    "Available balance",
-    "USDT futures wallet balance",
-  );
-  const showDesktopConnections = desktopCredentials.isDesktop && matchesSettingsSearch(
-    "Third-Party Connections Binance ntfy Telegram credentials API key notifications",
-  );
-  const showDiagnostics = matchesSettingsSearch(
-    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests notification failures health",
-  );
-  const hasAnySettingsSearchResult =
-    showDesktopConnections ||
-    showDiagnostics ||
-    showBalanceCard ||
-    showMarginSection ||
-    showDrawingSetsSection ||
-    showDrawingsSection ||
-    showPnlSection ||
-    showAlertsSection ||
-    showChartDisplaySection;
 
   return (
     <>
@@ -1058,13 +865,7 @@ export default function SettingsPanel({
        * lives inline in the flex layout instead of overlaying anything).
        * Tapping it closes the drawer the same way the × button does.
        */}
-      {isOpen && (
-        <div
-          className="settings-backdrop"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
+      {isOpen && <div className="settings-backdrop" onClick={onClose} aria-hidden="true" />}
 
       <aside
         className={`settings-panel ${isOpen ? "open" : ""} ${isResizing ? "resizing" : ""}`}
@@ -1089,11 +890,13 @@ export default function SettingsPanel({
           </button>
         </div>
 
-        {/* FEATURE: a dedicated search row remains fixed above the scrolling
+        {/* a dedicated search row remains fixed above the scrolling
             settings content so large panels can be filtered immediately. */}
         <div className="settings-search-row">
           <div className="settings-search-box">
-            <span className="settings-search-icon" aria-hidden="true">⌕</span>
+            <span className="settings-search-icon" aria-hidden="true">
+              ⌕
+            </span>
             <input
               type="search"
               value={settingsSearchQuery}
@@ -1121,9 +924,7 @@ export default function SettingsPanel({
               credentials={desktopCredentials}
               isExpanded={isThirdPartyConnectionsSectionVisible}
               forceExpanded={isSearchingSettings}
-              onToggle={() =>
-                setIsThirdPartyConnectionsSectionVisible((visible) => !visible)
-              }
+              onToggle={() => setIsThirdPartyConnectionsSectionVisible((visible) => !visible)}
             />
           )}
           {showDesktopConnections && showDiagnostics && <div className="settings-separator" />}
@@ -1136,7 +937,9 @@ export default function SettingsPanel({
               onToggle={() => setIsDiagnosticsSectionVisible((visible) => !visible)}
             />
           )}
-          {showDiagnostics && (showBalanceCard || showMarginSection) && <div className="settings-separator" />}
+          {showDiagnostics && (showBalanceCard || showMarginSection) && (
+            <div className="settings-separator" />
+          )}
 
           {showBalanceCard && (
             <AvailableBalanceCard
@@ -1152,330 +955,323 @@ export default function SettingsPanel({
             </div>
           )}
 
-          {showBalanceCard && (showMarginSection || showDrawingSetsSection || showDrawingsSection || showPnlSection || showAlertsSection || showChartDisplaySection) && (
-            <div className="settings-separator" />
+          {showBalanceCard &&
+            (showMarginSection ||
+              showDrawingSetsSection ||
+              showDrawingsSection ||
+              showPnlSection ||
+              showAlertsSection ||
+              showChartDisplaySection) && <div className="settings-separator" />}
+
+          {showMarginSection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>Margin configuration</h3>
+                  {isMarginSectionVisible && (
+                    <p>Select a value to edit it. Changes save automatically.</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isMarginSectionVisible}
+                  onClick={() => setIsMarginSectionVisible((isVisible) => !isVisible)}
+                >
+                  {isSearchingSettings ? "MATCH" : isMarginSectionVisible ? "HIDE" : "SHOW"}
+                </button>
+              </div>
+
+              {(isSearchingSettings || isMarginSectionVisible) && (
+                <>
+                  {!isBackendConnected && (
+                    <div className="settings-error settings-backend-warning">
+                      Backend disconnected — margin settings are read-only until it reconnects.
+                    </div>
+                  )}
+
+                  <div className="settings-fields">
+                    {(Object.keys(FIELD_META) as SizingField[]).map((field) => {
+                      const meta = FIELD_META[field];
+                      if (
+                        isSearchingSettings &&
+                        !marginSectionTitleMatches &&
+                        !matchingSizingFieldNames.includes(field)
+                      ) {
+                        return null;
+                      }
+                      const storedValue = draftSizing?.[field];
+
+                      const displayValue =
+                        field === "margin_pct" && typeof storedValue === "number"
+                          ? storedValue * 100
+                          : storedValue;
+
+                      const isActive = activeField === field;
+                      const isSaving = savingField === field;
+                      const isFieldDisabled = !draftSizing || !isBackendConnected;
+
+                      return (
+                        <label
+                          key={field}
+                          className={`settings-field ${isActive ? "active" : ""} ${
+                            isFieldDisabled ? "disabled" : ""
+                          }`}
+                        >
+                          <div className="settings-field-copy">
+                            <span>{meta.label}</span>
+                            <small>{meta.description}</small>
+                          </div>
+
+                          <div
+                            className={`settings-field-value ${
+                              field === "margin_pct" ? "percent-field" : ""
+                            }`}
+                          >
+                            <input
+                              type="number"
+                              value={displayValue ?? ""}
+                              step={meta.step}
+                              min={meta.min}
+                              max={meta.max}
+                              disabled={isFieldDisabled}
+                              readOnly={!isActive}
+                              onClick={() => isBackendConnected && setActiveField(field)}
+                              onFocus={() => isBackendConnected && setActiveField(field)}
+                              onChange={(event) => changeField(field, event.target.value)}
+                              onBlur={() => {
+                                setActiveField(null);
+
+                                if (saveTimerRef.current !== null) {
+                                  saveImmediately(field);
+                                }
+                              }}
+                              onKeyDown={(event) => handleKeyDown(event, field)}
+                            />
+
+                            <span className="settings-field-status">
+                              {isSaving
+                                ? "Saving…"
+                                : !isBackendConnected
+                                  ? "Disconnected"
+                                  : isActive
+                                    ? "Editing"
+                                    : "Edit"}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {sizingError && <div className="settings-error">{sizingError}</div>}
+                </>
+              )}
+            </section>
           )}
-
-          {showMarginSection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>Margin configuration</h3>
-                {isMarginSectionVisible && (
-                  <p>Select a value to edit it. Changes save automatically.</p>
-                )}
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isMarginSectionVisible}
-                onClick={() =>
-                  setIsMarginSectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isMarginSectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isMarginSectionVisible) && (
-              <>
-            {!isBackendConnected && (
-              <div className="settings-error settings-backend-warning">
-                Backend disconnected — margin settings are read-only until it
-                reconnects.
-              </div>
-            )}
-
-            <div className="settings-fields">
-              {(Object.keys(FIELD_META) as SizingField[]).map((field) => {
-                const meta = FIELD_META[field];
-                if (
-                  isSearchingSettings &&
-                  !marginSectionTitleMatches &&
-                  !matchesSettingsSearch(meta.label, meta.description, field)
-                ) {
-                  return null;
-                }
-                const storedValue = draftSizing?.[field];
-
-                const displayValue =
-                  field === "margin_pct" && typeof storedValue === "number"
-                    ? storedValue * 100
-                    : storedValue;
-
-                const isActive = activeField === field;
-                const isSaving = savingField === field;
-                const isFieldDisabled = !draftSizing || !isBackendConnected;
-
-                return (
-                  <label
-                    key={field}
-                    className={`settings-field ${isActive ? "active" : ""} ${
-                      isFieldDisabled ? "disabled" : ""
-                    }`}
-                  >
-                    <div className="settings-field-copy">
-                      <span>{meta.label}</span>
-                      <small>{meta.description}</small>
-                    </div>
-
-                    <div
-                      className={`settings-field-value ${
-                        field === "margin_pct" ? "percent-field" : ""
-                      }`}
-                    >
-                      <input
-                        type="number"
-                        value={displayValue ?? ""}
-                        step={meta.step}
-                        min={meta.min}
-                        max={meta.max}
-                        disabled={isFieldDisabled}
-                        readOnly={!isActive}
-                        onClick={() =>
-                          isBackendConnected && setActiveField(field)
-                        }
-                        onFocus={() =>
-                          isBackendConnected && setActiveField(field)
-                        }
-                        onChange={(event) =>
-                          changeField(field, event.target.value)
-                        }
-                        onBlur={() => {
-                          setActiveField(null);
-
-                          if (saveTimerRef.current !== null) {
-                            saveImmediately(field);
-                          }
-                        }}
-                        onKeyDown={(event) => handleKeyDown(event, field)}
-                      />
-
-                      <span className="settings-field-status">
-                        {isSaving
-                          ? "Saving…"
-                          : !isBackendConnected
-                            ? "Disconnected"
-                            : isActive
-                              ? "Editing"
-                              : "Edit"}
-                      </span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-
-            {sizingError && (
-              <div className="settings-error">{sizingError}</div>
-            )}
-              </>
-            )}
-          </section>}
 
           {showMarginSection && showDrawingSetsSection && <div className="settings-separator" />}
 
-          {showDrawingSetsSection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>Drawing sets</h3>
-                {isDrawingSetsSectionVisible && (
-                  <p>
-                    Save named layouts per symbol and switch between them safely.
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isDrawingSetsSectionVisible}
-                onClick={() =>
-                  setIsDrawingSetsSectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isDrawingSetsSectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isDrawingSetsSectionVisible) && (
-              <>
-            <div className="drawing-set-save-row">
-              <input
-                type="text"
-                className="drawing-set-name-input"
-                value={drawingSetName}
-                maxLength={48}
-                placeholder="name"
-                onChange={(event) => {
-                  setDrawingSetName(event.target.value);
-                  setDrawingSetMessage(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") handleSaveDrawingSet();
-                }}
-              />
-              <div className="drawing-set-main-actions">
+          {showDrawingSetsSection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>Drawing sets</h3>
+                  {isDrawingSetsSectionVisible && (
+                    <p>Save named layouts per symbol and switch between them safely.</p>
+                  )}
+                </div>
                 <button
                   type="button"
-                  className="drawing-set-primary-button"
-                  disabled={regularDrawingsCount === 0 || !drawingSetName.trim()}
-                  onClick={handleSaveDrawingSet}
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isDrawingSetsSectionVisible}
+                  onClick={() => setIsDrawingSetsSectionVisible((isVisible) => !isVisible)}
                 >
-                  SAVE
-                </button>
-                <button
-                  type="button"
-                  className="drawing-set-new-button"
-                  disabled={regularDrawingsCount === 0}
-                  onClick={handleNewDrawingSet}
-                >
-                  NEW
+                  {isSearchingSettings ? "MATCH" : isDrawingSetsSectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
-            </div>
 
-            {isNewDrawingSetConfirmationOpen && (
-              <div className="drawing-set-new-confirmation">
-                <span>Clear current drawings?</span>
-                <div className="drawing-set-new-confirmation-actions">
-                  <button
-                    type="button"
-                    className="drawing-set-confirm-new-button"
-                    onClick={confirmNewDrawingSet}
-                  >
-                    YES
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsNewDrawingSetConfirmationOpen(false)}
-                  >
-                    NO
-                  </button>
-                </div>
-              </div>
-            )}
+              {(isSearchingSettings || isDrawingSetsSectionVisible) && (
+                <>
+                  <div className="drawing-set-save-row">
+                    <input
+                      type="text"
+                      className="drawing-set-name-input"
+                      value={drawingSetName}
+                      maxLength={48}
+                      placeholder="name"
+                      onChange={(event) => {
+                        setDrawingSetName(event.target.value);
+                        setDrawingSetMessage(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") handleSaveDrawingSet();
+                      }}
+                    />
+                    <div className="drawing-set-main-actions">
+                      <button
+                        type="button"
+                        className="drawing-set-primary-button"
+                        disabled={regularDrawingsCount === 0 || !drawingSetName.trim()}
+                        onClick={handleSaveDrawingSet}
+                      >
+                        SAVE
+                      </button>
+                      <button
+                        type="button"
+                        className="drawing-set-new-button"
+                        disabled={regularDrawingsCount === 0}
+                        onClick={handleNewDrawingSet}
+                      >
+                        NEW
+                      </button>
+                    </div>
+                  </div>
 
-            <div className="drawing-set-current-row">
-              <span>
-                {regularDrawingsCount} current drawing
-                {regularDrawingsCount === 1 ? "" : "s"}
-              </span>
-              <span className="drawing-set-current-name">
-                Active: {drawingSets.find((set) => set.id === activeDrawingSetId)?.name ?? "New / unsaved"}
-              </span>
-            </div>
-
-            {drawingSetMessage && (
-              <div className="drawing-set-message">{drawingSetMessage}</div>
-            )}
-
-            <div className="drawing-set-list">
-              {drawingSets.length === 0 ? (
-                <div className="drawing-set-empty">
-                  No saved sets for {currentSymbol}.
-                </div>
-              ) : (
-                drawingSets.map((set) => {
-                  const isActive = set.id === activeDrawingSetId;
-                  const isRenaming = set.id === renamingDrawingSetId;
-                  const isConfirmingDelete = set.id === deleteConfirmationId;
-
-                  return (
-                    <div
-                      className={`drawing-set-item${isActive ? " is-active" : ""}`}
-                      key={set.id}
-                    >
-                      <div className="drawing-set-item-copy">
-                        {isRenaming ? (
-                          <input
-                            type="text"
-                            className="drawing-set-inline-name-input"
-                            value={renamingDrawingSetName}
-                            maxLength={48}
-                            autoFocus
-                            onChange={(event) =>
-                              setRenamingDrawingSetName(event.target.value)
-                            }
-                            onBlur={() => commitDrawingSetRename(set.id)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                commitDrawingSetRename(set.id);
-                              } else if (event.key === "Escape") {
-                                event.preventDefault();
-                                cancelRenamingDrawingSet();
-                              }
-                            }}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="drawing-set-name-button"
-                            title={`Rename ${set.name}`}
-                            onClick={() => startRenamingDrawingSet(set)}
-                          >
-                            <strong>{set.name}</strong>
-                            {isActive && (
-                              <span className="drawing-set-active-badge">ACTIVE</span>
-                            )}
-                          </button>
-                        )}
-                        <small>
-                          {set.drawings.length} drawing
-                          {set.drawings.length === 1 ? "" : "s"}
-                        </small>
-                      </div>
-                      <div className="drawing-set-actions">
-                        {isConfirmingDelete ? (
-                          <>
-                            <button
-                              type="button"
-                              className="drawing-set-confirm-delete-button"
-                              onClick={() => {
-                                onDeleteDrawingSet(set.id);
-                                setDeleteConfirmationId(null);
-                                setDrawingSetMessage(`Deleted “${set.name}”.`);
-                              }}
-                            >
-                              YES
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmationId(null)}
-                            >
-                              NO
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              title={`Load ${set.name}`}
-                              onClick={() => handleLoadDrawingSet(set.id)}
-                            >
-                              Load
-                            </button>
-                            <button
-                              type="button"
-                              className="drawing-set-delete-button"
-                              onClick={() => {
-                                setDeleteConfirmationId(set.id);
-                                setRenamingDrawingSetId(null);
-                                setDrawingSetMessage(null);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
+                  {isNewDrawingSetConfirmationOpen && (
+                    <div className="drawing-set-new-confirmation">
+                      <span>Clear current drawings?</span>
+                      <div className="drawing-set-new-confirmation-actions">
+                        <button
+                          type="button"
+                          className="drawing-set-confirm-new-button"
+                          onClick={confirmNewDrawingSet}
+                        >
+                          YES
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsNewDrawingSetConfirmationOpen(false)}
+                        >
+                          NO
+                        </button>
                       </div>
                     </div>
-                  );
-                })
+                  )}
+
+                  <div className="drawing-set-current-row">
+                    <span>
+                      {regularDrawingsCount} current drawing
+                      {regularDrawingsCount === 1 ? "" : "s"}
+                    </span>
+                    <span className="drawing-set-current-name">
+                      Active:{" "}
+                      {drawingSets.find((set) => set.id === activeDrawingSetId)?.name ??
+                        "New / unsaved"}
+                    </span>
+                  </div>
+
+                  {drawingSetMessage && (
+                    <div className="drawing-set-message">{drawingSetMessage}</div>
+                  )}
+
+                  <div className="drawing-set-list">
+                    {drawingSets.length === 0 ? (
+                      <div className="drawing-set-empty">No saved sets for {currentSymbol}.</div>
+                    ) : (
+                      drawingSets.map((set) => {
+                        const isActive = set.id === activeDrawingSetId;
+                        const isRenaming = set.id === renamingDrawingSetId;
+                        const isConfirmingDelete = set.id === deleteConfirmationId;
+
+                        return (
+                          <div
+                            className={`drawing-set-item${isActive ? " is-active" : ""}`}
+                            key={set.id}
+                          >
+                            <div className="drawing-set-item-copy">
+                              {isRenaming ? (
+                                <input
+                                  type="text"
+                                  className="drawing-set-inline-name-input"
+                                  value={renamingDrawingSetName}
+                                  maxLength={48}
+                                  autoFocus
+                                  onChange={(event) =>
+                                    setRenamingDrawingSetName(event.target.value)
+                                  }
+                                  onBlur={() => commitDrawingSetRename(set.id)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      commitDrawingSetRename(set.id);
+                                    } else if (event.key === "Escape") {
+                                      event.preventDefault();
+                                      cancelRenamingDrawingSet();
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="drawing-set-name-button"
+                                  title={`Rename ${set.name}`}
+                                  onClick={() => startRenamingDrawingSet(set)}
+                                >
+                                  <strong>{set.name}</strong>
+                                  {isActive && (
+                                    <span className="drawing-set-active-badge">ACTIVE</span>
+                                  )}
+                                </button>
+                              )}
+                              <small>
+                                {set.drawings.length} drawing
+                                {set.drawings.length === 1 ? "" : "s"}
+                              </small>
+                            </div>
+                            <div className="drawing-set-actions">
+                              {isConfirmingDelete ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="drawing-set-confirm-delete-button"
+                                    onClick={() => {
+                                      onDeleteDrawingSet(set.id);
+                                      setDeleteConfirmationId(null);
+                                      setDrawingSetMessage(`Deleted “${set.name}”.`);
+                                    }}
+                                  >
+                                    YES
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteConfirmationId(null)}
+                                  >
+                                    NO
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    title={`Load ${set.name}`}
+                                    onClick={() => handleLoadDrawingSet(set.id)}
+                                  >
+                                    Load
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="drawing-set-delete-button"
+                                    onClick={() => {
+                                      setDeleteConfirmationId(set.id);
+                                      setRenamingDrawingSetId(null);
+                                      setDrawingSetMessage(null);
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
               )}
-            </div>
-              </>
-            )}
-          </section>}
+            </section>
+          )}
 
           {showDrawingSetsSection && showDrawingsSection && <div className="settings-separator" />}
 
@@ -1489,367 +1285,436 @@ export default function SettingsPanel({
            * keep this panel scannable as more toggles get added over time
            * - grouping has no functional effect of its own.
            */}
-          {showDrawingsSection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>Drawings</h3>
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isDrawingsDisplaySectionVisible}
-                onClick={() =>
-                  setIsDrawingsDisplaySectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isDrawingsDisplaySectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isDrawingsDisplaySectionVisible) && (
-              <>
-            {(!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.showDrawings) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show drawings</span>
-                <small>Show all saved drawings on the chart</small>
-              </div>
-
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showDrawings}
-                onChange={(event) =>
-                  onShowDrawingsChange(event.target.checked)
-                }
-              />
-            </label>}
-
-            {(!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.startOfDay) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Start of day candle</span>
-                <small>Show a vertical marker at the start of each chart day</small>
-              </div>
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showStartOfDay}
-                onChange={(event) => onShowStartOfDayChange(event.target.checked)}
-              />
-            </label>}
-
-            {showStartOfDay && (!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.dayHistory) && (
-              <label className="settings-lookback-field">
-                <div className="settings-field-copy">
-                  <span>Day history</span>
-                  <small>Number of chart days to mark (maximum 20)</small>
+          {showDrawingsSection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>Drawings</h3>
                 </div>
-                <div className="settings-lookback-control">
-                  <input
-                    type="range"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={startOfDayLookbackDays}
-                    aria-label="Start of day marker history"
-                    onChange={(event) =>
-                      onStartOfDayLookbackDaysChange(Number(event.target.value))
-                    }
-                  />
-                  <output>{startOfDayLookbackDays}</output>
-                </div>
-              </label>
-            )}
-
-            {(!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.asia) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Asia session zone</span>
-                <small>Show Asia session boundaries on the chart</small>
+                <button
+                  type="button"
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isDrawingsDisplaySectionVisible}
+                  onClick={() => setIsDrawingsDisplaySectionVisible((isVisible) => !isVisible)}
+                >
+                  {isSearchingSettings
+                    ? "MATCH"
+                    : isDrawingsDisplaySectionVisible
+                      ? "HIDE"
+                      : "SHOW"}
+                </button>
               </div>
-              <input type="checkbox" className="settings-toggle-input" checked={showAsiaSession} onChange={(event) => onShowAsiaSessionChange(event.target.checked)} />
-            </label>}
 
-            {(!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.london) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>London session zone</span>
-                <small>Show London session boundaries on the chart</small>
-              </div>
-              <input type="checkbox" className="settings-toggle-input" checked={showLondonSession} onChange={(event) => onShowLondonSessionChange(event.target.checked)} />
-            </label>}
+              {(isSearchingSettings || isDrawingsDisplaySectionVisible) && (
+                <>
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.showDrawings) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show drawings</span>
+                        <small>Show all saved drawings on the chart</small>
+                      </div>
 
-            {(!isSearchingSettings || drawingsSectionTitleMatches || drawingOptionMatches.newYork || drawingOptionMatches.killZone) && <div className="settings-toggle-field settings-toggle-field-grouped">
-              <label className="settings-toggle-group-primary">
-                <div className="settings-field-copy">
-                  <span>New York session zone</span>
-                  <small>Show New York session boundaries on the chart</small>
-                </div>
-                <input type="checkbox" className="settings-toggle-input" checked={showNewYorkSession} onChange={(event) => onShowNewYorkSessionChange(event.target.checked)} />
-              </label>
-              <label className={`settings-toggle-suboption ${showNewYorkSession ? "" : "disabled"}`}>
-                <div className="settings-field-copy">
-                  <span>Show kill zone</span>
-                  <small>Highlight 13:00–16:00 in chart time</small>
-                </div>
-                <input
-                  type="checkbox"
-                  className="settings-toggle-input"
-                  checked={showNewYorkKillZone}
-                  disabled={!showNewYorkSession}
-                  onChange={(event) => onShowNewYorkKillZoneChange(event.target.checked)}
-                />
-              </label>
-            </div>}
-              </>
-            )}
-          </section>}
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showDrawings}
+                        onChange={(event) => onShowDrawingsChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.startOfDay) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Start of day candle</span>
+                        <small>Show a vertical marker at the start of each chart day</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showStartOfDay}
+                        onChange={(event) => onShowStartOfDayChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {showStartOfDay &&
+                    (!isSearchingSettings ||
+                      drawingsSectionTitleMatches ||
+                      drawingOptionMatches.dayHistory) && (
+                      <label className="settings-lookback-field">
+                        <div className="settings-field-copy">
+                          <span>Day history</span>
+                          <small>Number of chart days to mark (maximum 20)</small>
+                        </div>
+                        <div className="settings-lookback-control">
+                          <input
+                            type="range"
+                            min={1}
+                            max={20}
+                            step={1}
+                            value={startOfDayLookbackDays}
+                            aria-label="Start of day marker history"
+                            onChange={(event) =>
+                              onStartOfDayLookbackDaysChange(Number(event.target.value))
+                            }
+                          />
+                          <output>{startOfDayLookbackDays}</output>
+                        </div>
+                      </label>
+                    )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.asia) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Asia session zone</span>
+                        <small>Show Asia session boundaries on the chart</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showAsiaSession}
+                        onChange={(event) => onShowAsiaSessionChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.london) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>London session zone</span>
+                        <small>Show London session boundaries on the chart</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showLondonSession}
+                        onChange={(event) => onShowLondonSessionChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.newYork ||
+                    drawingOptionMatches.killZone) && (
+                    <div className="settings-toggle-field settings-toggle-field-grouped">
+                      <label className="settings-toggle-group-primary">
+                        <div className="settings-field-copy">
+                          <span>New York session zone</span>
+                          <small>Show New York session boundaries on the chart</small>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="settings-toggle-input"
+                          checked={showNewYorkSession}
+                          onChange={(event) => onShowNewYorkSessionChange(event.target.checked)}
+                        />
+                      </label>
+                      <label
+                        className={`settings-toggle-suboption ${showNewYorkSession ? "" : "disabled"}`}
+                      >
+                        <div className="settings-field-copy">
+                          <span>Show kill zone</span>
+                          <small>Highlight 13:00–16:00 in chart time</small>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="settings-toggle-input"
+                          checked={showNewYorkKillZone}
+                          disabled={!showNewYorkSession}
+                          onChange={(event) => onShowNewYorkKillZoneChange(event.target.checked)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
           {showDrawingsSection && showPnlSection && <div className="settings-separator" />}
 
-          {showPnlSection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>PNL</h3>
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isPnlSectionVisible}
-                onClick={() =>
-                  setIsPnlSectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isPnlSectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isPnlSectionVisible) && (
-              <>
-            {(!isSearchingSettings || pnlSectionTitleMatches || pnlOptionMatches.position) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show PNL</span>
-                <small>
-                  Show the active symbol's separate <strong>unrealized</strong> and current-position <strong>realized</strong> PNL
-                  card on the chart
-                </small>
+          {showPnlSection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>PNL</h3>
+                </div>
+                <button
+                  type="button"
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isPnlSectionVisible}
+                  onClick={() => setIsPnlSectionVisible((isVisible) => !isVisible)}
+                >
+                  {isSearchingSettings ? "MATCH" : isPnlSectionVisible ? "HIDE" : "SHOW"}
+                </button>
               </div>
 
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showPositionPnl}
-                onChange={(event) =>
-                  onShowPositionPnlChange(event.target.checked)
-                }
-              />
-            </label>}
+              {(isSearchingSettings || isPnlSectionVisible) && (
+                <>
+                  {(!isSearchingSettings ||
+                    pnlSectionTitleMatches ||
+                    pnlOptionMatches.position) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show PNL</span>
+                        <small>
+                          Show the active symbol's separate <strong>unrealized</strong> and
+                          current-position <strong>realized</strong> PNL card on the chart
+                        </small>
+                      </div>
 
-            {(!isSearchingSettings || pnlSectionTitleMatches || pnlOptionMatches.total) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show TOTAL PNL</span>
-                <small>
-                  Show the <strong>unrealized</strong> PNL total across all
-                  open positions on the chart
-                </small>
-              </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showPositionPnl}
+                        onChange={(event) => onShowPositionPnlChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
 
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showTotalPnl}
-                onChange={(event) =>
-                  onShowTotalPnlChange(event.target.checked)
-                }
-              />
-            </label>}
-              </>
-            )}
-          </section>}
+                  {(!isSearchingSettings || pnlSectionTitleMatches || pnlOptionMatches.total) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show TOTAL PNL</span>
+                        <small>
+                          Show the <strong>unrealized</strong> PNL total across all open positions
+                          on the chart
+                        </small>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showTotalPnl}
+                        onChange={(event) => onShowTotalPnlChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
           {showPnlSection && showAlertsSection && <div className="settings-separator" />}
 
-          {showAlertsSection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>Alerts</h3>
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isAlertsSectionVisible}
-                onClick={() =>
-                  setIsAlertsSectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isAlertsSectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isAlertsSectionVisible) && (
-              <>
-            {(!isSearchingSettings || alertsSectionTitleMatches || alertOptionMatches.show) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show price alerts</span>
-                <small>
-                  Show pending price alert lines (see the chart's
-                  right-click menu) on the chart
-                </small>
-              </div>
-
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showPriceAlerts}
-                onChange={(event) =>
-                  onShowPriceAlertsChange(event.target.checked)
-                }
-              />
-            </label>}
-
-            {(!isSearchingSettings || alertsSectionTitleMatches || alertOptionMatches.persistent) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Use persistent alerts</span>
-                <small>
-                  Store and monitor alerts on the backend, so they remain
-                  active and can fire even when this browser tab is closed.
-                </small>
-              </div>
-
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={persistentAlertsEnabled}
-                onChange={(event) =>
-                  onPersistentAlertsEnabledChange(event.target.checked)
-                }
-              />
-            </label>}
-
-            {/* FEATURE: compact, independently scrollable account-wide alert
-                table keeps long alert sets from stretching the settings panel. */}
-            {(!isSearchingSettings || alertsSectionTitleMatches || alertOptionMatches.active) && <div className="settings-alert-list-block">
-              <div className="settings-alert-list-title">
-                <span>Active alerts</span>
-                <small>
-                  {isLoadingAlerts ? (
-                    <LoadingIndicator variant="inline" label="Loading" />
-                  ) : (
-                    sortedListedPriceAlerts.length
-                  )}
-                </small>
-              </div>
-              {alertsListError && (
-                <div className="settings-alert-list-message error">{alertsListError}</div>
-              )}
-              {sortedListedPriceAlerts.length === 0 && !isLoadingAlerts ? (
-                <div className="settings-alert-list-message">No active alerts.</div>
-              ) : (
-                <div className="settings-alert-list-scroll" role="region" aria-label="Active price alerts" tabIndex={0}>
-                  <table className="settings-alert-list-table">
-                    <thead>
-                      <tr>
-                        <th>Symbol</th>
-                        <th>Price</th>
-                        <th>Side</th>
-                        <th>Info</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedListedPriceAlerts.map((alert) => (
-                        <tr key={alert.id}>
-                          <td>{formatSymbolPair(alert.symbol)}</td>
-                          <td>{alertPriceFormatter.format(alert.price)}</td>
-                          <td>
-                            <span className={`settings-alert-side ${alert.side.toLowerCase()}`}>
-                              {alert.side}
-                            </span>
-                          </td>
-                          <td title={alert.additionalInfo || undefined}>
-                            {alert.additionalInfo || (alert.pattern !== "none" ? alert.pattern.toUpperCase() : "—")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          {showAlertsSection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>Alerts</h3>
                 </div>
+                <button
+                  type="button"
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isAlertsSectionVisible}
+                  onClick={() => setIsAlertsSectionVisible((isVisible) => !isVisible)}
+                >
+                  {isSearchingSettings ? "MATCH" : isAlertsSectionVisible ? "HIDE" : "SHOW"}
+                </button>
+              </div>
+
+              {(isSearchingSettings || isAlertsSectionVisible) && (
+                <>
+                  {(!isSearchingSettings ||
+                    alertsSectionTitleMatches ||
+                    alertOptionMatches.show) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show price alerts</span>
+                        <small>
+                          Show pending price alert lines (see the chart's right-click menu) on the
+                          chart
+                        </small>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showPriceAlerts}
+                        onChange={(event) => onShowPriceAlertsChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    alertsSectionTitleMatches ||
+                    alertOptionMatches.persistent) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Use persistent alerts</span>
+                        <small>
+                          Store and monitor alerts on the backend, so they remain active and can
+                          fire even when this browser tab is closed.
+                        </small>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={persistentAlertsEnabled}
+                        onChange={(event) => onPersistentAlertsEnabledChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {/* compact, independently scrollable account-wide alert
+                table keeps long alert sets from stretching the settings panel. */}
+                  {(!isSearchingSettings ||
+                    alertsSectionTitleMatches ||
+                    alertOptionMatches.active) && (
+                    <div className="settings-alert-list-block">
+                      <div className="settings-alert-list-title">
+                        <span>Active alerts</span>
+                        <small>
+                          {isLoadingAlerts ? (
+                            <LoadingIndicator variant="inline" label="Loading" />
+                          ) : (
+                            sortedListedPriceAlerts.length
+                          )}
+                        </small>
+                      </div>
+                      {alertsListError && (
+                        <div className="settings-alert-list-message error">{alertsListError}</div>
+                      )}
+                      {sortedListedPriceAlerts.length === 0 && !isLoadingAlerts ? (
+                        <div className="settings-alert-list-message">No active alerts.</div>
+                      ) : (
+                        <div
+                          className="settings-alert-list-scroll"
+                          role="region"
+                          aria-label="Active price alerts"
+                          tabIndex={0}
+                        >
+                          <table className="settings-alert-list-table">
+                            <thead>
+                              <tr>
+                                <th>Symbol</th>
+                                <th>Price</th>
+                                <th>Side</th>
+                                <th>Info</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sortedListedPriceAlerts.map((alert) => (
+                                <tr key={alert.id}>
+                                  <td>{formatSymbolPair(alert.symbol)}</td>
+                                  <td>{alertPriceFormatter.format(alert.price)}</td>
+                                  <td>
+                                    <span
+                                      className={`settings-alert-side ${alert.side.toLowerCase()}`}
+                                    >
+                                      {alert.side}
+                                    </span>
+                                  </td>
+                                  <td title={alert.additionalInfo || undefined}>
+                                    {alert.additionalInfo ||
+                                      (alert.pattern !== "none"
+                                        ? alert.pattern.toUpperCase()
+                                        : "—")}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
-            </div>}
-              </>
-            )}
-          </section>}
+            </section>
+          )}
 
           {showAlertsSection && showChartDisplaySection && <div className="settings-separator" />}
 
-          {showChartDisplaySection && <section className="settings-section">
-            <div className="settings-section-heading settings-section-heading-with-action">
-              <div>
-                <h3>Chart display</h3>
-              </div>
-              <button
-                type="button"
-                className="settings-section-visibility-button"
-                aria-expanded={isSearchingSettings || isChartDisplaySectionVisible}
-                onClick={() =>
-                  setIsChartDisplaySectionVisible((isVisible) => !isVisible)
-                }
-              >
-                {isSearchingSettings ? "MATCH" : isChartDisplaySectionVisible ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-
-            {(isSearchingSettings || isChartDisplaySectionVisible) && (
-              <>
-            {(!isSearchingSettings || chartDisplaySectionTitleMatches || chartDisplayOptionMatches.timer) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show candle timer</span>
-                <small>
-                  Show the countdown to the current candle's close, top-left
-                  of the chart
-                </small>
+          {showChartDisplaySection && (
+            <section className="settings-section">
+              <div className="settings-section-heading settings-section-heading-with-action">
+                <div>
+                  <h3>Chart display</h3>
+                </div>
+                <button
+                  type="button"
+                  className="settings-section-visibility-button"
+                  aria-expanded={isSearchingSettings || isChartDisplaySectionVisible}
+                  onClick={() => setIsChartDisplaySectionVisible((isVisible) => !isVisible)}
+                >
+                  {isSearchingSettings ? "MATCH" : isChartDisplaySectionVisible ? "HIDE" : "SHOW"}
+                </button>
               </div>
 
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showCandleCountdown}
-                onChange={(event) =>
-                  onShowCandleCountdownChange(event.target.checked)
-                }
-              />
-            </label>}
+              {(isSearchingSettings || isChartDisplaySectionVisible) && (
+                <>
+                  {(!isSearchingSettings ||
+                    chartDisplaySectionTitleMatches ||
+                    chartDisplayOptionMatches.timer) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show candle timer</span>
+                        <small>
+                          Show the countdown to the current candle's close, top-left of the chart
+                        </small>
+                      </div>
 
-            {/* FEATURE: watermark visibility belongs with the other chart-only display controls. */}
-            {(!isSearchingSettings || chartDisplaySectionTitleMatches || chartDisplayOptionMatches.watermark) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show watermark</span>
-                <small>Show the Fyxtez watermark on the chart</small>
-              </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showCandleCountdown}
+                        onChange={(event) => onShowCandleCountdownChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
 
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showWatermark}
-                onChange={(event) => onShowWatermarkChange(event.target.checked)}
-              />
-            </label>}
+                  {/* watermark visibility belongs with the other chart-only display controls. */}
+                  {(!isSearchingSettings ||
+                    chartDisplaySectionTitleMatches ||
+                    chartDisplayOptionMatches.watermark) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show watermark</span>
+                        <small>Show the Fyxtez watermark on the chart</small>
+                      </div>
 
-            {(!isSearchingSettings || chartDisplaySectionTitleMatches || chartDisplayOptionMatches.drawingSetBadge) && <label className="settings-toggle-field">
-              <div className="settings-field-copy">
-                <span>Show active drawing set</span>
-                <small>Show the currently active drawing-set name on the chart</small>
-              </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showWatermark}
+                        onChange={(event) => onShowWatermarkChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
 
-              <input
-                type="checkbox"
-                className="settings-toggle-input"
-                checked={showDrawingSetBadge}
-                onChange={(event) =>
-                  onShowDrawingSetBadgeChange(event.target.checked)
-                }
-              />
-            </label>}
+                  {(!isSearchingSettings ||
+                    chartDisplaySectionTitleMatches ||
+                    chartDisplayOptionMatches.drawingSetBadge) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show active drawing set</span>
+                        <small>Show the currently active drawing-set name on the chart</small>
+                      </div>
 
-              </>
-            )}
-          </section>}
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showDrawingSetBadge}
+                        onChange={(event) => onShowDrawingSetBadgeChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+                </>
+              )}
+            </section>
+          )}
         </div>
       </aside>
     </>

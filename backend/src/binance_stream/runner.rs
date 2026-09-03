@@ -442,7 +442,7 @@ async fn process_text(
                     .await;
             }
 
-            // FIX: ACCOUNT_UPDATE sadrži walletBalance, ali ne sadrži availableBalance.
+            // ACCOUNT_UPDATE sadrži walletBalance, ali ne sadrži availableBalance.
             // Zato povlačimo kompletan REST account snapshot kako available balance ne bi
             // ostao na vrednosti koja je keširana pre transfera, naloga ili pozicije.
             account_state.request_refresh();

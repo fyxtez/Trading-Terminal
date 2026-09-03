@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::{
     error::{AppError, AppResult},
-    icons::{IconEntry, MAX_ICONS},
+    icons::IconEntry,
     symbol_registry::{AddSymbolRequest, MarketDataSource, MarketKind},
 };
 
@@ -25,7 +25,7 @@ pub(super) async fn add_symbol(
     let (symbol, created) = state.symbol_registry.add(&request.symbol).await?;
 
     if symbol.data_source == MarketDataSource::Binance {
-        // FIX: startup enforcement only covers symbols already persisted at
+        // startup enforcement only covers symbols already persisted at
         // boot. A newly registered Binance contract must be switched to
         // ISOLATED before the add request succeeds; per-order guards below
         // provide a second fail-closed check. Roll back a fresh registry entry
@@ -42,30 +42,8 @@ pub(super) async fn add_symbol(
         }
     }
 
-    // FIX: both Binance and MEXC symbols now use the shared bounded icon cache.
-    // Check capacity before resolving artwork so neither source can silently
-    // exceed MAX_ICONS; roll back only a registry row created by this request.
-    if symbol.market_kind == MarketKind::Crypto {
-        let has_icon_room = match state.icon_store.has_room_for(&symbol.symbol).await {
-            Ok(value) => value,
-            Err(error) => {
-                if created {
-                    let _ = state.symbol_registry.delete(&symbol.symbol).await;
-                }
-                return Err(error);
-            }
-        };
-        if !has_icon_room {
-            if created {
-                let _ = state.symbol_registry.delete(&symbol.symbol).await;
-            }
-            return Err(AppError::Invalid(format!(
-                "maximum of {MAX_ICONS} symbols reached; delete an unused symbol before adding another"
-            )));
-        }
-    }
-
-    // FEATURE: select the venue/asset-specific resolver. MEXC crypto now uses
+    // Icon resolution is best-effort and never limits the local symbol registry.
+    // Select the venue/asset-specific resolver. MEXC crypto uses
     // CoinGecko and the same local cache/API as Binance instead of remaining
     // permanently icon-less. Lookup failure stays cosmetic, not a symbol error.
     let icon = {
@@ -146,7 +124,6 @@ pub(super) async fn list_icons(State(state): State<AppState>) -> Json<Value> {
 
     Json(json!({
         "count": entries.len(),
-        "max": MAX_ICONS,
         "icons": entries.into_iter().map(icon_json).collect::<Vec<_>>(),
     }))
 }

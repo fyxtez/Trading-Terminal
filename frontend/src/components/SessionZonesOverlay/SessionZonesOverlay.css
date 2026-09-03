@@ -37,7 +37,7 @@
   white-space: nowrap;
 }
 
-/* FEATURE: shaded chart-time 13:00-16:00 New York kill-zone window. */
+/* shaded chart-time 13:00-16:00 New York kill-zone window. */
 .session-kill-zone {
   position: absolute;
   top: 0;

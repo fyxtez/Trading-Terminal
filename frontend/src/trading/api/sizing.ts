@@ -1,8 +1,4 @@
-import {
-  SIZING_ENDPOINT,
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { SIZING_ENDPOINT, TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
 
 export type SizingConfig = {
   margin_pct: number;
@@ -66,14 +62,11 @@ function validateSizing(value: unknown): SizingConfig {
 }
 
 export async function getSizing(signal?: AbortSignal): Promise<SizingConfig> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`,
-    {
-      method: "GET",
-      headers: getHeaders(),
-      signal,
-    },
-  );
+  const response = await fetch(`${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`, {
+    method: "GET",
+    headers: getHeaders(),
+    signal,
+  });
 
   if (!response.ok) {
     throw new Error(await readError(response));
@@ -86,15 +79,12 @@ export async function updateSizing(
   sizing: SizingConfig,
   signal?: AbortSignal,
 ): Promise<SizingConfig> {
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`,
-    {
-      method: "PUT",
-      headers: getHeaders(true),
-      body: JSON.stringify(sizing),
-      signal,
-    },
-  );
+  const response = await fetch(`${TRADING_API_BASE_URL}${SIZING_ENDPOINT}`, {
+    method: "PUT",
+    headers: getHeaders(true),
+    body: JSON.stringify(sizing),
+    signal,
+  });
 
   if (!response.ok) {
     throw new Error(await readError(response));

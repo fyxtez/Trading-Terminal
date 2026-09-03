@@ -1,8 +1,5 @@
 import { createContext, useContext } from "react";
-import type {
-  DesktopConnection,
-  DesktopCredentialStatus,
-} from "../../desktop/credentials";
+import type { DesktopConnection, DesktopCredentialStatus } from "../../desktop/credentials";
 
 export type DesktopCredentialsContextValue = {
   isDesktop: boolean;

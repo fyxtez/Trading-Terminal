@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getPositions, type OpenPosition } from "../trading/api/positions";
 
 /*
- * FIX: same resilience gap already closed in usePositions.ts/
+ * same resilience gap already closed in usePositions.ts/
  * useOpenOrders.ts (see their own comments for the full story) - this
  * hook used to refresh ONLY in reaction to the "account-state-changed"
  * event. When that event is missed (the backend's own connection to
@@ -52,55 +52,56 @@ export function useChartPositionPnl(symbol: string): {
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
 
-  const refresh = useCallback(async (force = false) => {
-    const requestId = ++requestIdRef.current;
+  const refresh = useCallback(
+    async (force = false) => {
+      const requestId = ++requestIdRef.current;
 
-    try {
-      const positions = await getPositions(undefined, force);
+      try {
+        const positions = await getPositions(undefined, force);
 
-      if (!mountedRef.current || requestId !== requestIdRef.current) {
-        return;
+        if (!mountedRef.current || requestId !== requestIdRef.current) {
+          return;
+        }
+
+        /*
+         * UX UPDATE: when the account has only one open symbol, TOTAL is
+         * identical to that symbol's PNL and merely duplicates the card directly
+         * above it. Count distinct symbols (rather than raw position rows, so
+         * hedge-mode legs on one market still count as one symbol) and expose the
+         * aggregate only when it actually combines two or more markets.
+         */
+        const openSymbolCount = new Set(positions.map((item) => item.symbol.toUpperCase())).size;
+
+        setTotalPnl(
+          openSymbolCount > 1
+            ? positions.reduce((sum, item) => sum + item.unrealized_pnl, 0)
+            : null,
+        );
+
+        const normalizedSymbol = symbol.toUpperCase();
+        const position: OpenPosition | undefined = positions.find(
+          (item) => item.symbol.toUpperCase() === normalizedSymbol,
+        );
+
+        if (!position) {
+          setPositionPnl(null);
+          return;
+        }
+
+        setPositionPnl({
+          symbol: position.symbol,
+          side: position.side,
+          unrealizedPnl: position.unrealized_pnl,
+          // keep lifecycle realized PNL separate from the live mark-price
+          // value so chart badges never present their sum as one ambiguous PNL.
+          realizedPnl: position.realized_pnl,
+        });
+      } catch {
+        // Keep the last confirmed value during a temporary request failure.
       }
-
-      /*
-       * UX UPDATE: when the account has only one open symbol, TOTAL is
-       * identical to that symbol's PNL and merely duplicates the card directly
-       * above it. Count distinct symbols (rather than raw position rows, so
-       * hedge-mode legs on one market still count as one symbol) and expose the
-       * aggregate only when it actually combines two or more markets.
-       */
-      const openSymbolCount = new Set(
-        positions.map((item) => item.symbol.toUpperCase()),
-      ).size;
-
-      setTotalPnl(
-        openSymbolCount > 1
-          ? positions.reduce((sum, item) => sum + item.unrealized_pnl, 0)
-          : null,
-      );
-
-      const normalizedSymbol = symbol.toUpperCase();
-      const position: OpenPosition | undefined = positions.find(
-        (item) => item.symbol.toUpperCase() === normalizedSymbol,
-      );
-
-      if (!position) {
-        setPositionPnl(null);
-        return;
-      }
-
-      setPositionPnl({
-        symbol: position.symbol,
-        side: position.side,
-        unrealizedPnl: position.unrealized_pnl,
-        // FEATURE: keep lifecycle realized PNL separate from the live mark-price
-        // value so chart badges never present their sum as one ambiguous PNL.
-        realizedPnl: position.realized_pnl,
-      });
-    } catch {
-      // Keep the last confirmed value during a temporary request failure.
-    }
-  }, [symbol]);
+    },
+    [symbol],
+  );
 
   const clearPositionPnl = useCallback(() => {
     // Bump the request id first so any refresh() already in flight (e.g.

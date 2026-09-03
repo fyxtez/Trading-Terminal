@@ -34,7 +34,7 @@
   flex: 0 1 auto;
 }
 
-/* FEATURE: only the unsaved badge is interactive; saved-set badges remain the
+/* only the unsaved badge is interactive; saved-set badges remain the
  * same passive status label while the quick-save state is visually explicit.
  */
 .active-drawing-set-badge-action {
@@ -107,7 +107,6 @@
   line-height: 1.3;
 }
 
-
 .current-day-badge {
   flex: 0 0 auto;
   color: var(--text-dim);
@@ -120,7 +119,7 @@
   }
 
   .current-day-badge,
-.active-drawing-set-badge {
+  .active-drawing-set-badge {
     max-width: 110px;
   }
 }

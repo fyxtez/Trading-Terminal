@@ -78,8 +78,7 @@ function getZoneOffsetMinutes(utcMs: number, timeZone: string): number {
     timeZoneName: "shortOffset",
   }).formatToParts(new Date(utcMs));
 
-  const raw =
-    parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+0";
+  const raw = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+0";
   const match = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(raw);
 
   if (!match) return 0;
@@ -102,8 +101,7 @@ function getLocalDateParts(
     day: "2-digit",
   }).formatToParts(now);
 
-  const read = (type: string) =>
-    Number(parts.find((part) => part.type === type)?.value ?? NaN);
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? NaN);
 
   return { year: read("year"), month: read("month"), day: read("day") };
 }
@@ -113,7 +111,7 @@ function getLocalDateParts(
  * calendar date (year/month/day) given, evaluated DIRECTLY in
  * `timeZone`.
  *
- * FIX: an earlier version of this file computed one shared "day start"
+ * an earlier version of this file computed one shared "day start"
  * instant anchored to CHART_TIME_ZONE, then tried to reach each
  * session's own hour by adding `hour * 3600000` to that anchor before
  * asking what the SESSION's zone read there. That only works if the
@@ -169,25 +167,13 @@ export function getTodaysSessions(now: Date = new Date()): TradingSession[] {
     id: definition.id,
     label: definition.label,
     color: definition.color,
-    start: zonedDateTimeToUtcSeconds(
-      year,
-      month,
-      day,
-      definition.startHour,
-      definition.timeZone,
-    ),
-    end: zonedDateTimeToUtcSeconds(
-      year,
-      month,
-      day,
-      definition.endHour,
-      definition.timeZone,
-    ),
+    start: zonedDateTimeToUtcSeconds(year, month, day, definition.startHour, definition.timeZone),
+    end: zonedDateTimeToUtcSeconds(year, month, day, definition.endHour, definition.timeZone),
   }));
 }
 
 /**
- * FEATURE: New York kill-zone planning window expressed in the chart's own
+ * New York kill-zone planning window expressed in the chart's own
  * displayed timezone, as requested. Keeping this separate from regional
  * sessions prevents it from being mistaken for a fourth active market by
  * ChartIndicators.tsx.

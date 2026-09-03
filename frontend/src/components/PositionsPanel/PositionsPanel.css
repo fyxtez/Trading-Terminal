@@ -162,7 +162,7 @@
 
 .positions-heading-row,
 .position-row {
-  /* FEATURE: reserve a dedicated column for current USDT position notional
+  /* reserve a dedicated column for current USDT position notional
    * immediately after Symbol without compressing the existing controls. */
   min-width: 1630px;
   display: grid;
@@ -222,7 +222,7 @@
 .position-side,
 .position-leverage {
   /*
-   * FIX: these used to use symmetric padding (2px top, 2px bottom) with
+   * these used to use symmetric padding (2px top, 2px bottom) with
    * line-height: 1, which centers the *line box* correctly but JetBrains
    * Mono's own glyphs aren't centered within their line box at that tight
    * a line-height - the visible letters sit noticeably above the true
@@ -283,7 +283,7 @@
   font-weight: 500;
 }
 
-/* FEATURE: Per-position TP/SL visibility action. Kept visually neutral
+/* Per-position TP/SL visibility action. Kept visually neutral
  * because it changes chart presentation only; unlike Market it cannot alter
  * the exchange position itself. */
 .position-tpsl-visibility-cell {

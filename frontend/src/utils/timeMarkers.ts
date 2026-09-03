@@ -24,8 +24,7 @@ function getZoneOffsetMinutes(utcMs: number, timeZone: string): number {
     timeZoneName: "shortOffset",
   }).formatToParts(new Date(utcMs));
 
-  const raw =
-    parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+0";
+  const raw = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+0";
   const match = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(raw);
 
   if (!match) return 0;
@@ -48,8 +47,7 @@ function getLocalDateParts(
     day: "2-digit",
   }).formatToParts(now);
 
-  const read = (type: string) =>
-    Number(parts.find((part) => part.type === type)?.value ?? NaN);
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? NaN);
 
   return { year: read("year"), month: read("month"), day: read("day") };
 }
@@ -65,9 +63,7 @@ function zonedDateTimeToUtcSeconds(
   const guessMs = Date.UTC(year, month - 1, day, hour, minute, 0);
   const offsetMinutes = getZoneOffsetMinutes(guessMs, timeZone);
 
-  return Math.floor(
-    (guessMs - offsetMinutes * 60 * 1000) / 1000,
-  ) as UTCTimestamp;
+  return Math.floor((guessMs - offsetMinutes * 60 * 1000) / 1000) as UTCTimestamp;
 }
 
 /**
@@ -79,9 +75,7 @@ function zonedDateTimeToUtcSeconds(
  * empty string), but kept here so the parsing logic has a single home if
  * a plain text field ever replaces it.
  */
-export function parseTimeOfDay(
-  value: string,
-): { hour: number; minute: number } | null {
+export function parseTimeOfDay(value: string): { hour: number; minute: number } | null {
   const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
   if (!match) return null;
 
@@ -119,14 +113,7 @@ export function getDailyTimeMarkers(
 
     marks.push({
       id: `time-mark-${year}-${month}-${day}`,
-      time: zonedDateTimeToUtcSeconds(
-        year,
-        month,
-        day,
-        hour,
-        minute,
-        CHART_TIME_ZONE,
-      ),
+      time: zonedDateTimeToUtcSeconds(year, month, day, hour, minute, CHART_TIME_ZONE),
     });
   }
 

@@ -16,22 +16,12 @@ type DrawingInfoTooltipProps = {
  * list of label/value rows so more facts can be added later without
  * restructuring this component.
  */
-export default function DrawingInfoTooltip({
-  drawing,
-  x,
-  y,
-}: DrawingInfoTooltipProps) {
+export default function DrawingInfoTooltip({ drawing, x, y }: DrawingInfoTooltipProps) {
   return (
-    <div
-      className="drawing-info-tooltip"
-      style={{ left: x, top: y }}
-      aria-hidden="true"
-    >
+    <div className="drawing-info-tooltip" style={{ left: x, top: y }} aria-hidden="true">
       <div className="drawing-info-row">
         <span className="drawing-info-label">Timeframe</span>
-        <span className="drawing-info-value">
-          {drawing.timeframe ?? "—"}
-        </span>
+        <span className="drawing-info-value">{drawing.timeframe ?? "—"}</span>
       </div>
     </div>
   );

@@ -66,7 +66,10 @@
   cursor: pointer;
   font-size: 19.5px;
   line-height: 1;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 .tool-button:hover {
   background: var(--bg-hover);
@@ -95,7 +98,6 @@
   font-weight: 700;
 }
 
-
 .ruler-tool {
   font-size: 17px;
   gap: 1px;
@@ -107,7 +109,7 @@
   transform: translateY(-4px);
 }
 
-/* FEATURE: custom dashed rectangle icon for the Alt+G marquee tool. Using CSS
+/* custom dashed rectangle icon for the Alt+G marquee tool. Using CSS
  * rather than a text glyph keeps the icon visually consistent across OS fonts. */
 .group-select-tool > span {
   width: 19px;

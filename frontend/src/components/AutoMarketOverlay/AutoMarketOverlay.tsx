@@ -35,7 +35,7 @@ type OverlayCoordinates = {
   valid: boolean;
 };
 
-// FIX: Auto Market now has one stable horizontal control layout at every
+// Auto Market now has one stable horizontal control layout at every
 // price-scale zoom. The old 240px zone switched between compact/full layouts
 // based on its rendered pixel height, cropping the two action labels and
 // making the UI change shape while zooming. 300px gives the summary and both
@@ -48,7 +48,6 @@ function formatPrice(price: number, pricePrecision: number) {
     maximumFractionDigits: pricePrecision,
   });
 }
-
 
 function isValidStop(side: TradeSide, marketPrice: number, stopLoss: number) {
   return side === "BUY" ? stopLoss < marketPrice : stopLoss > marketPrice;
@@ -106,14 +105,11 @@ export default function AutoMarketOverlay({
       }
 
       const width = AUTO_MARKET_ZONE_WIDTH_PX;
-      // FIX: the entry anchor can sit close to the chart's right edge. Clamp
+      // the entry anchor can sit close to the chart's right edge. Clamp
       // the entire Auto Market block into the canvas so EXECUTE/CANCEL are
       // never cut off merely because the latest candle is near that edge.
       const preferredLeft = anchorX ?? wrap.clientWidth * 0.5;
-      const left = Math.max(
-        8,
-        Math.min(preferredLeft, Math.max(8, wrap.clientWidth - width - 8)),
-      );
+      const left = Math.max(8, Math.min(preferredLeft, Math.max(8, wrap.clientWidth - width - 8)));
 
       const nextCoordinates = {
         left,
@@ -137,7 +133,6 @@ export default function AutoMarketOverlay({
         lastCoordinatesRef.current = nextCoordinates;
         setCoordinates(nextCoordinates);
       }
-
     };
 
     return startPacedLoop(update);
@@ -195,7 +190,7 @@ export default function AutoMarketOverlay({
     const handleConfirmClick = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
-      // FIX: an Auto Market SL confirmation must not fall through to chart
+      // an Auto Market SL confirmation must not fall through to chart
       // drawings or controls at the same coordinates. Capture it before the
       // drawing canvas and consume it exclusively, matching the protection in
       // PositionBracketOverlay's regular TP/SL move flow.
@@ -242,22 +237,17 @@ export default function AutoMarketOverlay({
     (Math.abs(coordinates.marketPrice - draft.stopLoss) / coordinates.marketPrice) * 100;
   const chartHeight = chartWrapRef.current?.clientHeight ?? 0;
 
-  // FIX: keep one layout independent of zoom and place its action row on the
+  // keep one layout independent of zoom and place its action row on the
   // outside of the SL line (away from MARKET). If that side would leave the
   // canvas, flip the row to the other side rather than clipping/overlapping.
   const controlsOffset = 34;
   const preferredControlsTop =
-    draft.side === "BUY"
-      ? coordinates.stopY + controlsOffset
-      : coordinates.stopY - controlsOffset;
+    draft.side === "BUY" ? coordinates.stopY + controlsOffset : coordinates.stopY - controlsOffset;
   const alternateControlsTop =
-    draft.side === "BUY"
-      ? coordinates.stopY - controlsOffset
-      : coordinates.stopY + controlsOffset;
+    draft.side === "BUY" ? coordinates.stopY - controlsOffset : coordinates.stopY + controlsOffset;
   const rowHalfHeight = 15;
   const preferredFits =
-    preferredControlsTop >= rowHalfHeight &&
-    preferredControlsTop <= chartHeight - rowHalfHeight;
+    preferredControlsTop >= rowHalfHeight && preferredControlsTop <= chartHeight - rowHalfHeight;
   const controlsTop = Math.max(
     rowHalfHeight,
     Math.min(
@@ -265,7 +255,6 @@ export default function AutoMarketOverlay({
       chartHeight - rowHalfHeight,
     ),
   );
-
 
   return (
     <div className="auto-market-overlay" onDoubleClick={(event) => event.stopPropagation()}>
@@ -285,9 +274,7 @@ export default function AutoMarketOverlay({
 
       {coordinates.valid && (
         <div
-          className={`auto-market-stop-line stable ${
-            isPlacingStop ? "armed" : ""
-          }`}
+          className={`auto-market-stop-line stable ${isPlacingStop ? "armed" : ""}`}
           style={{ left: coordinates.left, top: coordinates.stopY, width: coordinates.width }}
           onPointerDown={beginDrag}
           title="Click, move the mouse, then click again to move the stop loss"
@@ -298,40 +285,40 @@ export default function AutoMarketOverlay({
       )}
 
       {coordinates.valid && (
-      <div
-        className="auto-market-controls stable"
-        style={{
-          left: coordinates.left,
-          top: controlsTop,
-          width: coordinates.width,
-        }}
-      >
-        <span className="auto-market-compact-summary">
-          AUTO {draft.side === "BUY" ? "LONG" : "SHORT"} {distancePct.toFixed(2)}%
-        </span>
-        <button
-          type="button"
-          className="auto-market-confirm"
-          disabled={isSubmitting || !coordinates.valid}
-          onClick={(event) => {
-            event.stopPropagation();
-            onSubmit();
+        <div
+          className="auto-market-controls stable"
+          style={{
+            left: coordinates.left,
+            top: controlsTop,
+            width: coordinates.width,
           }}
         >
-          {isSubmitting ? "WAIT…" : "EXECUTE"}
-        </button>
-        <button
-          type="button"
-          className="auto-market-cancel"
-          disabled={isSubmitting}
-          onClick={(event) => {
-            event.stopPropagation();
-            onCancel();
-          }}
-        >
-          CANCEL
-        </button>
-      </div>
+          <span className="auto-market-compact-summary">
+            AUTO {draft.side === "BUY" ? "LONG" : "SHORT"} {distancePct.toFixed(2)}%
+          </span>
+          <button
+            type="button"
+            className="auto-market-confirm"
+            disabled={isSubmitting || !coordinates.valid}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSubmit();
+            }}
+          >
+            {isSubmitting ? "WAIT…" : "EXECUTE"}
+          </button>
+          <button
+            type="button"
+            className="auto-market-cancel"
+            disabled={isSubmitting}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancel();
+            }}
+          >
+            CANCEL
+          </button>
+        </div>
       )}
 
       {!isPlacingStop && (
@@ -342,7 +329,9 @@ export default function AutoMarketOverlay({
 
       {!coordinates.valid && (
         <div className="auto-market-error">
-          {draft.side === "BUY" ? "LONG stop must be below market" : "SHORT stop must be above market"}
+          {draft.side === "BUY"
+            ? "LONG stop must be below market"
+            : "SHORT stop must be above market"}
         </div>
       )}
     </div>

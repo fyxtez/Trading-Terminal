@@ -1,7 +1,4 @@
-import {
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
 
 export type BackendSymbol = {
   symbol: string;
@@ -25,14 +22,12 @@ export type BackendIcon = {
 type ListSymbolsResponse = { symbols: BackendSymbol[] };
 type AddSymbolResponse = { created: boolean; symbol: BackendSymbol; icon: BackendIcon | null };
 type DeleteSymbolResponse = { deleted: boolean; symbol: BackendSymbol };
-type ListIconsResponse = { count: number; max: number; icons: BackendIcon[] };
+type ListIconsResponse = { count: number; icons: BackendIcon[] };
 
 function headers(json = false): HeadersInit {
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(TRADING_API_TOKEN
-      ? { Authorization: `Bearer ${TRADING_API_TOKEN}` }
-      : {}),
+    ...(TRADING_API_TOKEN ? { Authorization: `Bearer ${TRADING_API_TOKEN}` } : {}),
   };
 }
 
@@ -91,13 +86,8 @@ export async function listIcons(): Promise<ListIconsResponse> {
 
 /** Fetches protected icon bytes with a bearer header and returns a local blob
  * URL. The service capability therefore never appears in an image URL. */
-export async function fetchIconImageUrl(
-  symbol: string,
-  cachedAtMs?: number,
-): Promise<string> {
-  const url = new URL(
-    `${TRADING_API_BASE_URL}/api/icons/${encodeURIComponent(symbol)}/image`,
-  );
+export async function fetchIconImageUrl(symbol: string, cachedAtMs?: number): Promise<string> {
+  const url = new URL(`${TRADING_API_BASE_URL}/api/icons/${encodeURIComponent(symbol)}/image`);
   if (cachedAtMs !== undefined) {
     url.searchParams.set("v", String(cachedAtMs));
   }

@@ -6,6 +6,10 @@ sidecar, unexpected positions/orders, or possible API-key exposure. Binance is
 the authoritative source of truth. A notification failure by itself is not
 proof that a trade failed.
 
+[ADR 0008](adr/0008-authoritative-exchange-reconciliation.md) defines the normal
+automatic reconciliation contract. Use this procedure when that process cannot
+establish a safe, unambiguous final state.
+
 ## 1. Stabilize the situation
 
 1. Stop clicking trading controls. Do not retry an order whose result is

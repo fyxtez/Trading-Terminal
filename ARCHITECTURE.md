@@ -72,6 +72,8 @@ Lightweight Charts.
   loading, polling, and backfill.
 - `components/SettingsPanel/SettingsSummaryCards.tsx` owns the desktop
   connection summary and balance presentation.
+- `components/SettingsPanel/settingsSearch.ts` owns the pure settings
+  section/field search model independently of the drawer rendering.
 - `hooks/useOperationalDiagnostics.ts` combines protected backend diagnostics
   with frontend sidecar and market-feed state. Settings renders the snapshot;
   transient notification failures also produce a dismissible global warning.
@@ -79,6 +81,11 @@ Lightweight Charts.
   uncaught React render/lifecycle failures.
 - `components/PositionBracketOverlay/positionBracketModel.ts` owns persisted
   bracket anchors/zone extents and pure bracket calculations.
+- `components/PositionBracketOverlay/positionBracketPresentation.ts` derives
+  TP/SL zone visibility, R labels, preview geometry, and label-collision state.
+- `components/App/useAppPreferences.ts` owns chart-only preference defaults and
+  local persistence; `appPanelLayout.ts` and `orderPresentation.ts` isolate
+  panel sizing and order-display rules from the composition root.
 - `trading/api/` is the REST client layer.
 - `trading/` contains trading-domain types and calculations.
 - `utils/` contains chart geometry, persistence helpers, time/session logic, and
@@ -112,9 +119,10 @@ The backend is a Tokio application exposed through Axum.
   starts background workers, and handles graceful shutdown.
 - `runtime_config.rs` separates standalone `.env` development from the bounded
   stdin bootstrap used by the desktop sidecar.
-- `api.rs` composes REST/WebSocket routes, authentication, validation, and
-  trading workflows. Alert handlers and symbol/icon/market-data handlers live in
-  focused `api/` route modules while preserving the same public URLs.
+- `api.rs` composes routes and the remaining multi-step trading workflows.
+  Account read models, regular-order CRUD, WebSocket/runtime middleware, alerts,
+  and symbol/icon/market-data handlers live in focused `api/` route modules
+  while preserving the same public URLs.
 - `binance.rs` signs and sends Binance REST requests and caches exchange metadata.
 - `binance_stream/` maintains the Binance user-data stream.
 - `account_state.rs` and `position_risk_state.rs` maintain shared snapshots.
@@ -123,6 +131,8 @@ The backend is a Tokio application exposed through Axum.
   counters exposed through the authenticated diagnostics endpoint.
 - `alerts.rs` stores and evaluates persistent price alerts.
 - `symbol_registry.rs` owns registered symbols and their market-data source.
+  The single-user local registry has no arbitrary symbol-count ceiling; icon
+  resolution is best-effort and cannot reject an otherwise valid symbol.
 - `sizing_store.rs` persists sizing policy.
 - `icons.rs` resolves and caches symbol imagery.
 
@@ -161,11 +171,18 @@ HTTP trading workflows and are aborted during graceful shutdown.
 4. Account-mutating flows acquire `TradeLock`; exposure-increasing flows also
    enforce isolated margin.
 5. The backend applies exchange filters/sizing and signs the Binance request.
-6. Binance user-data events update backend snapshots and are broadcast to the UI.
-7. The frontend reconciles optimistic UI state with authoritative events.
+6. Binance user-data events provide low-latency updates and trigger REST snapshot
+   refreshes in the backend and frontend.
+7. Fresh Binance REST state replaces backend caches and frontend optimistic
+   projections after success, failure, reconnect, stream lag, or uncertainty.
 
 Close and reduction paths use `reduceOnly` where appropriate. These invariants
 are financially critical and need automated coverage before live deployment.
+Timeouts and interrupted mutations have an unknown outcome and are never treated
+as proof that Binance rejected the action. Multi-step workflows are locally
+serialized but are not exchange transactions; their recovery and authority
+rules are defined in
+[ADR 0008](docs/adr/0008-authoritative-exchange-reconciliation.md).
 
 ### Persistent alerts
 
@@ -217,6 +234,11 @@ Tauri gives the runtime information to the WebView through an IPC command.
 The desktop frontend build also shadows local `VITE_TRADING_*` variables with
 empty values, preventing an ignored developer `.env` from leaking its browser
 development capability into release assets.
+
+Frontend quality gates are exposed through `npm run lint`, `npm run format:check`,
+`npm run test:ci`, and the aggregate `npm run check`. Prettier owns TS/TSX/CSS
+layout; TypeScript, the CSS syntax guard, and the comment-invariant guard reject
+invalid code, unbalanced CSS, and historical `FIX`/`FEATURE` labels in source.
 
 Most API routes require `Authorization: Bearer <capability>`. WebSocket clients
 exchange that bearer value for a 30-second, one-use ticket; protected icon bytes

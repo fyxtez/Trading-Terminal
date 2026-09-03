@@ -2,7 +2,7 @@
   left: 62px;
   bottom: 18px;
   z-index: 11000;
-  /* FIX: group-selection shortcuts include mouse gestures as well as keys;
+  /* group-selection shortcuts include mouse gestures as well as keys;
    * the old 320px panel forced their descriptions into cramped line breaks. */
   width: 390px;
   padding: 14px;
@@ -38,21 +38,21 @@
   color: var(--text-dim);
   font-size: 13.5px;
 }
-/* FEATURE: the close-tab shortcut has three keys, so it needs two extra
+/* the close-tab shortcut has three keys, so it needs two extra
  * grid tracks while retaining the same alignment as the two-key rows.
  */
 .hotkeys-list > div.hotkeys-triple {
   grid-template-columns: auto 12px auto 12px auto 1fr;
 }
 
-/* FEATURE: keep the new group-selection block visually consistent with the
+/* keep the new group-selection block visually consistent with the
  * ordinary two-key rows while giving its concise descriptions enough room. */
 .hotkeys-list > div.hotkeys-group-row {
   grid-template-columns: auto 12px auto minmax(130px, 1fr);
 }
 
 .hotkeys-list > div.hotkeys-gesture-row {
-  /* FIX: 154px plus the keycap's horizontal padding was not enough for the
+  /* 154px plus the keycap's horizontal padding was not enough for the
    * full gesture, so the final Click wrapped onto a second line. Reserve the
    * actual rendered width and keep the description in its own flexible track. */
   grid-template-columns: 174px minmax(0, 1fr);

@@ -6,17 +6,13 @@
  *
  * Background tabs are heavily throttled to avoid wasting GPU/CPU.
  */
-export function startPacedLoop(
-  callback: () => void,
-  framesPerSecond = 0,
-): () => void {
+export function startPacedLoop(callback: () => void, framesPerSecond = 0): () => void {
   let frameId: number | null = null;
   let timeoutId: number | null = null;
   let stopped = false;
   let previousTime = 0;
 
-  const minFrameTime =
-    framesPerSecond > 0 ? 1000 / framesPerSecond : 0;
+  const minFrameTime = framesPerSecond > 0 ? 1000 / framesPerSecond : 0;
 
   const schedule = () => {
     if (stopped) return;
@@ -38,11 +34,7 @@ export function startPacedLoop(
   const tick = (time: number) => {
     if (stopped) return;
 
-    if (
-      minFrameTime === 0 ||
-      previousTime === 0 ||
-      time - previousTime >= minFrameTime
-    ) {
+    if (minFrameTime === 0 || previousTime === 0 || time - previousTime >= minFrameTime) {
       previousTime = time;
       callback();
     }

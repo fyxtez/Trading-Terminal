@@ -55,16 +55,10 @@ function formatRemaining(totalSeconds: number): string {
  * the month-12-into-next-year overflow (and leap years) correctly on its
  * own, so this needs no special-casing for December.
  */
-function getCloseTimeSeconds(
-  openTimeSeconds: number,
-  interval: Interval,
-): number {
+function getCloseTimeSeconds(openTimeSeconds: number, interval: Interval): number {
   if (interval === "1M") {
     const date = new Date(openTimeSeconds * 1000);
-    return (
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1, 0, 0, 0, 0) /
-      1000
-    );
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1, 0, 0, 0, 0) / 1000;
   }
 
   return openTimeSeconds + intervalSeconds[interval];
@@ -123,9 +117,7 @@ export function useCandleCountdown(
       const label =
         openTime === null
           ? null
-          : formatRemaining(
-              getCloseTimeSeconds(Number(openTime), interval) - nowSeconds,
-            );
+          : formatRemaining(getCloseTimeSeconds(Number(openTime), interval) - nowSeconds);
 
       const allLabels = {} as Record<Interval, string>;
 
@@ -135,9 +127,7 @@ export function useCandleCountdown(
           continue;
         }
 
-        const alignedOpen = Number(
-          alignTimeToInterval(nowSeconds as UTCTimestamp, candidate),
-        );
+        const alignedOpen = Number(alignTimeToInterval(nowSeconds as UTCTimestamp, candidate));
         allLabels[candidate] = formatRemaining(
           getCloseTimeSeconds(alignedOpen, candidate) - nowSeconds,
         );

@@ -104,7 +104,7 @@ impl AlertStore {
         .await
         .map_err(db_error)?;
 
-        // FEATURE: migrate existing alert databases in place. CREATE TABLE IF
+        // migrate existing alert databases in place. CREATE TABLE IF
         // NOT EXISTS cannot add the new optional note column to old installs.
         let columns = sqlx::query("PRAGMA table_info(price_alerts)")
             .fetch_all(&pool)
@@ -501,7 +501,7 @@ async fn send_notifications(
         }
     };
 
-    // FEATURE: derive the same base-ticker route used by the frontend so both
+    // derive the same base-ticker route used by the frontend so both
     // persistent and browser-owned alerts deep-link to one consistent chart.
     let public_terminal_url = std::env::var("PUBLIC_TERMINAL_URL")
         .unwrap_or_else(|_| DEFAULT_PUBLIC_TERMINAL_URL.to_owned());
@@ -537,7 +537,7 @@ async fn send_notifications(
         .filter(|value| !value.is_empty() && *value != "none")
         .map(|value| format!("{} ", value.to_uppercase()))
         .unwrap_or_default();
-    // FEATURE: omit the noisy trigger-market price, append optional user
+    // omit the noisy trigger-market price, append optional user
     // context, then show the chart URL as a visible/copyable final line.
     let mut body = format!(
         "{}{side} alert reached {price:.4}",
@@ -615,7 +615,7 @@ async fn send_notifications(
         .post(url.as_str())
         .header("Title", title)
         .header("Tags", "chart_with_upwards_trend")
-        // FEATURE: ntfy's Click header makes the entire notification actionable
+        // ntfy's Click header makes the entire notification actionable
         // instead of requiring the user to tap the visible URL in the body.
         .header("Click", &chart_url)
         .body(body)
@@ -654,6 +654,8 @@ fn report_notification_failure(
 ) {
     diagnostics.notification_failure(channel, message);
     let _ = trading_events.send(TradingEvent::NotificationFailed {
+        alert_id: alert.id.to_string(),
+        symbol: alert.symbol.clone(),
         channel: channel.into(),
         context: format!("{} price alert", alert.symbol),
         message: message.into(),
@@ -704,7 +706,7 @@ fn normalize_pattern(value: Option<String>) -> Option<String> {
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
 }
-// FEATURE: trim notes, store blank input as NULL, and bound notification text
+// trim notes, store blank input as NULL, and bound notification text
 // so a frontend or direct API client cannot persist an unreasonably large body.
 fn normalize_additional_info(value: Option<String>) -> AppResult<Option<String>> {
     let normalized = value.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty());

@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
-import {
-  DEFAULT_LINE_COLOR,
-  intervalSeconds,
-} from "../config/constants";
+import { DEFAULT_LINE_COLOR, intervalSeconds } from "../config/constants";
 import type { Drawing } from "../types/drawing";
 import { cloneDrawing } from "../utils/drawings";
 import type { ChartRefs } from "./useChartRefs";
@@ -43,8 +40,7 @@ function offsetDrawing(drawing: Drawing, refs: ChartRefs): Drawing {
   const timeOffset = intervalSeconds[refs.intervalRef.current];
   const series = refs.candleRef.current;
 
-  const offsetTime = (time: UTCTimestamp) =>
-    (Number(time) + timeOffset) as UTCTimestamp;
+  const offsetTime = (time: UTCTimestamp) => (Number(time) + timeOffset) as UTCTimestamp;
 
   const offsetPrice = (price: number) => {
     if (!series) return price;
@@ -53,9 +49,7 @@ function offsetDrawing(drawing: Drawing, refs: ChartRefs): Drawing {
     if (y === null) return price;
 
     const nextPrice = series.coordinateToPrice(y + PASTE_OFFSET_PX);
-    return nextPrice !== null && Number.isFinite(nextPrice) && nextPrice > 0
-      ? nextPrice
-      : price;
+    return nextPrice !== null && Number.isFinite(nextPrice) && nextPrice > 0 ? nextPrice : price;
   };
 
   const id = crypto.randomUUID();
@@ -131,8 +125,7 @@ function defaultTextEnd(
   const defaultBoxHeightPx = 42;
 
   const fallback = {
-    time: (Number(start.time) +
-      intervalSeconds[refs.intervalRef.current] * 10) as UTCTimestamp,
+    time: (Number(start.time) + intervalSeconds[refs.intervalRef.current] * 10) as UTCTimestamp,
     price: start.price * 0.98,
   };
 
@@ -145,10 +138,11 @@ function defaultTextEnd(
 
   const endTime =
     startX !== null
-      ? (chart.timeScale().coordinateToTime((startX + defaultBoxWidthPx) as never) as UTCTimestamp | null)
+      ? (chart
+          .timeScale()
+          .coordinateToTime((startX + defaultBoxWidthPx) as never) as UTCTimestamp | null)
       : null;
-  const endPrice =
-    startY !== null ? series.coordinateToPrice(startY + defaultBoxHeightPx) : null;
+  const endPrice = startY !== null ? series.coordinateToPrice(startY + defaultBoxHeightPx) : null;
 
   return {
     time: endTime ?? fallback.time,
@@ -171,9 +165,7 @@ export function useHotkeys(
   const copiedDrawingRef = useRef<Drawing | null>(null);
 
   /*
-   * FIX (delete/undo/redo/ALT+H/ALT+V all badly broken - deleting or
-   * undoing anything wiped every drawing, ALT+H/ALT+V silently did
-   * nothing): the keydown listener below is registered by a
+   * the keydown listener below is registered by a
    * mount-once (`useEffect(..., [])`) effect - the exact same pattern
    * already found and fixed twice elsewhere this session (the drawing
    * canvas's price-precision label, both times the culprit was a
@@ -231,7 +223,7 @@ export function useHotkeys(
         !event.shiftKey &&
         event.code === "KeyW"
       ) {
-        // FEATURE: Chromium reserves Ctrl+W for the browser itself, so Alt+W is
+        // Chromium reserves Ctrl+W for the browser itself, so Alt+W is
         // the reliable in-app equivalent. Consume it only when another symbol
         // tab exists; the final chart tab keeps the existing invariant that the
         // workspace always has at least one active symbol.
@@ -247,9 +239,7 @@ export function useHotkeys(
         const selectedId = refs.selectedIdRef.current;
         if (!selectedId) return;
 
-        const selected = refs.drawingsRef.current.find(
-          (drawing) => drawing.id === selectedId,
-        );
+        const selected = refs.drawingsRef.current.find((drawing) => drawing.id === selectedId);
 
         // Binance order lines are operational UI, not copyable drawings.
         if (!selected || isOrderDrawing(selected)) return;
@@ -346,9 +336,7 @@ export function useHotkeys(
         // chart tabs, wrapping at either end.
         event.preventDefault();
         event.stopPropagation();
-        chartTabsApi.activateAdjacentTab(
-          event.code === "ArrowLeft" ? "previous" : "next",
-        );
+        chartTabsApi.activateAdjacentTab(event.code === "ArrowLeft" ? "previous" : "next");
         return;
       }
 
@@ -359,16 +347,14 @@ export function useHotkeys(
         !event.shiftKey &&
         event.code === "KeyG"
       ) {
-        // FEATURE: Alt+G toggles a persistent canvas-level multi-selection
+        // Alt+G toggles a persistent canvas-level multi-selection
         // mode. Membership lives in refs so the paced renderer and pointer
         // handlers observe it immediately; normal single selection is cleared
         // to avoid two competing selection models being active at once.
         event.preventDefault();
         event.stopPropagation();
         if (event.repeat) return;
-        drawingsApi.setTool(
-          refs.toolRef.current === "group-select" ? "cursor" : "group-select",
-        );
+        drawingsApi.setTool(refs.toolRef.current === "group-select" ? "cursor" : "group-select");
         drawingsApi.setSelectedId(null);
         drawingsApi.setContextMenu(null);
         return;
@@ -451,9 +437,7 @@ export function useHotkeys(
 
       if (event.altKey && event.code === "KeyR") {
         event.preventDefault();
-        drawingsApi.setTool(
-          refs.toolRef.current === "ruler" ? "cursor" : "ruler",
-        );
+        drawingsApi.setTool(refs.toolRef.current === "ruler" ? "cursor" : "ruler");
         return;
       }
 
@@ -471,7 +455,7 @@ export function useHotkeys(
         drawingsApi.setContextMenu(null);
         tradeMenuApi.setTradeMenu(null);
 
-        // FEATURE: Escape outside an active group move exits Alt+G mode and
+        // Escape outside an active group move exits Alt+G mode and
         // clears its visual selection, restoring ordinary drawing behavior.
         refs.groupSelectionModeRef.current = false;
         refs.groupSelectedIdsRef.current.clear();
@@ -482,7 +466,7 @@ export function useHotkeys(
         refs.groupSelectionModeRef.current &&
         refs.groupSelectedIdsRef.current.size > 0
       ) {
-        // FEATURE: group deletion removes only user drawings (never Binance
+        // group deletion removes only user drawings (never Binance
         // order lines) and records each removal in the existing history stack.
         event.preventDefault();
         event.stopPropagation();

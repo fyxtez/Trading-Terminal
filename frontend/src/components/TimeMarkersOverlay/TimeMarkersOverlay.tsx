@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
-import {
-  getDailyTimeMarkers,
-  type TimeMarkerLine,
-} from "../../utils/timeMarkers";
+import { getDailyTimeMarkers, type TimeMarkerLine } from "../../utils/timeMarkers";
 import { localDayKey } from "../../utils/sessions";
 import { startPacedLoop } from "../../utils/pacedLoop";
 import "./TimeMarkersOverlay.css";
@@ -114,7 +111,6 @@ export default function TimeMarkersOverlay({
       setPaneHeight((current) =>
         Math.abs(current - paneSize.height) <= 0.25 ? current : paneSize.height,
       );
-
     };
 
     return startPacedLoop(update);

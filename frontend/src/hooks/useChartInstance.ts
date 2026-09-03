@@ -53,14 +53,12 @@ export function useChartInstance(
 
         textColor: "#aab2c5",
         attributionLogo: false,
-        fontFamily:
-          "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+        fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
       },
 
       localization: {
         locale: "en-GB",
-        timeFormatter: (time: Time) =>
-          localDateTimeFormatter.format(timeToDate(time)),
+        timeFormatter: (time: Time) => localDateTimeFormatter.format(timeToDate(time)),
       },
 
       grid: {
@@ -126,7 +124,7 @@ export function useChartInstance(
         tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
           const date = timeToDate(time);
 
-          // FIX: respect Lightweight Charts' tick granularity. Previously all
+          // respect Lightweight Charts' tick granularity. Previously all
           // intraday timeframes forced HH:mm, so daily/monthly separators in
           // future space repeated the same time and never showed their date.
           if (tickMarkType === TickMarkType.Year) {
@@ -193,7 +191,7 @@ export function useChartInstance(
        * and vertical grid lines are generated consistently, while all
        * visible series elements remain disabled.
        *
-       * FIX: this used to live on a separate hidden overlay price scale
+       * this used to live on a separate hidden overlay price scale
        * (`priceScaleId: ""`). Once the user panned far enough that no real
        * candle remained visible, the main right scale had zero visible data
        * and Lightweight Charts removed its labels/coordinate mapping - which
@@ -204,7 +202,7 @@ export function useChartInstance(
       priceScaleId: "right",
       visible: true,
       /*
-       * FIX: keep the anchor as a rendered (but fully transparent) line.
+       * keep the anchor as a rendered (but fully transparent) line.
        * `lineVisible: false` lets Lightweight Charts exclude the series from
        * right-scale calculations when all candles leave the viewport, which
        * removes the axis labels and every price-coordinate overlay again.
@@ -319,7 +317,7 @@ export function useChartInstance(
     const handlePriceScaleWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
 
-      // FIX: Consume Ctrl+wheel immediately anywhere inside chart-wrap. If the
+      // Consume Ctrl+wheel immediately anywhere inside chart-wrap. If the
       // series is temporarily unavailable, letting the event continue would
       // zoom the entire browser tab even though the pointer is still on chart.
       event.preventDefault();
@@ -336,10 +334,7 @@ export function useChartInstance(
       if (!visibleRange) return;
 
       const rect = container.getBoundingClientRect();
-      const localY = Math.min(
-        container.clientHeight,
-        Math.max(0, event.clientY - rect.top),
-      );
+      const localY = Math.min(container.clientHeight, Math.max(0, event.clientY - rect.top));
       const anchorPrice = series.coordinateToPrice(localY);
 
       const currentSpan = visibleRange.to - visibleRange.from;
@@ -347,9 +342,7 @@ export function useChartInstance(
 
       // Positive deltaY zooms out; negative deltaY zooms in. Clamp each
       // wheel step so trackpads and high-resolution wheels stay controlled.
-      const zoomFactor = Math.exp(
-        Math.max(-0.35, Math.min(0.35, event.deltaY * 0.0015)),
-      );
+      const zoomFactor = Math.exp(Math.max(-0.35, Math.min(0.35, event.deltaY * 0.0015)));
       const nextSpan = currentSpan * zoomFactor;
 
       // Avoid collapsing the range to zero or exploding it accidentally.
@@ -379,7 +372,7 @@ export function useChartInstance(
     };
 
     /*
-     * FIX: Drawing/position/alert overlays are siblings layered above the
+     * Drawing/position/alert overlays are siblings layered above the
      * inner Lightweight Charts container. A listener on that inner element
      * never receives wheel events whose target is one of those overlays, so
      * Ctrl+wheel fell through to browser page zoom specifically over drawings.

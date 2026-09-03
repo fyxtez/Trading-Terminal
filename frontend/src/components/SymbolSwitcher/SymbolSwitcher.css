@@ -43,7 +43,9 @@
 .symbol-switcher-caret {
   font-size: 10px;
   color: var(--text-faint);
-  transition: transform 120ms ease, color 120ms ease;
+  transition:
+    transform 120ms ease,
+    color 120ms ease;
 }
 
 .symbol-switcher-trigger.open .symbol-switcher-symbol-icon {
@@ -90,14 +92,16 @@
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: background 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    border-color 100ms ease;
 }
 
 .symbol-switcher-option:hover {
   background: var(--bg-hover);
 }
 
-/* FEATURE: arrow-key navigation needs a persistent visual target even while
+/* arrow-key navigation needs a persistent visual target even while
  * the pointer remains elsewhere in the menu. */
 .symbol-switcher-option.keyboard-highlighted {
   border-color: rgba(245, 166, 35, 0.55);
@@ -265,7 +269,9 @@
   background: transparent;
   color: var(--text-faint);
   cursor: pointer;
-  transition: color 100ms ease, background 100ms ease;
+  transition:
+    color 100ms ease,
+    background 100ms ease;
 }
 
 .symbol-pin-button:hover:not(.locked) {
@@ -324,7 +330,7 @@
   color: var(--amber);
 }
 
-/* FEATURE: category headings provide the requested visual delimiter while the
+/* category headings provide the requested visual delimiter while the
    flexible rule remains readable at any selector width. */
 .symbol-category-group {
   display: flex;
@@ -411,7 +417,9 @@
   font-size: 17px;
   font-weight: 400;
   line-height: 1;
-  transition: color 100ms ease, background 100ms ease;
+  transition:
+    color 100ms ease,
+    background 100ms ease;
 }
 
 .symbol-delete-button span {
@@ -510,5 +518,4 @@
     grid-template-columns: 92px minmax(0, 1fr);
     column-gap: 8px;
   }
-
 }

@@ -11,7 +11,7 @@ function loadSavedTabs(activeSymbol: TradingSymbol): TradingSymbol[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [activeSymbol];
 
-    // FIX: this used to validate each entry with isTradingSymbol(), which
+    // this used to validate each entry with isTradingSymbol(), which
     // checks against the live symbol registry - but that registry is
     // still just the static built-in list at this exact point (this runs
     // synchronously as the useState initializer, before useSymbol()'s
@@ -52,9 +52,7 @@ export function useChartTabs(
   onActivateSymbol: (symbol: TradingSymbol) => void,
   availableSymbols: readonly TradingSymbol[],
 ) {
-  const [tabs, setTabs] = useState<TradingSymbol[]>(() =>
-    loadSavedTabs(activeSymbol),
-  );
+  const [tabs, setTabs] = useState<TradingSymbol[]>(() => loadSavedTabs(activeSymbol));
 
   useEffect(() => {
     setTabs((current) => {
@@ -113,7 +111,7 @@ export function useChartTabs(
 
       let next = tabs.filter((candidate) => candidate !== symbol);
 
-      // FIX: a single open tab used to be impossible to close even when many
+      // a single open tab used to be impossible to close even when many
       // other backend-tracked symbols were available. Keep the one-chart
       // workspace invariant by replacing that final tab with another tracked
       // symbol; this is a UI-only close and does not delete backend tracking.
@@ -134,7 +132,7 @@ export function useChartTabs(
     [activeSymbol, availableSymbols, onActivateSymbol, tabs],
   );
 
-  // FEATURE: expose a no-argument active-tab close action for keyboard
+  // expose a no-argument active-tab close action for keyboard
   // shortcuts. Delegating to closeTab keeps persistence and adjacent/fallback
   // selection identical to clicking the tab's close button.
   const closeActiveTab = useCallback(() => {
@@ -148,7 +146,7 @@ export function useChartTabs(
 
       let next = tabs.filter((candidate) => candidate !== symbol);
 
-      // FEATURE: deleting a backend-tracked symbol is stronger than merely
+      // deleting a backend-tracked symbol is stronger than merely
       // closing a chart tab. If it was the final tab, replace it with another
       // registered symbol so the chart-tabs invariant (at least one open tab)
       // survives even though the deleted symbol itself must disappear.
@@ -183,24 +181,21 @@ export function useChartTabs(
     [activeSymbol, onActivateSymbol],
   );
 
-  const reorderTab = useCallback(
-    (draggedSymbol: TradingSymbol, targetSymbol: TradingSymbol) => {
-      if (draggedSymbol === targetSymbol) return;
+  const reorderTab = useCallback((draggedSymbol: TradingSymbol, targetSymbol: TradingSymbol) => {
+    if (draggedSymbol === targetSymbol) return;
 
-      setTabs((current) => {
-        const fromIndex = current.indexOf(draggedSymbol);
-        const toIndex = current.indexOf(targetSymbol);
-        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return current;
+    setTabs((current) => {
+      const fromIndex = current.indexOf(draggedSymbol);
+      const toIndex = current.indexOf(targetSymbol);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return current;
 
-        const next = [...current];
-        next.splice(fromIndex, 1);
-        next.splice(toIndex, 0, draggedSymbol);
-        persistTabs(next);
-        return next;
-      });
-    },
-    [],
-  );
+      const next = [...current];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, draggedSymbol);
+      persistTabs(next);
+      return next;
+    });
+  }, []);
 
   const closedSymbols = useMemo(
     () => availableSymbols.filter((symbol) => !tabs.includes(symbol)),

@@ -28,9 +28,19 @@
   letter-spacing: 1.3px;
 }
 
-.app-error-boundary h1 { margin: 12px 0; font-size: clamp(28px, 5vw, 48px); }
-.app-error-boundary p { color: var(--text-dim); line-height: 1.6; }
-.app-error-boundary code { display: block; margin: 20px 0; color: var(--red); }
+.app-error-boundary h1 {
+  margin: 12px 0;
+  font-size: clamp(28px, 5vw, 48px);
+}
+.app-error-boundary p {
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.app-error-boundary code {
+  display: block;
+  margin: 20px 0;
+  color: var(--red);
+}
 .app-error-boundary button {
   min-height: 42px;
   padding: 0 18px;

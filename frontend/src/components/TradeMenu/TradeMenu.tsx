@@ -82,8 +82,9 @@ const balanceFormatter = new Intl.NumberFormat("en-US", {
 });
 
 export default function TradeMenu(props: TradeMenuProps) {
-  const [selectedOrderType, setSelectedOrderType] =
-    useState<TradeOrderType | "AUTO_MARKET" | null>(null);
+  const [selectedOrderType, setSelectedOrderType] = useState<TradeOrderType | "AUTO_MARKET" | null>(
+    null,
+  );
 
   // Which position-management submenu is open (ADD / REDUCE), or null for
   // the top-level ADD | REDUCE | MARKET REVERSE menu. See the positionSide
@@ -148,22 +149,15 @@ export default function TradeMenu(props: TradeMenuProps) {
   const isTradingStateReady = !isLoadingPosition;
   const noPosition = isTradingStateReady && positionSide === null;
   /*
-   * FIX (confusing min_notional/"already reserved" errors when reducing):
-   * see reservedReduceQuantity's own comment in useTradeMenu.ts. The
+   * * see reservedReduceQuantity's own comment in useTradeMenu.ts. The
    * slider needs to work against what's actually still reducible - the
    * raw position size minus whatever other reduce-only orders already
    * claim - not the full position, or dragging to e.g. 50% could ask
    * for far more than the backend will actually have room for.
    */
-  const availableToReduceQuantity = Math.max(
-    0,
-    positionQuantity - reservedReduceQuantity,
-  );
+  const availableToReduceQuantity = Math.max(0, positionQuantity - reservedReduceQuantity);
   const reducedQuantity = availableToReduceQuantity * (reducePct / 100);
-  const remainingQuantity = Math.max(
-    0,
-    availableToReduceQuantity - reducedQuantity,
-  );
+  const remainingQuantity = Math.max(0, availableToReduceQuantity - reducedQuantity);
   const quantityFormatter = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 8,
@@ -180,11 +174,7 @@ export default function TradeMenu(props: TradeMenuProps) {
         <div className="trade-menu-heading">
           <div
             className={`trade-position-badge ${
-              isLoadingPosition
-                ? "loading"
-                : positionSide
-                  ? positionSide.toLowerCase()
-                  : "flat"
+              isLoadingPosition ? "loading" : positionSide ? positionSide.toLowerCase() : "flat"
             }`}
           >
             <span className="trade-position-dot" />
@@ -195,7 +185,9 @@ export default function TradeMenu(props: TradeMenuProps) {
                 : "NO OPEN POSITION"}
           </div>
         </div>
-        <button className="trade-menu-close" disabled={isSubmittingTrade} onClick={onClose}>×</button>
+        <button className="trade-menu-close" disabled={isSubmittingTrade} onClick={onClose}>
+          ×
+        </button>
       </div>
 
       <div className={`trade-balance ${balanceError ? "trade-balance-error" : ""}`}>
@@ -267,9 +259,7 @@ export default function TradeMenu(props: TradeMenuProps) {
               </div>
 
               {(isUpdatingLeverage || leverageError) && (
-                <div
-                  className={`trade-leverage-status ${leverageError ? "error" : ""}`}
-                >
+                <div className={`trade-leverage-status ${leverageError ? "error" : ""}`}>
                   {isUpdatingLeverage ? "Updating leverage…" : leverageError}
                 </div>
               )}
@@ -308,7 +298,7 @@ export default function TradeMenu(props: TradeMenuProps) {
                 <span className="trade-order-type-icon">AUTO</span>
                 <strong>AUTO MARKET</strong>
                 <small>
-                  {/* FIX: this used to claim 1% even when AUTO MARKET used the
+                  {/* this used to claim 1% even when AUTO MARKET used the
                       persisted backend setting (for example 2%). */}
                   {marginPct === null
                     ? "Configured margin"
@@ -322,7 +312,11 @@ export default function TradeMenu(props: TradeMenuProps) {
           <section className="trade-step">
             <div className="trade-direction-header">
               <div className="trade-step-copy compact">
-                <strong>{selectedOrderType === "AUTO_MARKET" ? "AUTO MARKET" : `${selectedOrderType} ORDER`}</strong>
+                <strong>
+                  {selectedOrderType === "AUTO_MARKET"
+                    ? "AUTO MARKET"
+                    : `${selectedOrderType} ORDER`}
+                </strong>
                 <span>
                   {selectedOrderType === "LIMIT"
                     ? `Selected price · ${tradeMenu.selectedPrice.toFixed(pricePrecision)} · ${leverage}× leverage`
@@ -429,9 +423,7 @@ export default function TradeMenu(props: TradeMenuProps) {
               <div className="trade-position-breakdown">
                 <div>
                   <span>
-                    {reservedReduceQuantity > 0
-                      ? "Available to reduce"
-                      : "Current position"}
+                    {reservedReduceQuantity > 0 ? "Available to reduce" : "Current position"}
                   </span>
                   <strong>
                     {quantityFormatter.format(availableToReduceQuantity)} {baseAssetLabel}
@@ -445,15 +437,17 @@ export default function TradeMenu(props: TradeMenuProps) {
                 </div>
                 <div>
                   <span>Remaining</span>
-                  <strong>{quantityFormatter.format(remainingQuantity)} {baseAssetLabel}</strong>
+                  <strong>
+                    {quantityFormatter.format(remainingQuantity)} {baseAssetLabel}
+                  </strong>
                 </div>
               </div>
 
               {reservedReduceQuantity > 0 && (
                 <p className="trade-reduce-reserved-note">
                   {quantityFormatter.format(reservedReduceQuantity)} {baseAssetLabel} of your{" "}
-                  {quantityFormatter.format(positionQuantity)} {baseAssetLabel} position is
-                  already reserved by other reduce orders (TP/SL/existing reduces).
+                  {quantityFormatter.format(positionQuantity)} {baseAssetLabel} position is already
+                  reserved by other reduce orders (TP/SL/existing reduces).
                 </p>
               )}
 
@@ -467,7 +461,11 @@ export default function TradeMenu(props: TradeMenuProps) {
                 disabled={isTradingDisabled}
                 onChange={(event) => onReducePctChange(Number(event.target.value))}
               />
-              <div className="trade-slider-labels"><span>1%</span><span>50%</span><span>100%</span></div>
+              <div className="trade-slider-labels">
+                <span>1%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
               <div className="trade-reduce-actions">
                 <button
                   className="trade-action trade-reduce-button trade-limit-reduce"
@@ -521,13 +519,13 @@ export default function TradeMenu(props: TradeMenuProps) {
             </div>
 
             {/*
-              * TEMPORARILY DISABLED: unconditionally disabled (not just
-              * while submitting or disconnected) pending some known issues
-              * being fixed later. Left visible rather than removed so it's
-              * clear this is a deliberate, temporary state rather than a
-              * missing feature - remove the `disabled` override and title
-              * once those issues are resolved.
-              */}
+             * TEMPORARILY DISABLED: unconditionally disabled (not just
+             * while submitting or disconnected) pending some known issues
+             * being fixed later. Left visible rather than removed so it's
+             * clear this is a deliberate, temporary state rather than a
+             * missing feature - remove the `disabled` override and title
+             * once those issues are resolved.
+             */}
             <button
               className="trade-action trade-reverse-market"
               disabled

@@ -14,7 +14,7 @@
  * against the exact same storage key and shape instead of two copies
  * quietly drifting apart.
  *
- * FIX: `symbol` used to default to DEFAULT_SYMBOL ("BTCUSDT") when a
+ * `symbol` used to default to DEFAULT_SYMBOL ("BTCUSDT") when a
  * caller forgot to pass it explicitly. That silent fallback is exactly
  * what let PositionBracketOverlay's `saveStop(null)` call (clearing the
  * stop on position close) quietly clear/act on the WRONG symbol's saved

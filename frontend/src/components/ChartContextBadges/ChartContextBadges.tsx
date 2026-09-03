@@ -30,22 +30,12 @@ export default function ChartContextBadges({
   );
   // ISO weekday number: Monday = 1 ... Sunday = 7
   const isoWeekdayNumber = useMemo(() => {
-    const isoOrder = [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ];
+    const isoOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const index = isoOrder.indexOf(currentDayName);
     return index === -1 ? undefined : index + 1;
   }, [currentDayName]);
   const currentDayLabel =
-    isoWeekdayNumber !== undefined
-      ? `${currentDayName} (${isoWeekdayNumber})`
-      : currentDayName;
+    isoWeekdayNumber !== undefined ? `${currentDayName} (${isoWeekdayNumber})` : currentDayName;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setDayRefreshTick((tick) => tick + 1), 60_000);
@@ -95,9 +85,9 @@ export default function ChartContextBadges({
 
   return (
     <div className="chart-context-badges">
-<div className="current-day-badge" title={`Current day: ${currentDayLabel}`}>
-  {currentDayLabel}
-</div>
+      <div className="current-day-badge" title={`Current day: ${currentDayLabel}`}>
+        {currentDayLabel}
+      </div>
 
       {showDrawingSetBadge && (
         <div className="drawing-set-badge-wrap">
@@ -148,12 +138,13 @@ export default function ChartContextBadges({
                 Save
               </button>
               {drawingSetSaveError && <span>{drawingSetSaveError}</span>}
-              {!canSaveDrawingSet && !drawingSetSaveError && <span>Add at least one drawing first.</span>}
+              {!canSaveDrawingSet && !drawingSetSaveError && (
+                <span>Add at least one drawing first.</span>
+              )}
             </form>
           )}
         </div>
       )}
-
     </div>
   );
 }

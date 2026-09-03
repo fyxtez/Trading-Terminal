@@ -76,7 +76,7 @@ export function useChartRefs() {
   } | null>(null);
 
   const selectedIdRef = useRef<string | null>(null);
-  // FEATURE: Alt+G group selection is intentionally ref-backed because the
+  // Alt+G group selection is intentionally ref-backed because the
   // canvas render/hit-test loops are long-lived and must see membership
   // changes immediately without relying on a React render closure.
   const groupSelectionModeRef = useRef(false);
@@ -94,7 +94,7 @@ export function useChartRefs() {
    * whichever TP/SL zones currently exist together, since a position
    * (unlike an order) has no single Binance orderId to match against.
    *
-   * FIX: highlightedPositionUntilRef alone used to be the ONLY signal
+   * highlightedPositionUntilRef alone used to be the ONLY signal
    * PositionBracketOverlay checked - a bare timestamp with no idea WHICH
    * position it referred to. Since the Open Orders/Positions panel is
    * now account-wide (can show positions across several symbols at

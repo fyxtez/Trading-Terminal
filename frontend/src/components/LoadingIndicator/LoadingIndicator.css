@@ -71,12 +71,7 @@
 
 .loading-indicator--panel .loading-indicator__track > span {
   animation: loading-indicator-progress 1.45s ease-in-out infinite;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--loading-accent),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, var(--loading-accent), transparent);
   height: 100%;
   left: -42%;
   position: absolute;

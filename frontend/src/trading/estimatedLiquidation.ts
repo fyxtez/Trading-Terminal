@@ -1,7 +1,7 @@
 import type { OrderSide } from "./types";
 
 /**
- * FEATURE: frontend fallback for pending LIMIT liquidation preview.
+ * frontend fallback for pending LIMIT liquidation preview.
  * The backend's Binance-bracket-aware estimate remains authoritative, but an
  * already-resting order (or an older backend response) may not carry that
  * transient field. In that degraded case we still show an EST. LIQ guide by
@@ -23,10 +23,7 @@ export function estimatePendingLimitLiquidation(
   }
 
   const distance = 1 / leverage;
-  const estimate =
-    side === "BUY"
-      ? entryPrice * (1 - distance)
-      : entryPrice * (1 + distance);
+  const estimate = side === "BUY" ? entryPrice * (1 - distance) : entryPrice * (1 + distance);
 
   return Number.isFinite(estimate) && estimate > 0 ? estimate : undefined;
 }

@@ -70,7 +70,9 @@ const normalizeDrawing = (value: unknown): Drawing | null => {
       return drawing as unknown as Drawing;
     }
     case "pen":
-      return Array.isArray(drawing.points) && drawing.points.length > 0 && drawing.points.every(isChartPoint)
+      return Array.isArray(drawing.points) &&
+        drawing.points.length > 0 &&
+        drawing.points.every(isChartPoint)
         ? (drawing as unknown as Drawing)
         : null;
     default:
@@ -132,7 +134,6 @@ export function cloneDrawing(drawing: Drawing): Drawing {
   return { ...drawing };
 }
 
-
 export function loadStoredDrawingSets(storageKey: string): SavedDrawingSet[] {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -185,10 +186,7 @@ export function loadStoredDrawingSets(storageKey: string): SavedDrawingSet[] {
   }
 }
 
-export function saveDrawingSets(
-  storageKey: string,
-  sets: SavedDrawingSet[],
-) {
+export function saveDrawingSets(storageKey: string, sets: SavedDrawingSet[]) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(sets));
   } catch (error) {
@@ -199,7 +197,6 @@ export function saveDrawingSets(
 export function cloneDrawings(drawings: Drawing[]): Drawing[] {
   return drawings.map(cloneDrawing);
 }
-
 
 /**
  * Text has no numeric font-size setting. Its rendered size is derived entirely

@@ -87,7 +87,10 @@
   font-weight: 800;
   letter-spacing: 0.3px;
   pointer-events: auto;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 
 .alert-line-control:hover,
@@ -97,7 +100,7 @@
   color: var(--amber, #f5a623);
 }
 
-/* FIX: DIM and RESTORE share a fixed width so toggling opacity cannot resize
+/* DIM and RESTORE share a fixed width so toggling opacity cannot resize
  * the button or shift the rest of the alert-line label horizontally.
  */
 .alert-line-opacity-control {
@@ -117,7 +120,7 @@
   pointer-events: none;
 }
 
-/* FEATURE: the INFO control opens a compact textbox directly on its alert
+/* the INFO control opens a compact textbox directly on its alert
    line, keeping optional notification context attached to the price level. */
 .alert-line-info-wrap {
   position: relative;
@@ -145,7 +148,7 @@
   color: rgb(147 197 253);
 }
 
-/* FEATURE: show a tiny persistent dot whenever INFO contains saved text, so
+/* show a tiny persistent dot whenever INFO contains saved text, so
  * optional alert context is visible at a glance without opening the editor. */
 .alert-line-info-set::after {
   content: "";
@@ -244,7 +247,10 @@
   letter-spacing: 0.3px;
   text-align: center;
   white-space: nowrap;
-  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
 }
 
 .alert-line-pattern:hover {
@@ -287,7 +293,9 @@
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
-  transition: background 100ms ease, color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
 }
 
 .alert-line-pattern-option:hover {
@@ -313,7 +321,9 @@
   line-height: 1;
   cursor: pointer;
   pointer-events: auto;
-  transition: background 100ms ease, color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
 }
 
 .alert-line-remove:hover {

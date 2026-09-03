@@ -79,10 +79,7 @@ export default function Topbar({
     if (!isIntervalMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (
-        intervalMenuRef.current &&
-        !intervalMenuRef.current.contains(event.target as Node)
-      ) {
+      if (intervalMenuRef.current && !intervalMenuRef.current.contains(event.target as Node)) {
         setIsIntervalMenuOpen(false);
       }
     };
@@ -138,14 +135,13 @@ export default function Topbar({
           }}
         >
           <span>{interval}</span>
-          <span className="mobile-timeframe-caret" aria-hidden="true">▾</span>
+          <span className="mobile-timeframe-caret" aria-hidden="true">
+            ▾
+          </span>
         </button>
 
         {isIntervalMenuOpen && (
-          <div
-            className="mobile-timeframe-menu"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="mobile-timeframe-menu" onClick={(event) => event.stopPropagation()}>
             {intervalGroups.map((group) => (
               <section className="mobile-timeframe-group" key={group.label}>
                 <div className="mobile-timeframe-group-label">{group.label}</div>
@@ -197,7 +193,11 @@ export default function Topbar({
 
         <div
           className={`topbar-connection-item ${websocketConnection}`}
-          title={websocketConnection === "disabled" ? "Connect Binance in Settings to enable account streaming" : `Trading WebSocket: ${websocketConnection}`}
+          title={
+            websocketConnection === "disabled"
+              ? "Connect Binance in Settings to enable account streaming"
+              : `Trading WebSocket: ${websocketConnection}`
+          }
         >
           <span className="topbar-connection-dot" />
           <span>{websocketConnection === "disabled" ? "CHART ONLY" : "STREAM"}</span>

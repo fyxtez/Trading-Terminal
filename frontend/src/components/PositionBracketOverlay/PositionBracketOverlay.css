@@ -17,7 +17,7 @@
 }
 
 /*
- * FEATURE: liquidation is a non-draggable danger boundary, so it spans the
+ * liquidation is a non-draggable danger boundary, so it spans the
  * entire chart instead of inheriting the user-resizable TP/SL zone width.
  * The saturated two-pixel red line plus glow separates it from the thinner
  * movable stop line; pointer-events stays disabled so it cannot intercept
@@ -39,7 +39,7 @@
 .position-liquidation-line > span {
   position: absolute;
   right: 10px;
-  /* FIX: center the 22px badge directly on the liquidation line. The old
+  /* center the 22px badge directly on the liquidation line. The old
      -25px offset floated it above the line and made it look attached to the
      neighbouring native price marker instead of to its own risk boundary. */
   top: -11px;
@@ -59,7 +59,7 @@
 }
 
 /*
- * FIX: this is position:absolute inside .position-entry-line, whose own
+ * this is position:absolute inside .position-entry-line, whose own
  * width is now entryLineWidth (see PositionBracketOverlay.tsx) - the gap
  * from the entry candle to the LATEST candle, which can be only a few
  * pixels wide right after a position first opens. With only `left: 0`
@@ -84,7 +84,7 @@
   will-change: transform;
 }
 
-/* FEATURE: A compact move arrow now travels with the complete entry action
+/* A compact move arrow now travels with the complete entry action
  * row. Its interaction mirrors the candle-close timer arrow: one click picks
  * the row up immediately, pointer movement repositions it, and the next click
  * drops it. */
@@ -114,7 +114,7 @@
   opacity: 0.5;
 }
 
-/* FEATURE: While picked up, make the row clearly feel movable without
+/* While picked up, make the row clearly feel movable without
  * changing the styling of the actual trading actions. */
 .position-entry-controls.moving {
   cursor: move;
@@ -151,7 +151,7 @@
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.3px;
-  /* FIX: belt-and-suspenders alongside width: max-content above - keeps
+  /* belt-and-suspenders alongside width: max-content above - keeps
      the button's own label from ever wrapping even if something else
      upstream constrains available width again in the future. */
   white-space: nowrap;
@@ -207,7 +207,7 @@
   opacity: 0.5;
 }
 
-/* FEATURE: Replace the destructive quick-close X with an inline YES / NO
+/* Replace the destructive quick-close X with an inline YES / NO
  * decision after the first click. Matching the existing 22px controls keeps
  * confirmation beside the trade and avoids a modal obscuring the chart. */
 .position-bracket-close-confirmation {
@@ -269,7 +269,7 @@
   color: var(--red);
 }
 
-/* FEATURE: once a stop crosses entry and locks in profit, use an amber
+/* once a stop crosses entry and locks in profit, use an amber
  * red/green midpoint instead of danger-red. It is still an SL mechanically,
  * but the rectangle now communicates that the stop would close profitably. */
 .position-bracket-zone.loss.profit-protected {
@@ -292,7 +292,7 @@
   background-color: rgba(240, 69, 98, 0.07);
 }
 
-/* FEATURE: keep the locked-profit SL distinction on the quieter persistent
+/* keep the locked-profit SL distinction on the quieter persistent
  * rectangle too; this rule follows the loss.persistent rule so it can override it. */
 .position-bracket-zone.loss.persistent.profit-protected {
   background-color: rgba(245, 166, 35, 0.08);
@@ -305,7 +305,7 @@
   opacity: 0.8;
 }
 
-/* FEATURE: R labels sit inside both the persistent bracket and the live move
+/* R labels sit inside both the persistent bracket and the live move
  * preview. They intentionally have no pill/background so they read as part of
  * the risk area rather than as another executable chart control. */
 .position-bracket-r-multiple {
@@ -346,7 +346,7 @@
   pointer-events: none;
 }
 
-/* FEATURE: Before a real reduce LIMIT exists, TP is a green planning line at
+/* Before a real reduce LIMIT exists, TP is a green planning line at
  * +1R/-1R's profit boundary. It has the same generous invisible grab strip as
  * SL; the first confirmed move submits the real order, at which point this
  * draft line disappears and the existing yellow open-order drawing takes over. */
@@ -392,12 +392,10 @@
 }
 
 .position-take-profit-line > span:hover {
-  /* FIX: keep an opaque dark base under the hover tint. A translucent-only
+  /* keep an opaque dark base under the hover tint. A translucent-only
    * hover background let the TP boundary line show through the middle of the
    * badge, making the control look visually sliced when hovered. */
-  background:
-    linear-gradient(rgba(52, 211, 153, 0.14), rgba(52, 211, 153, 0.14)),
-    rgb(13 16 23);
+  background: linear-gradient(rgba(52, 211, 153, 0.14), rgba(52, 211, 153, 0.14)), rgb(13 16 23);
   border-color: rgba(52, 211, 153, 0.9);
 }
 
@@ -424,7 +422,7 @@
 }
 
 /*
- * FIX: bumped from 9.5px per request ("id like this text a little
+ * bumped from 9.5px per request ("id like this text a little
  * bigger") - this is the "SL FULL · <price>" label on the stop-loss
  * line. Height/padding grown to match so the larger text doesn't
  * overflow the pill vertically.
@@ -454,7 +452,7 @@
   font-weight: 800;
 }
 
-/* FEATURE: advertise and enable the visible SL FULL badge as a proper move
+/* advertise and enable the visible SL FULL badge as a proper move
  * handle. The thin line grab-strip still works for experienced users, while
  * the bordered badge now provides the obvious clickable target it visually
  * appears to be. */
@@ -465,11 +463,9 @@
 }
 
 .position-stop-line > span.move-handle:hover {
-  /* FIX: SL uses the same opaque-backed hover treatment as TP so the red
+  /* SL uses the same opaque-backed hover treatment as TP so the red
    * boundary line cannot bleed through the draggable label on hover. */
-  background:
-    linear-gradient(rgba(240, 69, 98, 0.14), rgba(240, 69, 98, 0.14)),
-    rgb(13 16 23);
+  background: linear-gradient(rgba(240, 69, 98, 0.14), rgba(240, 69, 98, 0.14)), rgb(13 16 23);
   border-color: rgba(240, 69, 98, 0.9);
 }
 
@@ -500,7 +496,7 @@
 }
 
 /*
- * FIX: when SL is close to entry, move its badge/X AWAY from the entry row.
+ * when SL is close to entry, move its badge/X AWAY from the entry row.
  * The previous rule always moved the SL controls below the stop line. That
  * worked for a stop below entry, but a profitable LONG stop is above entry,
  * so moving it down placed `SL FULL · price` directly over HIDE / TP FULL / X
@@ -532,7 +528,7 @@
   opacity: 0.85;
 }
 
-/* FEATURE: A draft SL has no cancel-X because no exchange order exists yet, so
+/* A draft SL has no cancel-X because no exchange order exists yet, so
  * let its badge use the space that is otherwise reserved for that button. */
 .position-stop-line.draft > span {
   right: 10px;
@@ -594,7 +590,7 @@
   box-shadow: 0 0 20px rgba(240, 69, 98, 0.6);
 }
 
-/* FEATURE: highlighting a profit-protecting SL must preserve its amber meaning
+/* highlighting a profit-protecting SL must preserve its amber meaning
  * instead of temporarily turning the rectangle back into a red danger zone. */
 .position-bracket-zone.loss.profit-protected.highlighted {
   box-shadow: 0 0 20px rgba(245, 166, 35, 0.6);
@@ -648,7 +644,7 @@
  * paneLeft/paneWidth, so the TP/SL price lines themselves never move
  * vertically because of this interaction.
  *
- * FIX: this used to have `top: 0; bottom: 0`, stretching the clickable
+ * this used to have `top: 0; bottom: 0`, stretching the clickable
  * strip across the ENTIRE chart height regardless of where the TP/SL
  * zones actually sit - so clicking anywhere along that vertical line, far
  * above or below the actual red/green rectangles, would arm the resize.
@@ -674,7 +670,7 @@
   background: rgba(245, 166, 35, 0.3);
 }
 
-/* FEATURE: Compact control immediately left of TP FULL. When the user hides
+/* Compact control immediately left of TP FULL. When the user hides
  * long-term position controls it becomes the only remaining entry-row button,
  * so TP FULL / STOP LOSS / quick-close stay out of the way without making the
  * action irreversible from the chart. */

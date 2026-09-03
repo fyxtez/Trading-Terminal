@@ -30,17 +30,71 @@ export type SymbolConfig = {
 
 /** Built-in fallback registry used until /api/symbols is loaded. */
 export let SYMBOL_CONFIGS: readonly SymbolConfig[] = [
-  { symbol: "BTCUSDT", source: "binance", sourceSymbol: "BTCUSDT", executionEnabled: true, chartDecimals: 0, protected: true },
-  { symbol: "ETHUSDT", source: "binance", sourceSymbol: "ETHUSDT", executionEnabled: true, chartDecimals: 0, protected: true },
-  { symbol: "SOLUSDT", source: "binance", sourceSymbol: "SOLUSDT", executionEnabled: true, chartDecimals: 2, protected: true },
-  { symbol: "XRPUSDT", source: "binance", sourceSymbol: "XRPUSDT", executionEnabled: true, chartDecimals: 4, protected: true },
-  // FIX: Binance USD-M Futures now lists PLUMEUSDT and ZECUSDT, so route
+  {
+    symbol: "BTCUSDT",
+    source: "binance",
+    sourceSymbol: "BTCUSDT",
+    executionEnabled: true,
+    chartDecimals: 0,
+    protected: true,
+  },
+  {
+    symbol: "ETHUSDT",
+    source: "binance",
+    sourceSymbol: "ETHUSDT",
+    executionEnabled: true,
+    chartDecimals: 0,
+    protected: true,
+  },
+  {
+    symbol: "SOLUSDT",
+    source: "binance",
+    sourceSymbol: "SOLUSDT",
+    executionEnabled: true,
+    chartDecimals: 2,
+    protected: true,
+  },
+  {
+    symbol: "XRPUSDT",
+    source: "binance",
+    sourceSymbol: "XRPUSDT",
+    executionEnabled: true,
+    chartDecimals: 4,
+    protected: true,
+  },
+  // Binance USD-M Futures now lists PLUMEUSDT and ZECUSDT, so route
   // both fallback configs through Binance and enable the same order path used
   // by the other Binance-backed symbols instead of leaving them MEXC/view-only.
-  { symbol: "PLUMEUSDT", source: "binance", sourceSymbol: "PLUMEUSDT", executionEnabled: true, chartDecimals: 5 },
-  { symbol: "ZECUSDT", source: "binance", sourceSymbol: "ZECUSDT", executionEnabled: true, chartDecimals: 2 },
-  { symbol: "XAUUSDT", source: "binance", sourceSymbol: "XAUUSDT", executionEnabled: true, chartDecimals: 2, marketKind: "traditional" },
-  { symbol: "XAGUSDT", source: "binance", sourceSymbol: "XAGUSDT", executionEnabled: true, chartDecimals: 2, marketKind: "traditional" },
+  {
+    symbol: "PLUMEUSDT",
+    source: "binance",
+    sourceSymbol: "PLUMEUSDT",
+    executionEnabled: true,
+    chartDecimals: 5,
+  },
+  {
+    symbol: "ZECUSDT",
+    source: "binance",
+    sourceSymbol: "ZECUSDT",
+    executionEnabled: true,
+    chartDecimals: 2,
+  },
+  {
+    symbol: "XAUUSDT",
+    source: "binance",
+    sourceSymbol: "XAUUSDT",
+    executionEnabled: true,
+    chartDecimals: 2,
+    marketKind: "traditional",
+  },
+  {
+    symbol: "XAGUSDT",
+    source: "binance",
+    sourceSymbol: "XAGUSDT",
+    executionEnabled: true,
+    chartDecimals: 2,
+    marketKind: "traditional",
+  },
 ];
 
 // Keep the last known config for symbols that have just been removed from the
@@ -73,7 +127,7 @@ export function getSymbolConfig(symbol: string): SymbolConfig {
 
   if (config) return config;
 
-  // FIX: this used to throw here, which crashed the whole app (no error
+  // this used to throw here, which crashed the whole app (no error
   // boundary) any time a symbol from an optimistically-restored tab/active
   // symbol (see useChartTabs/useSymbol - they now trust localStorage
   // immediately rather than waiting on the backend) hadn't been confirmed
@@ -122,8 +176,7 @@ export const DEFAULT_BOX_COLOR = "#a78bfa";
  * (`drawings-${SYMBOL}`) - they're functions now so every symbol gets
  * its own key. See hooks/useDrawings.ts and hooks/useTradeMarkers.ts.
  */
-export const drawingsStorageKey = (symbol: string): string =>
-  `drawings-${symbol.toUpperCase()}`;
+export const drawingsStorageKey = (symbol: string): string => `drawings-${symbol.toUpperCase()}`;
 
 export const drawingSetsStorageKey = (symbol: string): string =>
   `drawing-sets-${symbol.toUpperCase()}`;
@@ -154,8 +207,7 @@ export const REMOTE_TRADING_API_BASE_URL =
 export let TRADING_API_BASE_URL = REMOTE_TRADING_API_BASE_URL;
 export let TRADING_API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
 
-export const TRADING_API_BASE_URL_CHANGED_EVENT =
-  "trading-api-base-url-changed";
+export const TRADING_API_BASE_URL_CHANGED_EVENT = "trading-api-base-url-changed";
 
 let tradingApiInitialization: Promise<string> | null = null;
 
@@ -175,9 +227,7 @@ function selectTradingApiBaseUrl(nextUrl: string): string {
 
   const previousUrl = TRADING_API_BASE_URL;
   TRADING_API_BASE_URL = normalized;
-  console.info(
-    `[trading-api] switched ${previousUrl} -> ${TRADING_API_BASE_URL}`,
-  );
+  console.info(`[trading-api] switched ${previousUrl} -> ${TRADING_API_BASE_URL}`);
   window.dispatchEvent(
     new CustomEvent(TRADING_API_BASE_URL_CHANGED_EVENT, {
       detail: { previousUrl, nextUrl: TRADING_API_BASE_URL },
@@ -194,7 +244,7 @@ function applyDesktopRuntime(runtime: DesktopRuntime): string {
 /**
  * Keep backend selection deterministic.
  *
- * FIX: the previous implementation auto-probed 127.0.0.1 and could race with
+ * the previous implementation auto-probed 127.0.0.1 and could race with
  * history/BFCache resume logic: one path selected the remote server and a later
  * local probe switched the whole app back to localhost. That is exactly why a
  * history restore failed while a hard reload worked. We no longer auto-select
@@ -207,9 +257,7 @@ export async function refreshTradingApiBaseUrl(): Promise<string> {
     return applyDesktopRuntime(await invoke<DesktopRuntime>("desktop_runtime"));
   }
 
-  return Promise.resolve(
-    selectTradingApiBaseUrl(normalizeBaseUrl(REMOTE_TRADING_API_BASE_URL)),
-  );
+  return Promise.resolve(selectTradingApiBaseUrl(normalizeBaseUrl(REMOTE_TRADING_API_BASE_URL)));
 }
 
 /** Explicit recovery after the native supervisor exhausts automatic retries. */
@@ -217,9 +265,7 @@ export async function restartDesktopBackend(): Promise<string> {
   if (!isTauri()) {
     throw new Error("Backend restart is available only in the desktop app.");
   }
-  const nextUrl = applyDesktopRuntime(
-    await invoke<DesktopRuntime>("restart_backend"),
-  );
+  const nextUrl = applyDesktopRuntime(await invoke<DesktopRuntime>("restart_backend"));
   tradingApiInitialization = Promise.resolve(nextUrl);
   return nextUrl;
 }
@@ -241,14 +287,14 @@ export function refreshTradingApiBaseUrlAfterResume(): Promise<string> {
   if (isTauri()) {
     return refreshTradingApiBaseUrl();
   }
-  // FIX: do this synchronously before returning the resolved Promise so resumed
+  // do this synchronously before returning the resolved Promise so resumed
   // hooks cannot send even one REST/WS request to a stale localhost module value.
   selectTradingApiBaseUrl(REMOTE_TRADING_API_BASE_URL);
   return Promise.resolve(TRADING_API_BASE_URL);
 }
 
 export const ACCOUNT_ENDPOINT = "/api/account";
-// FEATURE: separate fill-history endpoint keeps current-position realized PNL
+// separate fill-history endpoint keeps current-position realized PNL
 // distinct from Binance's account snapshot, which only contains unrealized PNL.
 export const POSITION_REALIZED_PNL_ENDPOINT = "/api/positions/realized-pnl";
 export const MARKET_ORDER_ENDPOINT = "/api/orders/market";
@@ -287,21 +333,11 @@ export const DEFAULT_LEVERAGE = 2;
 // in trading/api/marketData.ts with no changes needed there, and flows
 // through Topbar's interval button row automatically since that's
 // generated from this same array.
-export const intervals = [
-  "1m",
-  "5m",
-  "15m",
-  "1h",
-  "4h",
-  "12h",
-  "1d",
-  "1w",
-  "1M",
-] as const;
+export const intervals = ["1m", "5m", "15m", "1h", "4h", "12h", "1d", "1w", "1M"] as const;
 export type Interval = (typeof intervals)[number];
 
 /**
- * FIX (1M support): a calendar month isn't a fixed duration (28-31 days),
+ * a calendar month isn't a fixed duration (28-31 days),
  * so "1M" here is a 30-day APPROXIMATION - this whole lookup table is
  * fundamentally a "fixed duration per interval" model, which is exactly
  * true for every other interval but never exactly true for a month.
@@ -403,7 +439,7 @@ export const alignTimeToInterval = (
 };
 
 /**
- * FEATURE: future X-axis room scales with the selected timeframe. Short
+ * future X-axis room scales with the selected timeframe. Short
  * intervals use a smaller real-time horizon to avoid tens of thousands of
  * invisible points, while 4h/daily/weekly charts expose months or years for
  * forward drawings and planning instead of stopping after the old 10 days.

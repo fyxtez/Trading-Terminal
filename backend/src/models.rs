@@ -96,6 +96,30 @@ fn default_time_in_force() -> String {
     "GTC".into()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{MarginSizingConfig, OrderSide};
+
+    #[test]
+    fn sizing_policy_accepts_only_bounded_finite_values() {
+        assert!(MarginSizingConfig::new(0.02, 0.9, 50).is_ok());
+
+        for invalid_margin in [0.0, -0.01, 1.01, f64::NAN, f64::INFINITY] {
+            assert!(MarginSizingConfig::new(invalid_margin, 0.9, 50).is_err());
+        }
+        for invalid_safety in [0.0, -0.1, 1.01, f64::NAN, f64::INFINITY] {
+            assert!(MarginSizingConfig::new(0.02, invalid_safety, 50).is_err());
+        }
+        assert!(MarginSizingConfig::new(0.02, 0.9, 0).is_err());
+    }
+
+    #[test]
+    fn opposite_side_is_stable_for_close_and_reverse_plans() {
+        assert!(matches!(OrderSide::Buy.opposite(), OrderSide::Sell));
+        assert!(matches!(OrderSide::Sell.opposite(), OrderSide::Buy));
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ModifyLimitOrderRequest {
     pub side: OrderSide,
@@ -275,7 +299,7 @@ pub struct LeverageBracket {
     /// The maintenance margin ratio for this notional tier.
     #[serde(default)]
     pub maint_margin_ratio: f64,
-    /// FEATURE: Binance's `cum` deduction is required for a faithful projected
+    /// Binance's `cum` deduction is required for a faithful projected
     /// liquidation price. Keeping it with the cached bracket lets resting LIMIT
     /// orders show the same tiered maintenance-margin boundary before they fill.
     #[serde(default)]

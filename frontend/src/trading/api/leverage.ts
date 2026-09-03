@@ -1,7 +1,4 @@
-import {
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
 
 function authHeaders(includeJson = false): HeadersInit {
   return {
@@ -73,9 +70,7 @@ export type CurrentLeverageResponse = {
  * GET /api/leverage/current/{symbol} - reads the leverage currently
  * configured on Binance for this symbol.
  */
-export async function getCurrentLeverage(
-  symbol: string,
-): Promise<CurrentLeverageResponse> {
+export async function getCurrentLeverage(symbol: string): Promise<CurrentLeverageResponse> {
   const response = await fetch(
     `${TRADING_API_BASE_URL}/api/leverage/current/${encodeURIComponent(symbol.toUpperCase())}`,
     {
@@ -105,9 +100,7 @@ export type MaxLeverageResponse = {
  * the exchange itself will actually allow. The leverage slider's real
  * ceiling is whichever of the two is lower - see useTradeMenu.ts.
  */
-export async function getMaxLeverage(
-  symbol: string,
-): Promise<MaxLeverageResponse> {
+export async function getMaxLeverage(symbol: string): Promise<MaxLeverageResponse> {
   const response = await fetch(
     `${TRADING_API_BASE_URL}/api/leverage/max/${encodeURIComponent(symbol.toUpperCase())}`,
     {

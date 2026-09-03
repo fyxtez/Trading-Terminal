@@ -18,9 +18,7 @@ function computeActiveSessionState(now: Date): ActiveSessionState {
   const sessions = getTodaysSessions(now);
 
   const active = sessions
-    .filter(
-      (session) => nowSeconds >= session.start && nowSeconds < session.end,
-    )
+    .filter((session) => nowSeconds >= session.start && nowSeconds < session.end)
     .sort((a, b) => a.start - b.start);
 
   if (active.length === 0) {
@@ -54,10 +52,7 @@ export default function ChartIndicators() {
 
   return (
     <div className="chart-indicators" aria-label="Chart indicators">
-      <div
-        className="indicator-chip"
-        title="Current session"
-      >
+      <div className="indicator-chip" title="Current session">
         <span
           className="indicator-chip-value"
           style={state.color ? { color: state.color } : undefined}

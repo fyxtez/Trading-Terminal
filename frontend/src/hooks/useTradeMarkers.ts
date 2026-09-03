@@ -18,9 +18,7 @@ type SymbolMarkerState = {
 const normalizeSymbol = (symbol: string) => symbol.toUpperCase();
 
 function loadMarkers(symbol: string): TradeMarker[] {
-  const active = filterActiveTradeMarkers(
-    loadStoredTradeMarkers(tradeMarkersStorageKey(symbol)),
-  );
+  const active = filterActiveTradeMarkers(loadStoredTradeMarkers(tradeMarkersStorageKey(symbol)));
 
   saveTradeMarkers(tradeMarkersStorageKey(symbol), active);
   return active;
@@ -72,10 +70,7 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
     // selected symbol's storage key.
     if (!isHydrated) return;
 
-    saveTradeMarkers(
-      tradeMarkersStorageKey(markerState.symbol),
-      markerState.markers,
-    );
+    saveTradeMarkers(tradeMarkersStorageKey(markerState.symbol), markerState.markers);
   }, [isHydrated, markerState]);
 
   useEffect(() => {
@@ -139,9 +134,7 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
 
   const addMarkerNow = (side: TradeSide, price?: number) => {
     const fallbackPrice =
-      price ??
-      refs.currentPriceRef.current ??
-      refs.lastCandleRef.current?.close;
+      price ?? refs.currentPriceRef.current ?? refs.lastCandleRef.current?.close;
 
     if (fallbackPrice == null || !Number.isFinite(fallbackPrice)) return;
 

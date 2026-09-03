@@ -6,25 +6,18 @@ const HEALTH_CHECK_INTERVAL_MS = 3_000;
 const HEALTH_CHECK_TIMEOUT_MS = 2_000;
 
 export function useBackendConnection(): ConnectionState {
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("connecting");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
 
   const checkBackend = useCallback(async () => {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(
-      () => controller.abort(),
-      HEALTH_CHECK_TIMEOUT_MS,
-    );
+    const timeoutId = window.setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(
-        `${TRADING_API_BASE_URL}/health`,
-        {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        },
-      );
+      const response = await fetch(`${TRADING_API_BASE_URL}/health`, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
         throw new Error(`Backend health returned ${response.status}`);
@@ -42,10 +35,7 @@ export function useBackendConnection(): ConnectionState {
     setConnectionState("connecting");
     void checkBackend();
 
-    const intervalId = window.setInterval(
-      () => void checkBackend(),
-      HEALTH_CHECK_INTERVAL_MS,
-    );
+    const intervalId = window.setInterval(() => void checkBackend(), HEALTH_CHECK_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);

@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DesktopRuntimeGate from "./DesktopRuntimeGate";
-import {
-  initializeTradingApiBaseUrl,
-  restartDesktopBackend,
-} from "../../config/constants";
+import { initializeTradingApiBaseUrl, restartDesktopBackend } from "../../config/constants";
 
 vi.mock("../../config/constants", () => ({
   initializeTradingApiBaseUrl: vi.fn(),
@@ -27,7 +24,11 @@ describe("DesktopRuntimeGate", () => {
       }),
     );
 
-    render(<DesktopRuntimeGate><div>terminal</div></DesktopRuntimeGate>);
+    render(
+      <DesktopRuntimeGate>
+        <div>terminal</div>
+      </DesktopRuntimeGate>,
+    );
     expect(screen.queryByText("terminal")).not.toBeInTheDocument();
     expect(screen.getByText("Starting local backend")).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
@@ -40,7 +41,11 @@ describe("DesktopRuntimeGate", () => {
     initializeMock.mockRejectedValueOnce(new Error("sidecar stopped"));
     restartMock.mockResolvedValueOnce("http://127.0.0.1:12345");
 
-    render(<DesktopRuntimeGate><div>terminal</div></DesktopRuntimeGate>);
+    render(
+      <DesktopRuntimeGate>
+        <div>terminal</div>
+      </DesktopRuntimeGate>,
+    );
     const retry = await screen.findByRole("button", { name: "RETRY BACKEND" });
     expect(screen.getByText("sidecar stopped")).toBeInTheDocument();
 

@@ -32,11 +32,11 @@
   border: 1px solid currentColor;
   border-radius: 3px;
   background: rgb(13 16 23 / 94%);
-  /* FIX: bumped from 11.5px per request ("font size should be little higher"). */
+  /* bumped from 11.5px per request ("font size should be little higher"). */
   font-size: 12.5px;
   font-weight: 800;
   white-space: nowrap;
-  /* FEATURE: AUTO LONG/SHORT describes the draft; it is not clickable.
+  /* AUTO LONG/SHORT describes the draft; it is not clickable.
    * Lower visual weight keeps attention on the enlarged SL handle and the
    * EXECUTE/CANCEL actions in both compact and full-height layouts. */
   opacity: 0.62;
@@ -66,13 +66,13 @@
   border: 1px solid currentColor;
   border-radius: 3px;
   background: rgb(13 16 23 / 96%);
-  /* FIX: bumped from 11.5px per request ("font size should be little higher"). */
+  /* bumped from 11.5px per request ("font size should be little higher"). */
   font-size: 12.5px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-/* FEATURE: the initial Auto Market SL badge is the control that arms SL
+/* the initial Auto Market SL badge is the control that arms SL
  * placement, so give it a larger red-tinted click target than the passive
  * MARKET label. This improves discoverability without making the price zone
  * itself taller and therefore visually misrepresenting the actual risk. */
@@ -116,7 +116,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  /* FEATURE: match the larger visible SL badge with a forgiving 28px-high
+  /* match the larger visible SL badge with a forgiving 28px-high
    * line target, so the user does not need pixel-perfect pointer placement. */
   top: -14px;
   height: 28px;
@@ -138,7 +138,7 @@
   height: 29px;
   border-radius: 4px;
   font-family: var(--font-mono);
-  /* FIX: bumped from 10.5px per request ("font size should be little higher"). */
+  /* bumped from 10.5px per request ("font size should be little higher"). */
   font-size: 11.5px;
   font-weight: 800;
   cursor: pointer;
@@ -174,7 +174,7 @@
   left: 50%;
   bottom: 34px;
   transform: translateX(-50%);
-  /* FIX: bumped from 6px 9px / 10.5px per request ("make sure that this is larger"). */
+  /* bumped from 6px 9px / 10.5px per request ("make sure that this is larger"). */
   padding: 8px 12px;
   border: 1px solid rgba(245, 166, 35, 0.45);
   border-radius: var(--radius-s);
@@ -210,7 +210,7 @@
   transform: translateY(-50%);
   display: grid;
   /*
-   * FIX: was `minmax(0, 1fr) 58px 50px`. Even after widening the overall
+   * was `minmax(0, 1fr) 58px 50px`. Even after widening the overall
    * zone (see AUTO_MARKET_ZONE_WIDTH_PX in the .tsx), the summary chip's
    * "%" was still occasionally the first thing ellipsized whenever the
    * button font size grew alongside it (see .auto-market-controls button
@@ -230,10 +230,10 @@
   height: 28px;
   min-width: 0;
   padding: 0 5px;
-  /* FIX: bumped from 9.5px per request ("font size should be little higher"). */
+  /* bumped from 9.5px per request ("font size should be little higher"). */
   font-size: 10.5px;
   /*
-   * FIX: "EXECUTE" fits this 54px-wide grid column fine, but its own
+   * "EXECUTE" fits this 54px-wide grid column fine, but its own
    * submitting-state label ("EXECUTING…") is longer and, with nothing
    * clipping overflow, just visibly spilled out past the button's right
    * edge into the CANCEL button sitting right next to it. Clipping with
@@ -257,25 +257,29 @@
   border-radius: 4px;
   background: rgb(13 16 23 / 96%);
   color: var(--red);
-  /* FIX: bumped from 9.5px per request ("font size should be little higher"). */
+  /* bumped from 9.5px per request ("font size should be little higher"). */
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.1px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  /* FEATURE: AUTO LONG/SHORT is descriptive state, not an action. Dimming it
+  /* AUTO LONG/SHORT is descriptive state, not an action. Dimming it
    * makes the adjacent SL/EXECUTE/CANCEL controls read as the interactive
    * elements instead of presenting every red box with equal visual weight. */
   opacity: 0.62;
 }
 
-.auto-market-risk-zone.invalid + .auto-market-entry-line + .auto-market-stop-line + .auto-market-controls.compact .auto-market-compact-summary {
+.auto-market-risk-zone.invalid
+  + .auto-market-entry-line
+  + .auto-market-stop-line
+  + .auto-market-controls.compact
+  .auto-market-compact-summary {
   border-color: rgba(245, 166, 35, 0.58);
   color: var(--amber);
 }
 
 /*
- * FIX (round 2): in non-compact mode the EXECUTE/CANCEL controls live in
+ * in non-compact mode the EXECUTE/CANCEL controls live in
  * the RIGHT half of the zone (see the .auto-market-controls left offset,
  * computed as coordinates.width - 88 in the .tsx). Anchoring this label
  * to the right (as the first-pass centering fix did) puts it in exactly
@@ -310,7 +314,7 @@
   width: 80px;
 }
 
-/* FIX: `stable` replaces the former zoom-dependent compact/full switch.
+/* `stable` replaces the former zoom-dependent compact/full switch.
  * Summary and actions always occupy the same horizontal row with explicit
  * columns, so button text cannot crop and zooming cannot rearrange the UI. */
 .auto-market-controls.stable {
@@ -339,7 +343,7 @@
   padding-inline: 8px;
 }
 
-/* FIX: keep the two price badges on opposite horizontal edges in the single
+/* keep the two price badges on opposite horizontal edges in the single
  * stable layout. Their vertical separation from the action row is calculated
  * in AutoMarketOverlay.tsx, so SL and AUTO LONG/SHORT never overlap. */
 .auto-market-entry-line.stable > span {
@@ -355,9 +359,8 @@
   background: rgba(240, 69, 98, 0.09);
 }
 
-
 /*
- * FIX: this used to be its own one-off pill (rgba(13,16,23,96%) background,
+ * this used to be its own one-off pill (rgba(13,16,23,96%) background,
  * border-radius: var(--radius-s), amber border all the way around) that
  * didn't match the shared toast look used everywhere else in the app (see
  * .trade-toast) - same amber-on-dark family, but a visibly different

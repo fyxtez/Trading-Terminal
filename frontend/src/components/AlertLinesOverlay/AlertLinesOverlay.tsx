@@ -106,10 +106,8 @@ export default function AlertLinesOverlay({
   const [armed, setArmed] = useState<{ id: string; y: number } | null>(null);
 
   // Which alert's pattern popover (if any) is currently open.
-  const [openPatternMenuId, setOpenPatternMenuId] = useState<string | null>(
-    null,
-  );
-  // FEATURE: one inline note editor can be open at a time. A separate draft
+  const [openPatternMenuId, setOpenPatternMenuId] = useState<string | null>(null);
+  // one inline note editor can be open at a time. A separate draft
   // avoids issuing a persistent-alert PUT request for every keystroke.
   const [infoEditor, setInfoEditor] = useState<{ id: string; value: string } | null>(null);
 
@@ -155,13 +153,9 @@ export default function AlertLinesOverlay({
           continue;
         }
 
-        // FIX: preserve alert positions after every candle leaves the viewport;
+        // preserve alert positions after every candle leaves the viewport;
         // the future series shares the same right scale and remains visible.
-        const y = priceToCoordinateWithFutureFallback(
-          series,
-          futureScaleRef.current,
-          alert.price,
-        );
+        const y = priceToCoordinateWithFutureFallback(series, futureScaleRef.current, alert.price);
 
         if (y === null || y < 0 || y > paneSize.height) continue;
 
@@ -187,10 +181,10 @@ export default function AlertLinesOverlay({
               Math.abs(item.y - next.y) <= 0.25 &&
               item.price === next.price &&
               item.side === next.side &&
-              item.pattern === next.pattern
-              && item.additionalInfo === next.additionalInfo
-              && item.locked === next.locked
-              && item.hidden === next.hidden
+              item.pattern === next.pattern &&
+              item.additionalInfo === next.additionalInfo &&
+              item.locked === next.locked &&
+              item.hidden === next.hidden
             );
           })
         ) {
@@ -202,7 +196,6 @@ export default function AlertLinesOverlay({
       setPaneWidth((current) =>
         Math.abs(current - paneSize.width) <= 0.25 ? current : paneSize.width,
       );
-
     };
 
     return startPacedLoop(update);
@@ -216,10 +209,7 @@ export default function AlertLinesOverlay({
     setArmed(null);
   };
 
-  const beginReposition = (
-    event: ReactPointerEvent<HTMLDivElement>,
-    id: string,
-  ) => {
+  const beginReposition = (event: ReactPointerEvent<HTMLDivElement>, id: string) => {
     // Already mid-reposition for some (possibly other) alert - ignore a
     // second grab rather than restarting it.
     if (armedRef.current) return;
@@ -271,11 +261,7 @@ export default function AlertLinesOverlay({
 
       if (!current || !series) return;
 
-      const price = coordinateToPriceWithFutureFallback(
-        series,
-        futureSeries,
-        current.y,
-      );
+      const price = coordinateToPriceWithFutureFallback(series, futureSeries, current.y);
       if (price === null) return;
 
       onUpdateAlertPrice(current.id, price);
@@ -378,9 +364,7 @@ export default function AlertLinesOverlay({
                 disabled={alert.locked}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setOpenPatternMenuId((current) =>
-                    current === alert.id ? null : alert.id,
-                  );
+                  setOpenPatternMenuId((current) => (current === alert.id ? null : alert.id));
                 }}
               >
                 {alert.pattern === "none" ? "PATTERN" : alert.pattern.toUpperCase()}
@@ -419,12 +403,12 @@ export default function AlertLinesOverlay({
                 aria-disabled={alert.locked}
                 onClick={(event) => {
                   event.stopPropagation();
-                  // FIX: locked alerts keep INFO hover/title readable, but clicking cannot edit their text until unlocked.
+                  // locked alerts keep INFO hover/title readable, but clicking cannot edit their text until unlocked.
                   if (alert.locked) return;
                   setOpenPatternMenuId(null);
-                  setInfoEditor((current) => current?.id === alert.id
-                    ? null
-                    : { id: alert.id, value: alert.additionalInfo });
+                  setInfoEditor((current) =>
+                    current?.id === alert.id ? null : { id: alert.id, value: alert.additionalInfo },
+                  );
                 }}
               >
                 INFO
@@ -445,7 +429,7 @@ export default function AlertLinesOverlay({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      // FEATURE: blurring uses the single commit path, avoiding
+                      // blurring uses the single commit path, avoiding
                       // duplicate history/API updates from Enter plus onBlur.
                       event.currentTarget.blur();
                     }

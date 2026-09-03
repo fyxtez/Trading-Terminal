@@ -8,6 +8,7 @@ use zeroize::Zeroizing;
 
 const SERVICE: &str = "com.fyxtez.terminal";
 const BINANCE_NETWORK: &str = "binance-network";
+const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +70,28 @@ fn validate_http_url(name: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn normalize_ntfy_destination(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.contains("://") {
+        validate_http_url("ntfy URL", value)?;
+        return Ok(value.to_owned());
+    }
+
+    if value.is_empty()
+        || value.len() > 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(
+            "ntfy topic must contain only letters, numbers, dashes or underscores and be at most 64 characters"
+                .into(),
+        );
+    }
+
+    Ok(format!("{NTFY_PUBLIC_BASE_URL}/{value}"))
+}
+
 fn remove(name: &str) {
     if let Ok(value) = entry(name) {
         let _ = value.delete_credential();
@@ -97,14 +120,13 @@ async fn save_credentials(
     input: CredentialInput,
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
-    if let Some(value) = input
+    let normalized_ntfy_url = input
         .ntfy_url
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-    {
-        validate_http_url("ntfy URL", value)?;
-    }
+        .map(normalize_ntfy_destination)
+        .transpose()?;
 
     match (input.binance_api_key, input.binance_api_secret) {
         (Some(api_key), Some(api_secret)) => {
@@ -132,8 +154,8 @@ async fn save_credentials(
         (None, None) => {}
         _ => return Err("Enter both the Binance API key and secret".into()),
     }
-    if let Some(value) = input.ntfy_url.as_deref() {
-        store_optional("ntfy-url", Some(value))?;
+    if input.ntfy_url.is_some() {
+        store_optional("ntfy-url", normalized_ntfy_url.as_deref())?;
     }
     if let Some(value) = input.telegram_bot_token.as_deref() {
         store_optional("telegram-bot-token", Some(value))?;
@@ -314,7 +336,29 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_http_url;
+    use super::{normalize_ntfy_destination, validate_http_url};
+
+    #[test]
+    fn expands_an_ntfy_topic_to_the_public_publish_url() {
+        assert_eq!(
+            normalize_ntfy_destination(" private_topic-42 ").as_deref(),
+            Ok("https://ntfy.sh/private_topic-42")
+        );
+    }
+
+    #[test]
+    fn preserves_a_complete_ntfy_publish_url() {
+        assert_eq!(
+            normalize_ntfy_destination("https://notify.example.test/private-topic").as_deref(),
+            Ok("https://notify.example.test/private-topic")
+        );
+    }
+
+    #[test]
+    fn rejects_an_invalid_short_ntfy_topic() {
+        assert!(normalize_ntfy_destination("not a private topic").is_err());
+        assert!(normalize_ntfy_destination(&"a".repeat(65)).is_err());
+    }
 
     #[test]
     fn accepts_https_notification_url() {

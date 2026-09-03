@@ -15,9 +15,7 @@ export type ReduceMetadata = {
   remainingPct?: number;
 };
 
-export function parseReduceMetadata(
-  clientOrderId?: string | null,
-): ReduceMetadata {
+export function parseReduceMetadata(clientOrderId?: string | null): ReduceMetadata {
   if (!clientOrderId) return {};
 
   const match = /^fe-red-(\d{1,3})-l(\d{1,3})-/.exec(clientOrderId);
@@ -27,13 +25,9 @@ export function parseReduceMetadata(
 
     return {
       reducePct:
-        Number.isFinite(reducePct) && reducePct >= 1 && reducePct <= 100
-          ? reducePct
-          : undefined,
+        Number.isFinite(reducePct) && reducePct >= 1 && reducePct <= 100 ? reducePct : undefined,
       remainingPct:
-        Number.isFinite(remainingPct) &&
-        remainingPct >= 0 &&
-        remainingPct <= 100
+        Number.isFinite(remainingPct) && remainingPct >= 0 && remainingPct <= 100
           ? remainingPct
           : undefined,
     };
@@ -46,8 +40,6 @@ export function parseReduceMetadata(
   const reducePct = Number(legacy[1]);
   return {
     reducePct:
-      Number.isFinite(reducePct) && reducePct >= 1 && reducePct <= 100
-        ? reducePct
-        : undefined,
+      Number.isFinite(reducePct) && reducePct >= 1 && reducePct <= 100 ? reducePct : undefined,
   };
 }

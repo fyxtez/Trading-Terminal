@@ -46,12 +46,7 @@ function extractAvailableBalance(body: unknown): number | null {
     return null;
   }
 
-  const candidateKeys = [
-    "available_balance",
-    "availableBalance",
-    "available",
-    "balance",
-  ] as const;
+  const candidateKeys = ["available_balance", "availableBalance", "available", "balance"] as const;
 
   for (const key of candidateKeys) {
     const value = toFiniteNumber(body[key]);
@@ -68,10 +63,9 @@ function extractAvailableBalance(body: unknown): number | null {
   return null;
 }
 
-export async function getAvailableBalance(
-  signal?: AbortSignal,
-): Promise<number> {
-  if (!canUseTradingAccount()) throw new Error("Connect Binance in Settings to access account data");
+export async function getAvailableBalance(signal?: AbortSignal): Promise<number> {
+  if (!canUseTradingAccount())
+    throw new Error("Connect Binance in Settings to access account data");
 
   const headers: HeadersInit = {
     Accept: "application/json",
@@ -81,20 +75,15 @@ export async function getAvailableBalance(
     headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
   }
 
-  const response = await fetch(
-    `${TRADING_API_BASE_URL}${AVAILABLE_BALANCE_ENDPOINT}`,
-    {
-      method: "GET",
-      headers,
-      signal,
-    },
-  );
+  const response = await fetch(`${TRADING_API_BASE_URL}${AVAILABLE_BALANCE_ENDPOINT}`, {
+    method: "GET",
+    headers,
+    signal,
+  });
 
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json") ?? false;
-  const body: unknown = isJson
-    ? await response.json()
-    : await response.text();
+  const body: unknown = isJson ? await response.json() : await response.text();
 
   if (!response.ok) {
     const backendMessage =
