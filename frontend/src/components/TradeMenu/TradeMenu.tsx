@@ -51,7 +51,6 @@ type TradeMenuProps = {
   onAutoMarket: (side: TradeSide) => void;
   onAdd: (orderType: TradeOrderType) => void;
   onReduce: (orderType: TradeOrderType) => void;
-  onReverse: () => void;
   /**
    * Backend REST API health (see useBackendConnection in App.tsx). Every
    * control below that would submit a real order to the backend is
@@ -88,8 +87,7 @@ export default function TradeMenu(props: TradeMenuProps) {
   );
 
   // Which position-management submenu is open (ADD / REDUCE), or null for
-  // the top-level ADD | REDUCE | MARKET REVERSE menu. See the positionSide
-  // branch below.
+  // the top-level position-action menu. See the positionSide branch below.
   const [activeAction, setActiveAction] = useState<PositionAction>(null);
 
   useMobileBackDismissal(selectedOrderType !== null || activeAction !== null, () => {
@@ -118,7 +116,6 @@ export default function TradeMenu(props: TradeMenuProps) {
     onAutoMarket,
     onAdd,
     onReduce,
-    onReverse,
     backendConnection,
     leverage,
     maxLeverage,
@@ -151,7 +148,6 @@ export default function TradeMenu(props: TradeMenuProps) {
         ? `${balanceFormatter.format(availableBalance)} USDT`
         : "—";
 
-  const opposite = positionSide === "LONG" ? "SHORT" : "LONG";
   const isTradingStateReady = !isLoadingPosition;
   const noPosition = isTradingStateReady && positionSide === null;
   /*
@@ -520,23 +516,6 @@ export default function TradeMenu(props: TradeMenuProps) {
                 REDUCE
               </button>
             </div>
-
-            {/*
-             * TEMPORARILY DISABLED: unconditionally disabled (not just
-             * while submitting or disconnected) pending some known issues
-             * being fixed later. Left visible rather than removed so it's
-             * clear this is a deliberate, temporary state rather than a
-             * missing feature - remove the `disabled` override and title
-             * once those issues are resolved.
-             */}
-            <button
-              className="trade-action trade-reverse-market"
-              disabled
-              title="Market reverse is temporarily disabled"
-              onClick={onReverse}
-            >
-              {`MARKET REVERSE TO ${opposite}`}
-            </button>
           </section>
         )
       ) : null}

@@ -106,6 +106,11 @@ the repository installed.
 - Upgrade over the installed version and verify application data remains.
 - Uninstall and document whether local application data is retained by the OS.
 
+The Debian remove/reinstall portion was exercised on the development machine on
+2026-09-04: package 0.1.0 was removed and reinstalled, and all 1,213 files in the
+application-data directory retained identical SHA-256 hashes. A different
+version and clean machine are still required for full upgrade acceptance.
+
 Keep screenshots/logs of the test with secrets redacted. A CI build alone does
 not satisfy this acceptance gate because hosted runners do not reproduce a real
 desktop keyring and taskbar session.

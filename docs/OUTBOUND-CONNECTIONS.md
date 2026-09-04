@@ -7,6 +7,7 @@ requires a CSP, timeout, redirect and redaction review.
 | Purpose | Destination | Data sent | Boundary and failure behavior |
 | --- | --- | --- | --- |
 | Binance USD-M REST | `fapi.binance.com`, `demo-fapi.binance.com` | Public queries or signed account/order requests | 5 s connect, 20 s total; redirects disabled so API key/signature material cannot move to another host; exposure increases fail closed |
+| Binance API-key permissions | `api.binance.com` | Mainnet-only signed permission validation before native credential storage | 5 s connect, 15 s total; redirects disabled; withdrawal-enabled, non-readable, non-Futures, invalid, or unverifiable keys are not stored |
 | Binance market/user streams | Binance Futures `wss` hosts selected by network | Public subscriptions or a temporary listen key | 20 s connection bound; bounded reconnect; REST reconciliation after reconnect; stream state is not authoritative |
 | MEXC public contract data | `api.mexc.com` and configured public WebSocket host | Symbol and candle identifiers only | 5 s connect, 15 s REST total, at most three redirects; unavailable data becomes a visible degraded chart state |
 | Binance token metadata | Binance public Alpha endpoint | Public symbol lookup | 5 s connect, 15 s total; best effort only |

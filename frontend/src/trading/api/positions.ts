@@ -60,28 +60,25 @@ type ErrorResponse = { error?: unknown; message?: unknown };
 
 export type PositionIntentRequest = {
   symbol: string;
-  intent: "ADD" | "REDUCE" | "REVERSE";
+  intent: "ADD" | "REDUCE";
   orderType?: TradeOrderType;
   price?: number;
-  leverage?: number;
   reducePct?: number;
 };
 
 export type PositionIntentResponse = {
-  intent: "ADD" | "REDUCE" | "REVERSE";
+  intent: "ADD" | "REDUCE";
   order_type?: TradeOrderType;
   side: "BUY" | "SELL";
   submitted_quantity?: number;
   submitted_price?: number;
   closed_quantity?: number;
-  opened_quantity?: number;
   remaining_quantity?: number;
   remaining_position_pct?: number;
   reduce_pct?: number;
   warning?: string;
   order?: BinanceOrderResponse;
   close_order?: BinanceOrderResponse;
-  open_order?: BinanceOrderResponse;
 };
 
 function getHeaders(): Record<string, string> {
@@ -330,7 +327,6 @@ export async function executePositionIntent(
     intent: request.intent,
     order_type: request.orderType,
     price: request.price,
-    leverage: request.leverage,
     reduce_pct: request.reducePct,
   };
   return runFinancialMutation(

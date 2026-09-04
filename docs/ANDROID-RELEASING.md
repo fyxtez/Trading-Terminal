@@ -1,5 +1,14 @@
 # Android signed releases
 
+## Current status
+
+The upload identity is provisioned outside the repository, the protected
+`releases` environment contains the four required secrets, and the first
+combined Linux/Android workflow successfully built, verified and attested the
+signed arm64 APK and AAB. The signed APK was also installed and launched on a
+physical Android device. Clean-device acceptance and Play Store publication
+remain separate future work.
+
 Android release APKs and AABs use one long-lived upload identity. Losing that
 identity prevents direct APK users from installing future versions as updates,
 so create it once, back it up, and never commit or upload it as an artifact.

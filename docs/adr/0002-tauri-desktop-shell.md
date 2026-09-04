@@ -31,3 +31,9 @@ sidecar described by ADR 0004.
 
 Verify Windows and macOS independently before enabling their release targets.
 Linux publishing remains gated on signing and clean-machine acceptance.
+
+## Implementation status update (2026-09-04)
+
+Linux CI now produces checksummed, keylessly attested `.deb` and AppImage
+artifacts. Signing ownership is complete; clean-machine acceptance remains the
+only unfinished part of the original publishing gate.

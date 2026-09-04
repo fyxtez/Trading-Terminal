@@ -1127,7 +1127,7 @@ pub(crate) fn normalize_symbol(raw: &str) -> AppResult<String> {
  *
  * This check is instead called explicitly, only at the handlers in
  * api.rs that can open NEW exposure to a symbol (market/limit entries,
- * the auto-market endpoint, and the ADD/REVERSE arms of position_intent -
+ * the auto-market endpoint and the ADD arm of position_intent -
  * see the call sites for the full reasoning per-endpoint). Every reduce/
  * close/cancel/query path is intentionally left unrestricted.
  */

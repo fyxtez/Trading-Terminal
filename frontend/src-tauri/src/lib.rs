@@ -1,5 +1,6 @@
 #[cfg(desktop)]
 mod backend_supervisor;
+mod binance_credentials;
 #[cfg(mobile)]
 mod mobile_backend;
 
@@ -14,6 +15,8 @@ use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
+
+use binance_credentials::validate_binance_credentials;
 
 const SERVICE: &str = "com.fyxtez.terminal";
 const BINANCE_NETWORK: &str = "binance-network";
@@ -222,6 +225,7 @@ async fn save_credentials(
             }
             let api_key = Zeroizing::new(validate_secret("Binance API key", &api_key)?);
             let api_secret = Zeroizing::new(validate_secret("Binance API secret", &api_secret)?);
+            validate_binance_credentials(&api_key, &api_secret, network).await?;
             store("binance-api-key", &api_key)?;
             store("binance-api-secret", &api_secret)?;
             store(BINANCE_NETWORK, network)?;

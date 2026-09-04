@@ -48,3 +48,10 @@ explicit retry. A second app launch focuses the existing window.
 Complete signed Linux release ownership and a clean-machine install test. Treat
 any future capability transport, multi-window support, or remote API exposure as
 a new security decision.
+
+## Implementation status update (2026-09-04)
+
+Signed release ownership and protected Linux/Android CI are complete. The
+downloaded Debian package installs and survives remove/reinstall without
+changing application data on the development machine; acceptance on a separate
+clean Linux system remains pending.

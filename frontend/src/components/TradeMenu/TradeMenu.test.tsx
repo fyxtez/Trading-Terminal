@@ -27,7 +27,6 @@ function createProps(
     onAutoMarket: vi.fn(),
     onAdd: vi.fn(),
     onReduce: vi.fn(),
-    onReverse: vi.fn(),
     backendConnection: "connected",
     leverage: 10,
     maxLeverage: 20,
@@ -74,5 +73,13 @@ describe("TradeMenu", () => {
 
     expect(onLeverageCommit).toHaveBeenCalledOnce();
     expect(onLeverageCommit).toHaveBeenCalledWith(14);
+  });
+
+  it("offers only add and reduce actions for an existing position", () => {
+    render(<TradeMenu {...createProps({ positionSide: "LONG", positionQuantity: 0.1 })} />);
+
+    expect(screen.getByRole("button", { name: "ADD" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "REDUCE" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /REVERSE/ })).not.toBeInTheDocument();
   });
 });

@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard};
 /// Holding one guard across the authoritative reads and writes of a workflow
 /// prevents another HTTP request from interleaving an order mutation with it.
 /// This is especially important for multi-step actions such as close-everything,
-/// reverse, chase, and cancel-and-replace. It is deliberately not a distributed
+/// chase, and cancel-and-replace. It is deliberately not a distributed
 /// lock: the desktop single-instance/sidecar policy guarantees one backend owner.
 #[derive(Clone, Default)]
 pub struct TradeLock {

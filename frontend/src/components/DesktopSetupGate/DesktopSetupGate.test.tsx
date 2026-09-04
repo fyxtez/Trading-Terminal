@@ -87,6 +87,44 @@ describe("DesktopSetupGate", () => {
     expect(await screen.findByRole("heading", { name: "Connect ntfy" })).toBeVisible();
   });
 
+  it("shows rejected Mainnet credentials in the styled setup error without closing setup", async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "credential_status") return Promise.resolve(emptyStatus);
+      if (command === "save_credentials") {
+        return Promise.reject(
+          new Error(
+            "This Binance Mainnet API key has withdrawals enabled. It was not saved. Disable this key and create a new Futures-only key with withdrawals disabled.",
+          ),
+        );
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    render(
+      <DesktopSetupGate>
+        <div>Terminal</div>
+      </DesktopSetupGate>,
+    );
+
+    await screen.findByRole("heading", { name: "Connect Binance" });
+    fireEvent.change(screen.getByLabelText("Binance API key"), {
+      target: { value: "withdrawal-enabled-key" },
+    });
+    fireEvent.change(screen.getByLabelText("Binance API secret"), {
+      target: { value: "api-secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
+    fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
+    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
+    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
+    fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
+
+    const error = await screen.findByText(/withdrawals enabled\. It was not saved/);
+    expect(error).toHaveClass("desktop-setup-error");
+    expect(screen.getByRole("heading", { name: "Connect Telegram" })).toBeVisible();
+    expect(screen.queryByText("Terminal")).not.toBeInTheDocument();
+  });
+
   it("finishes in chart-only mode when every connection is skipped", async () => {
     render(
       <DesktopSetupGate>

@@ -98,7 +98,7 @@ fn default_time_in_force() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{MarginSizingConfig, OrderSide};
+    use super::{MarginSizingConfig, OrderSide, PositionIntentRequest};
 
     #[test]
     fn sizing_policy_accepts_only_bounded_finite_values() {
@@ -114,9 +114,20 @@ mod tests {
     }
 
     #[test]
-    fn opposite_side_is_stable_for_close_and_reverse_plans() {
+    fn opposite_side_is_stable_for_close_plans() {
         assert!(matches!(OrderSide::Buy.opposite(), OrderSide::Sell));
         assert!(matches!(OrderSide::Sell.opposite(), OrderSide::Buy));
+    }
+
+    #[test]
+    fn position_intent_contract_rejects_removed_reverse_actions() {
+        let request = serde_json::json!({
+            "symbol": "BTCUSDT",
+            "intent": "REVERSE",
+            "order_type": "MARKET"
+        });
+
+        assert!(serde_json::from_value::<PositionIntentRequest>(request).is_err());
     }
 }
 
@@ -178,7 +189,6 @@ pub struct AutoSizeQuery {
 pub enum PositionIntent {
     Add,
     Reduce,
-    Reverse,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -194,7 +204,6 @@ pub struct PositionIntentRequest {
     pub intent: PositionIntent,
     pub order_type: Option<IntentOrderType>,
     pub price: Option<f64>,
-    pub leverage: Option<u32>,
 
     /// Percentage of the current position to reduce, in the range (0, 100].
     pub reduce_pct: Option<f64>,

@@ -48,3 +48,11 @@ separate executable is required on the device.
   it is, add an explicit foreground service and visible persistent notification.
 - Add Android signing, release CI, upgrade/uninstall, and clean-device acceptance
   tests before declaring Android a supported release target.
+
+## Implementation status update (2026-09-04)
+
+The protected release workflow now builds and verifies a signed arm64 APK/AAB,
+and the signed APK has been installed successfully on a physical device. Play
+Store publication and clean-device acceptance remain out of scope. Continuous
+monitoring is now confirmed as a product requirement; ADR 0012 defines the
+foreground-service implementation that remains pending.

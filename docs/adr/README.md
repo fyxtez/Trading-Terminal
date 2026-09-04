@@ -14,5 +14,7 @@ This directory records architectural decisions that are expensive or unsafe to r
 | [0008](0008-authoritative-exchange-reconciliation.md) | Accepted | Rebuild trading projections from authoritative Binance state after uncertain outcomes |
 | [0009](0009-durable-financial-intents.md) | Accepted | Require durable intent IDs for financial mutations |
 | [0010](0010-embedded-mobile-backend.md) | Accepted | Embed the shared backend library in the Android Tauri process |
+| [0011](0011-mainnet-api-key-permission-gate.md) | Accepted | Reject Mainnet API keys that can withdraw or cannot read/trade Futures |
+| [0012](0012-continuous-background-monitoring.md) | Accepted; implementation pending | Use a desktop tray runtime and Android foreground service for continuous monitoring |
 
 New ADRs use the next four-digit number and contain Context, Decision, Consequences, and Follow-up sections.

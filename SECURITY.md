@@ -57,6 +57,11 @@ or uncertain reuse fails closed. Before new exposure, the backend refreshes
 authoritative exchange prerequisites and enforces the registered execution
 symbol, isolated margin and Binance exchange filters.
 
+New Mainnet Binance credentials are verified before storage through Binance's
+signed API-key-permission endpoint. The native layer requires reading and
+Futures access and rejects any key with withdrawals enabled. See
+[ADR 0011](docs/adr/0011-mainnet-api-key-permission-gate.md).
+
 Tauri owns the sidecar lifecycle and limits automatic crash recovery to three
 attempts. A second desktop launch focuses the existing window instead of
 starting a competing backend/keyring owner. These controls protect the desktop
@@ -64,11 +69,11 @@ boundary; they do not make the backend safe to expose on a LAN or the Internet.
 
 ## Release boundary
 
-Linux bundles are buildable but must stay draft/prerelease until the documented
-clean-machine installation check succeeds and release signing is configured.
-There is no updater in v1. Signing keys and CI signing credentials must live in
-the release owner's hardware/secret store, never in Git, build caches, logs, or
-unsigned artifacts. See [docs/RELEASING.md](docs/RELEASING.md).
+Linux and Android release artifacts are built, signature-checked, checksummed,
+and attested by the protected release workflow. They must stay draft/prerelease
+until the documented clean-machine installation check succeeds. There is no
+updater in v1. The Android upload identity and CI signing credentials live
+outside Git and build outputs. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Before committing
 

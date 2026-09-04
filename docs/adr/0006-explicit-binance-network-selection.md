@@ -37,3 +37,10 @@ but those variables are ignored by the desktop sidecar.
 
 Add end-to-end release acceptance for Testnet connection, Mainnet confirmation,
 network switching, and partial/locked credential-store failures.
+
+## Implementation status update (2026-09-04)
+
+Network selection and explicit Mainnet confirmation are implemented. ADR 0011
+adds a native pre-storage permission gate that rejects Mainnet keys with
+withdrawals enabled or without reading/Futures access. Locked/corrupt
+credential-store acceptance remains pending.

@@ -20,9 +20,11 @@ Tauri native process
       └── reads the same OS credential-store service directly
 ```
 
-Linux x86_64 `.deb` and AppImage bundling is enabled. Distribution still
-requires artifact signing and clean-machine acceptance. Decisions and
-constraints are recorded in [`docs/adr`](docs/adr/README.md).
+Linux x86_64 `.deb` and AppImage bundling is enabled and CI attaches SHA-256
+manifests plus keyless build attestations. Android release artifacts carry the
+long-lived upload certificate. Public distribution still requires
+clean-machine acceptance. Decisions and constraints are recorded in
+[`docs/adr`](docs/adr/README.md).
 
 Android preserves the same React/Axum boundary but links the backend crate into
 the Tauri process instead of packaging a second executable:
@@ -45,7 +47,9 @@ Android Tauri process
   credential manager. Native status exposes only booleans plus the non-secret
   network name to React; Axum reads the same keychain entries without a
   JavaScript or `.env` credential handoff. No network is selected by default,
-  and Mainnet needs an explicit real-funds confirmation.
+  and Mainnet needs an explicit real-funds confirmation. New Mainnet
+  credentials are stored only after Binance confirms reading/Futures access
+  and `enableWithdrawals=false`.
 - **Optional notifications:** ntfy and Telegram are configured independently
   and never gate chart or trading access.
 
@@ -156,7 +160,7 @@ The backend is a reusable Tokio application exposed through Axum.
 Shared read-mostly state uses Tokio synchronization primitives. A global
 process-local `TradeLock` serializes Binance account mutations. A handler keeps
 its guard across the authoritative reads and writes of its workflow, so another
-request cannot place, cancel, modify, close, chase, or reverse an order in the
+request cannot place, cancel, modify, close, or chase an order in the
 middle of that transition. In particular, `close-everything` holds the guard
 from its fresh account/open-order snapshot through every cancellation and
 reduce-only close. The lock is not distributed; desktop single-instance
@@ -168,6 +172,11 @@ guard is released.
 Background tasks refresh exchange reference data, account state, position risk,
 alerts, and user-stream events. They do not submit account mutations through the
 HTTP trading workflows and are aborted during graceful shutdown.
+
+The current background workers live only as long as their owning desktop or
+Android process. ADR 0012 defines continuous monitoring as a Linux tray-owned
+runtime and an Android foreground service; that lifecycle work is not yet
+implemented.
 
 ## Request and event flows
 

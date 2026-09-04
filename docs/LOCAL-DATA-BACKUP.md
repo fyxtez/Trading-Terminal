@@ -63,9 +63,16 @@ outcome is known.
 
 Package upgrades and application rollback must preserve the app-data directory
 and credential-manager entries. Before either operation, take a closed-app
-backup. Uninstall behavior depends on the OS/package manager and must be
-recorded during clean-machine acceptance; never assume uninstall removed local
-data or credentials.
+backup. On 2026-09-04 the downloaded Debian 0.1.0 package was removed with
+`dpkg --remove` and reinstalled on the development machine. The package was
+restored successfully and all 1,213 files under `com.fyxtez.terminal` had
+identical before/after SHA-256 hashes. The package has no maintainer scripts and
+does not manage the separate OS credential-store entries.
+
+This result documents Debian remove/reinstall behavior on the development
+machine; it does not replace the still-pending clean-machine upgrade and restore
+acceptance. Other operating systems/package managers may behave differently,
+so never assume uninstall removed local data or credentials.
 
 Backup/restore is documented but remains a release acceptance test until a
 restore has been exercised on a clean supported machine.

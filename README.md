@@ -85,13 +85,15 @@ package a second backend source tree or require Cargo, `.env`, or a manually
 started service on the phone. Secrets use Android's native credential store and
 runtime data stays in the app's private data directory.
 
-This is currently a device-development target. CI can produce a signed arm64
-APK/AAB after the protected release keystore is provisioned, but Android is not
-yet a supported Play Store release.
+This is currently a signed direct-distribution preview. The protected release
+workflow produces and verifies an arm64 APK/AAB using the provisioned upload
+identity, but Android is not yet a supported Play Store release.
 Android can suspend or terminate an app in the background, so persistent alerts
 and user-stream monitoring are only guaranteed while the app process remains
 active. A foreground-service design is required before promising continuous
-background operation. See [ADR 0010](docs/adr/0010-embedded-mobile-backend.md).
+background operation. Desktop monitoring likewise stops on explicit app exit;
+the accepted platform plan is a Linux tray runtime and Android foreground
+service. See [ADR 0012](docs/adr/0012-continuous-background-monitoring.md).
 
 ### Linux release bundle
 
@@ -208,6 +210,11 @@ creates its API endpoint and capability in memory for each launch. Desktop sends
 the bootstrap payload to the sidecar over stdin; Android passes it directly to
 the embedded backend. Neither path uses Vite, argv, a URL, or a file.
 
+Before a newly entered Mainnet Binance pair is stored, the native layer checks
+Binance's signed API-key permission response. Reading and Futures access are
+required, and any key with withdrawals enabled is rejected with a request to
+create a new restricted key. Testnet keys cannot authorize real withdrawals.
+
 Installed desktop runtime data uses the platform application-data directory.
 Standalone backend development defaults to `backend/data/`:
 
@@ -225,11 +232,12 @@ are never included in that backup.
 ## Deployment status
 
 The supported deployment shape is a local, single-user Linux desktop install.
-Do not expose Axum as a public service. Android is an unsigned development
-preview for physical-device testing. Linux bundles are enabled, but the first public
-artifact remains gated on the clean-machine acceptance test and release-signing
-process in [docs/RELEASING.md](docs/RELEASING.md). Windows and macOS are not yet
-verified release targets, and v1 intentionally has no automatic updater.
+Do not expose Axum as a public service. CI produces verified, signed/attested
+Linux `.deb`/AppImage and Android arm64 APK/AAB artifacts. Android remains a
+direct-distribution preview, and the first public release remains gated on the
+clean-machine acceptance procedure in [docs/RELEASING.md](docs/RELEASING.md).
+Windows and macOS are not yet verified release targets, and v1 intentionally
+has no automatic updater.
 
 ## Additional documentation
 
@@ -240,6 +248,7 @@ verified release targets, and v1 intentionally has no automatic updater.
 - [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
 - [Linux release procedure](docs/RELEASING.md)
 - [Android signed release procedure](docs/ANDROID-RELEASING.md)
+- [Continuous background monitoring decision](docs/adr/0012-continuous-background-monitoring.md)
 - [Desktop release and live-trading checklist](docs/RELEASE-CHECKLIST.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
 - [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)

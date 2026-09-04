@@ -33,7 +33,6 @@ export type PendingTradeAction =
   | "MARKET_ADD"
   | "LIMIT_REDUCE"
   | "MARKET_REDUCE"
-  | "MARKET_REVERSE"
   | "AUTO_MARKET_BUY"
   | "AUTO_MARKET_SELL"
   | null;
@@ -786,37 +785,6 @@ export function useTradeMenu(
     }
   };
 
-  const submitReverse = async () => {
-    if (!tradeMenu || !positionSide || isSubmittingTrade) return;
-
-    setPendingTradeAction("MARKET_REVERSE");
-    setTradeToast(null);
-
-    try {
-      const result = await executePositionIntent({
-        symbol,
-        intent: "REVERSE",
-        orderType: "MARKET",
-        leverage: DEFAULT_LEVERAGE,
-      });
-
-      emitMarketMarker(result.side, result.open_order);
-      dispatchTradingStateChanged();
-      setTradeMenu(null);
-      setTradeToast({
-        kind: "success",
-        message: `Reversed to ${positionSide === "LONG" ? "SHORT" : "LONG"}`,
-      });
-    } catch (error) {
-      setTradeToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Failed to reverse",
-      });
-    } finally {
-      setPendingTradeAction(null);
-    }
-  };
-
   return {
     tradeMenu,
     setTradeMenu,
@@ -834,7 +802,6 @@ export function useTradeMenu(
     submitAutoMarket,
     submitAdd,
     submitReduce,
-    submitReverse,
     availableBalance,
     marginPct,
     isLoadingBalance,

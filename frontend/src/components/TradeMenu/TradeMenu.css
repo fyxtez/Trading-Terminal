@@ -440,28 +440,6 @@
   border-color: rgba(245, 166, 35, 0.45);
 }
 
-.trade-reverse-section {
-  margin-top: 14px;
-}
-
-.trade-reverse-market {
-  width: 100%;
-  min-height: 46px;
-  margin-top: 14px;
-  background: var(--red);
-  color: #200a10;
-  font-size: 12px;
-}
-
-.trade-reverse-warning {
-  display: block;
-  margin-top: 9px;
-  color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.4;
-  text-align: center;
-}
-
 .trade-position-badge {
   grid-column: 1 / -1;
   margin-top: 9px;

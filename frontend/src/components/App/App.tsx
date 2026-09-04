@@ -1225,7 +1225,6 @@ function App() {
           onAutoMarket={tradeMenuApi.beginAutoMarket}
           onAdd={tradeMenuApi.submitAdd}
           onReduce={tradeMenuApi.submitReduce}
-          onReverse={tradeMenuApi.submitReverse}
           backendConnection={backendConnection}
           leverage={tradeMenuApi.leverage}
           maxLeverage={tradeMenuApi.maxLeverage}

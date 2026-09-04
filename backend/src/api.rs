@@ -13,7 +13,7 @@ use std::{
 };
 use tokio::{
     sync::{Mutex, RwLock, broadcast},
-    time::{Duration, sleep},
+    time::Duration,
 };
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
@@ -494,7 +494,7 @@ async fn auto_market_order(
 fn ensure_auto_market_starts_flat(account: &FuturesAccountInfo, symbol: &str) -> AppResult<()> {
     if find_nonzero_position(account, symbol).is_some() {
         return Err(AppError::Invalid(format!(
-            "AUTO MARKET only opens a new protected position; {symbol} already has exposure. Use ADD, REDUCE, or REVERSE instead"
+            "AUTO MARKET only opens a new protected position; {symbol} already has exposure. Use ADD or REDUCE instead"
         )));
     }
 
@@ -1585,7 +1585,7 @@ async fn position_intent(
     let filters = state.binance.symbol_filters(&symbol).await?;
 
     // same live-fallback pattern as stop_market/close_position - a
-    // position acted on immediately after opening (ADD/REDUCE/REVERSE
+    // position acted on immediately after opening (ADD/REDUCE
     // right after an entry fill) must not 400 just because
     // ACCOUNT_UPDATE hasn't landed in the cache yet.
     let (amount, _account) = find_position_amount(&state, &symbol).await?;
@@ -1595,10 +1595,9 @@ async fn position_intent(
 
     match req.intent {
         PositionIntent::Add => {
-            // ADD only ever grows exposure to this symbol - unlike REDUCE
-            // (must always work, even for a legacy unsupported-symbol
-            // position) and REVERSE (gated further down, right before its
-            // own re-entry leg, not at its close leg).
+            // ADD only ever grows exposure to this symbol, unlike REDUCE,
+            // which must remain available for a legacy unsupported-symbol
+            // position so exposure can still be closed safely.
             state
                 .symbol_registry
                 .ensure_binance_trading_symbol(&symbol)
@@ -1826,88 +1825,6 @@ async fn position_intent(
                     })))
                 }
             }
-        }
-        PositionIntent::Reverse => {
-            if matches!(req.order_type, Some(IntentOrderType::Limit)) {
-                return Err(AppError::Invalid(
-                    "LIMIT REVERSE is not supported; use MARKET REVERSE".into(),
-                ));
-            }
-
-            state.binance.cancel_all_orders(&symbol).await?;
-
-            let quantity = amount.abs();
-            let close_order = state
-                .binance
-                .market_order(&symbol, opposite_side, quantity, true, None)
-                .await?;
-
-            state.account_state.request_refresh();
-
-            let mut flat = false;
-            for _ in 0..20 {
-                let refreshed = state.account_state.snapshot().await;
-                let remaining = refreshed
-                    .positions
-                    .iter()
-                    .find(|position| position.symbol == symbol)
-                    .and_then(|position| position.position_amt.parse::<f64>().ok())
-                    .unwrap_or(0.0);
-
-                if remaining.abs() < f64::EPSILON {
-                    flat = true;
-                    break;
-                }
-
-                sleep(Duration::from_millis(100)).await;
-            }
-
-            if !flat {
-                return Err(AppError::Invalid(format!(
-                    "{symbol} did not become flat after close; reverse aborted"
-                )));
-            }
-
-            // The close leg above (reduce_only=true) must always be
-            // allowed, even for a legacy position in an unsupported
-            // symbol - it's only the re-entry into the OPPOSITE side
-            // below that creates new exposure, so that's the only half
-            // of REVERSE gated here.
-            state
-                .symbol_registry
-                .ensure_binance_trading_symbol(&symbol)
-                .await?;
-
-            // Re-read account, position-risk, filters and price after the close
-            // leg. If that authoritative refresh fails, the position stays flat
-            // and the exposure-increasing half of REVERSE is aborted.
-            refresh_exposure_prerequisites(&state, &symbol).await?;
-
-            // a REVERSE closes first, then creates fresh exposure in the
-            // opposite direction. Enforce ISOLATED after the account becomes
-            // flat and before that new leg is submitted.
-            state.binance.ensure_isolated_margin(&symbol).await?;
-
-            if let Some(leverage) = req.leverage {
-                state.binance.set_leverage(&symbol, leverage).await?;
-            }
-
-            let open_order = state
-                .binance
-                .market_order(&symbol, opposite_side, quantity, false, None)
-                .await?;
-
-            state.account_state.request_refresh();
-
-            Ok(Json(json!({
-                "intent":"REVERSE",
-                "order_type":"MARKET",
-                "closed_quantity":quantity,
-                "opened_quantity":quantity,
-                "side":opposite_side,
-                "close_order":close_order,
-                "open_order":open_order
-            })))
         }
     }
 }
@@ -2572,14 +2489,9 @@ mod financial_invariant_tests {
     }
 
     #[test]
-    fn close_and_reverse_use_the_exposure_reducing_side() {
+    fn close_uses_the_exposure_reducing_side() {
         assert!(matches!(close_side_for_position(0.5), OrderSide::Sell));
         assert!(matches!(close_side_for_position(-0.5), OrderSide::Buy));
-
-        let long_close = close_side_for_position(0.5);
-        let reverse_entry = long_close;
-        assert_eq!(reverse_entry.as_str(), "SELL");
-        assert_eq!(reverse_entry.opposite().as_str(), "BUY");
     }
 
     #[test]
