@@ -1,4 +1,4 @@
-name: Linux desktop release
+name: Signed Linux and Android release
 
 on:
   push:
@@ -7,10 +7,16 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
-  build:
+  linux:
     runs-on: ubuntu-22.04
+    environment: releases
+    outputs:
+      app_version: ${{ steps.tauri.outputs.appVersion }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
@@ -34,7 +40,8 @@ jobs:
       - name: Verify tests before packaging
         working-directory: frontend
         run: npm run test:run
-      - uses: tauri-apps/tauri-action@v0
+      - id: tauri
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -42,7 +49,141 @@ jobs:
           tagName: v__VERSION__
           releaseName: Fyxtez Terminal v__VERSION__
           releaseBody: |
-            Linux x86_64 desktop build. Install the `.deb` package on Ubuntu/Debian,
-            or use the AppImage as a portable fallback.
+            Signed release candidate. Linux users should install the `.deb` package
+            on Ubuntu/Debian or use the AppImage as a portable fallback. Android is
+            an arm64 preview and does not yet promise persistent background alerts.
+
+            Every asset is covered by GitHub build-provenance attestation and the
+            platform-specific SHA-256 manifest attached to this draft.
           releaseDraft: true
           prerelease: true
+      - name: Stage Linux release assets and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets/linux
+          mapfile -t bundles < <(
+            find frontend/src-tauri/target/release/bundle -type f \
+              \( -name '*.deb' -o -name '*.AppImage' \) -print | sort
+          )
+          test "${#bundles[@]}" -eq 2
+          cp -- "${bundles[@]}" release-assets/linux/
+          (
+            cd release-assets/linux
+            sha256sum -- *.deb *.AppImage | sort -k2 > SHA256SUMS-linux-x86_64.txt
+          )
+      - name: Attest Linux artifacts
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/linux/*
+      - name: Attach Linux checksum manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release upload "v${{ steps.tauri.outputs.appVersion }}"
+          release-assets/linux/SHA256SUMS-linux-x86_64.txt --clobber
+      - name: Preserve attested Linux artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: signed-linux-x86_64-${{ steps.tauri.outputs.appVersion }}
+          path: release-assets/linux/*
+          if-no-files-found: error
+
+  android:
+    needs: linux
+    runs-on: ubuntu-22.04
+    environment: releases
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.14206865"
+          printf 'NDK_HOME=%s\n' "$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            backend
+            frontend/src-tauri
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Prepare Android release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fyxtez-upload.jks"
+          chmod 600 "$RUNNER_TEMP/fyxtez-upload.jks"
+          keytool -list \
+            -keystore "$RUNNER_TEMP/fyxtez-upload.jks" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS"
+          printf 'ANDROID_KEYSTORE_PATH=%s\n' "$RUNNER_TEMP/fyxtez-upload.jks" >> "$GITHUB_ENV"
+      - name: Build signed Android APK and AAB
+        working-directory: frontend
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: npm run tauri -- android build --apk --aab --target aarch64 --ci
+      - name: Verify and stage Android signatures
+        run: |
+          set -euo pipefail
+          apk="frontend/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
+          aab="frontend/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
+          test -f "$apk"
+          test -f "$aab"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk"
+          jarsigner -verify "$aab"
+          mkdir -p release-assets/android
+          version="${{ needs.linux.outputs.app_version }}"
+          cp -- "$apk" "release-assets/android/Fyxtez.Terminal_${version}_android_arm64.apk"
+          cp -- "$aab" "release-assets/android/Fyxtez.Terminal_${version}_android_arm64.aab"
+          (
+            cd release-assets/android
+            sha256sum -- *.apk *.aab | sort -k2 > SHA256SUMS-android-arm64.txt
+          )
+      - name: Attest Android artifacts
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/android/*
+      - name: Attach signed Android artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release upload "v${{ needs.linux.outputs.app_version }}"
+          release-assets/android/* --clobber
+      - name: Preserve attested Android artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: signed-android-arm64-${{ needs.linux.outputs.app_version }}
+          path: release-assets/android/*
+          if-no-files-found: error
+      - name: Remove decoded signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/fyxtez-upload.jks"

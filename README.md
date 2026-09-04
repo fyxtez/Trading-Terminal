@@ -85,7 +85,9 @@ package a second backend source tree or require Cargo, `.env`, or a manually
 started service on the phone. Secrets use Android's native credential store and
 runtime data stays in the app's private data directory.
 
-This is currently a device-development target, not a signed Android release.
+This is currently a device-development target. CI can produce a signed arm64
+APK/AAB after the protected release keystore is provisioned, but Android is not
+yet a supported Play Store release.
 Android can suspend or terminate an app in the background, so persistent alerts
 and user-stream monitoring are only guaranteed while the app process remains
 active. A foreground-service design is required before promising continuous
@@ -237,6 +239,7 @@ verified release targets, and v1 intentionally has no automatic updater.
 - [Security model and operating guidance](SECURITY.md)
 - [Dependency policy and reviewed audit warnings](docs/DEPENDENCY-POLICY.md)
 - [Linux release procedure](docs/RELEASING.md)
+- [Android signed release procedure](docs/ANDROID-RELEASING.md)
 - [Desktop release and live-trading checklist](docs/RELEASE-CHECKLIST.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
 - [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)

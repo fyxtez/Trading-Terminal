@@ -37,7 +37,7 @@ release must record artifact SHA-256 hashes.
 2. Push a tag such as `v0.1.0`, or manually run **Linux desktop release** from
    GitHub Actions.
 3. Download the draft assets and perform the clean-machine test below.
-4. Record SHA-256 checksums in the release notes.
+4. Verify the attached SHA-256 manifests and GitHub build attestations.
 5. Publish the draft only after all acceptance checks pass.
 
 No automatic updater is included in the first release.
@@ -49,20 +49,26 @@ approved GitHub Environment with required review, may publish the draft created
 by CI. Tag and package versions must match and release tags are immutable after
 publication; corrections use a new patch version.
 
-Before the first non-prerelease distribution, create a dedicated release-signing
-key outside this repository. Keep the private key in a hardware-backed local
-key store or GitHub Actions environment secret, protect it with a separate
-passphrase secret, and restrict secret access to protected version tags. Never
-place the key, passphrase, exported keyring, or decoded secret in Git, workflow
-artifacts, caches, command arguments, or logs. Publish the public key and its
-fingerprint through a separately controlled project channel.
+Linux uses GitHub's keyless Sigstore-backed build attestation as its signing
+identity. The release workflow attests the `.deb`, AppImage and their SHA-256
+manifest using the workflow's short-lived OIDC identity; there is no Linux
+private key to store or leak. Verify a freshly downloaded asset with:
 
-Sign the final `.deb` and AppImage (or their published SHA-256 checksum
-manifest) with that release key after clean-machine acceptance. Verify every
-signature and checksum from a fresh download before publishing. The current CI
-deliberately creates unsigned draft/prerelease artifacts because no signing
-identity has yet been provisioned; it must not be promoted to a production
-release until this step is completed.
+```bash
+gh attestation verify ./Fyxtez.Terminal_0.1.0_amd64.deb \
+  --repo fyxtez/Trading-Terminal
+sha256sum --check SHA256SUMS-linux-x86_64.txt
+```
+
+Attestation proves the artifact came from this repository's release workflow;
+it does not prove that the source is defect-free. Drafts remain gated on the
+clean-machine acceptance test.
+
+Android uses a long-lived upload keystore because Android requires every APK and
+AAB to carry an application signature. The keystore is generated and backed up
+outside this repository, while CI receives it only through protected `releases`
+environment secrets. See [ANDROID-RELEASING.md](ANDROID-RELEASING.md) for the
+one-time setup, fingerprint verification and recovery rules.
 
 Rollback is manual in v1: withdraw the affected GitHub release, leave the tag
 for auditability, publish the last known-good signed artifact and checksums, and

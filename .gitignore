@@ -1,3 +1,8 @@
 # TODO notes are local planning material and must not be published.
 TODOs/
 frontend/tsconfig.tsbuildinfo
+
+# Release signing material must never enter source control.
+*.jks
+*.keystore
+**/keystore.properties
