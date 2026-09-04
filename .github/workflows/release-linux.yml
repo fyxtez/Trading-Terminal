@@ -7,9 +7,14 @@ on:
 
 permissions:
   contents: write
+  deployments: write
   id-token: write
   attestations: write
   artifact-metadata: write
+
+concurrency:
+  group: signed-release
+  cancel-in-progress: false
 
 jobs:
   linux:
@@ -256,3 +261,49 @@ jobs:
             echo '::error::Release upload failed; a newly-created incomplete draft was removed.'
             exit 1
           fi
+      - name: Remove stale release deployment records
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t deployment_ids < <(
+            gh api --paginate \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "/repos/$GITHUB_REPOSITORY/deployments?environment=releases&per_page=100" \
+              --jq '.[].id' \
+              | sort -nr
+          )
+
+          if (( ${#deployment_ids[@]} <= 1 )); then
+            echo 'No stale release deployments to remove.'
+            exit 0
+          fi
+
+          keep_id="${deployment_ids[0]}"
+          echo "Keeping newest release deployment $keep_id."
+
+          for deployment_id in "${deployment_ids[@]:1}"; do
+            if ! gh api --method POST \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                -f state=inactive \
+                -f description='Superseded by a successful release deployment.' \
+                >/dev/null
+            then
+              echo "::warning::Could not deactivate release deployment $deployment_id."
+              continue
+            fi
+            if ! gh api --method DELETE \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "/repos/$GITHUB_REPOSITORY/deployments/$deployment_id"
+            then
+              echo "::warning::Could not remove release deployment $deployment_id."
+              continue
+            fi
+            echo "Removed stale release deployment $deployment_id."
+          done
