@@ -243,8 +243,13 @@ jobs:
           tag="v${{ needs.linux.outputs.app_version }}"
           created_release=false
 
-          if gh release view "$tag" >/dev/null 2>&1; then
-            is_draft="$(gh release view "$tag" --json isDraft --jq .isDraft)"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            is_draft="$(
+              gh release view "$tag" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json isDraft \
+                --jq .isDraft
+            )"
             if [[ "$is_draft" != "true" ]]; then
               echo "::error::Release $tag already exists and is not a draft. Refusing to replace it."
               exit 1
@@ -254,13 +259,17 @@ jobs:
               --draft \
               --prerelease \
               --title "Fyxtez Terminal $tag" \
-              --notes "$RELEASE_NOTES"
+              --notes "$RELEASE_NOTES" \
+              --repo "$GITHUB_REPOSITORY"
             created_release=true
           fi
 
-          if ! gh release upload "$tag" release-assets/* --clobber; then
+          if ! gh release upload "$tag" release-assets/* \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+          then
             if [[ "$created_release" == "true" ]]; then
-              gh release delete "$tag" --yes
+              gh release delete "$tag" --yes --repo "$GITHUB_REPOSITORY"
             fi
             echo '::error::Release upload failed; a newly-created incomplete draft was removed.'
             exit 1
