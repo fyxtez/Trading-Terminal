@@ -65,6 +65,13 @@ jobs:
             cd release-assets/linux
             sha256sum -- *.deb *.AppImage | sort -k2 > SHA256SUMS-linux-x86_64.txt
           )
+      - name: Smoke test Debian package on clean Ubuntu
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t debs < <(find release-assets/linux -maxdepth 1 -type f -name '*.deb')
+          test "${#debs[@]}" -eq 1
+          frontend/scripts/smoke-test-deb-docker.sh "${debs[0]}"
       - name: Attest Linux artifacts
         uses: actions/attest@v4
         with:

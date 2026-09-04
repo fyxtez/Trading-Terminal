@@ -111,6 +111,22 @@ The Debian remove/reinstall portion was exercised on the development machine on
 application-data directory retained identical SHA-256 hashes. A different
 version and clean machine are still required for full upgrade acceptance.
 
+Every release build also runs a package-level smoke test in a clean Ubuntu
+22.04 Docker container before attestation. To repeat it locally against a
+downloaded or locally built package:
+
+```bash
+frontend/scripts/smoke-test-deb-docker.sh ./Fyxtez.Terminal_0.1.0_amd64.deb
+```
+
+The container begins without Node.js, npm, Cargo, Rust or the repository. It
+installs package dependencies through APT, verifies both executables and their
+dynamic libraries, checks the desktop entry and icons, then exercises reinstall,
+purge and installation while confirming that a user-data marker survives. This
+is deliberately narrower than the clean-machine acceptance above: a headless
+container cannot validate WebKit rendering, the desktop keyring, taskbar/menu
+integration, single-instance focus or a real graphical first launch.
+
 Keep screenshots/logs of the test with secrets redacted. A CI build alone does
 not satisfy this acceptance gate because hosted runners do not reproduce a real
 desktop keyring and taskbar session.

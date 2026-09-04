@@ -13,6 +13,8 @@ not by itself make Mainnet trading release-ready.
 - [x] Single-instance and bounded sidecar restart behavior are defined.
 - [x] Linux CI produces `.deb` and AppImage bundles containing the sidecar.
 - [x] A downloaded `.deb` installs and launches on the development Linux machine.
+- [x] A clean Ubuntu 22.04 Docker smoke test installs, verifies, purges and
+      reinstalls every release `.deb` without Node.js, Cargo or the repository.
 - [x] CI checks frontend, backend, Tauri, dependencies and committed secrets.
 - [ ] Repeat installation acceptance on a clean Linux machine or VM.
 - [x] Linux release artifacts receive SHA-256 manifests and keyless GitHub build attestations.
