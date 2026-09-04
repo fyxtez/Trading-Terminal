@@ -72,6 +72,14 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 - [ ] Audit repository history and old archives, then rotate any credential whose
       confidentiality is uncertain.
 
+## Deferred product work
+
+- [ ] Build a separate hosted alert backend that monitors public market prices
+      continuously and sends alert messages to authenticated clients. It must not
+      require Binance trading keys, and its authentication, delivery guarantees,
+      deduplication, abuse controls, privacy, and operating cost need a dedicated
+      design review before price alerts, ntfy, or Telegram are exposed again.
+
 See [OUTBOUND-CONNECTIONS.md](OUTBOUND-CONNECTIONS.md),
 [LOCAL-DATA-BACKUP.md](LOCAL-DATA-BACKUP.md) and
 [EMERGENCY-PROCEDURE.md](EMERGENCY-PROCEDURE.md).

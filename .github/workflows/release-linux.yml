@@ -233,7 +233,8 @@ jobs:
           RELEASE_NOTES: |
             Signed release candidate. Linux users should install the `.deb` package
             on Ubuntu/Debian or use the AppImage as a portable fallback. Android is
-            an arm64 preview and does not yet promise persistent background alerts.
+            an arm64 preview. Price alerts, ntfy, and Telegram are currently dormant
+            on both Linux and Android and are not available in this release.
 
             Every asset is covered by GitHub build-provenance attestation and the
             platform-specific SHA-256 manifest attached to this draft.
