@@ -51,6 +51,7 @@ import { useArmedDrawingInteractions } from "./useArmedDrawingInteractions";
  */
 /** How long the mouse has to sit still over a drawing before the info popup appears. */
 const HOVER_INFO_DELAY_MS = 500;
+const PEN_MIN_SAMPLE_DISTANCE_PX = 1;
 
 /**
  * Everything that happens directly on the canvas overlay: the
@@ -202,6 +203,30 @@ export function useDrawingCanvas(
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
     };
+  };
+
+  const getLocalPenPointers = (event: ReactPointerEvent<HTMLDivElement>): ScreenPoint[] => {
+    const wrap = refs.chartWrapRef.current;
+
+    if (!wrap) return [];
+
+    const rect = wrap.getBoundingClientRect();
+    const nativeEvent = event.nativeEvent;
+    const coalesced = nativeEvent.getCoalescedEvents?.() ?? [];
+    const samples: PointerEvent[] = coalesced.length > 0 ? [...coalesced] : [nativeEvent];
+    const last = samples[samples.length - 1];
+
+    // Browsers normally include the dispatched event as the final coalesced
+    // sample, but the Pointer Events contract does not require that. Always
+    // retain the newest coordinates without duplicating an identical sample.
+    if (!last || last.clientX !== event.clientX || last.clientY !== event.clientY) {
+      samples.push(nativeEvent);
+    }
+
+    return samples.map((sample) => ({
+      x: sample.clientX - rect.left,
+      y: sample.clientY - rect.top,
+    }));
   };
 
   const getPendingOrderRects = (drawing: HorizontalDrawing) =>
@@ -1134,25 +1159,40 @@ export function useDrawingCanvas(
       event.preventDefault();
       event.stopPropagation();
 
-      // Same reasoning as the pen's first point above - without
-      // `continuous: true` here, every mouse-move sample inside the same
-      // candle's pixel width would keep landing on that candle's one
-      // shared time, so the stroke reduces to a vertical jog per candle
-      // instead of tracking the mouse's actual path.
-      const continuousChartPoint = coord.screenToChartPoint(local.x, local.y, true) ?? chartPoint;
+      // Capture every hardware sample the browser grouped into this pointer
+      // event. Keeping only event.clientX/Y discarded most of a quick curved
+      // gesture and left the renderer with a coarse polygon.
+      const appendedPoints: PenDrawing["points"] = [];
+      let previousScreen = coord.chartPointToScreen(
+        penDraft.points[penDraft.points.length - 1],
+        false,
+      );
 
-      const previousPoint = penDraft.points[penDraft.points.length - 1];
-      const previousScreen = coord.chartPointToScreen(previousPoint, false);
-      const currentScreen = coord.chartPointToScreen(continuousChartPoint, false);
+      for (const sample of getLocalPenPointers(event)) {
+        // Same reasoning as the pen's first point above - without
+        // `continuous: true`, samples inside one candle share a timestamp and
+        // collapse into vertical steps.
+        const continuousChartPoint = coord.screenToChartPoint(sample.x, sample.y, true);
+        if (!continuousChartPoint) continue;
 
-      if (
-        !previousScreen ||
-        !currentScreen ||
-        Math.hypot(currentScreen.x - previousScreen.x, currentScreen.y - previousScreen.y) >= 2
-      ) {
+        const currentScreen = coord.chartPointToScreen(continuousChartPoint, false);
+        if (
+          previousScreen &&
+          currentScreen &&
+          Math.hypot(currentScreen.x - previousScreen.x, currentScreen.y - previousScreen.y) <
+            PEN_MIN_SAMPLE_DISTANCE_PX
+        ) {
+          continue;
+        }
+
+        appendedPoints.push({ ...continuousChartPoint });
+        previousScreen = currentScreen;
+      }
+
+      if (appendedPoints.length > 0) {
         const updatedPen: PenDrawing = {
           ...penDraft,
-          points: [...penDraft.points, { ...continuousChartPoint }],
+          points: [...penDraft.points, ...appendedPoints],
         };
 
         refs.penDraftRef.current = updatedPen;

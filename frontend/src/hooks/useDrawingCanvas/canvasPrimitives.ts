@@ -8,6 +8,86 @@ import {
 
 type Rect = { x: number; y: number; width: number; height: number };
 
+type PenPathContext = Pick<CanvasRenderingContext2D, "bezierCurveTo" | "lineTo" | "moveTo">;
+
+const PEN_CORNER_CUTTING_PASSES = 2;
+
+/**
+ * Chaikin corner cutting is deliberately done in screen space. The stored pen
+ * points must stay in chart coordinates so they continue to follow zoom/pan,
+ * but those coordinates can map back to a small pixel staircase. Two light
+ * passes remove that quantisation without changing either end of an open
+ * stroke or permanently rewriting the user's drawing.
+ */
+function softenPenCorners(points: readonly ScreenPoint[]): ScreenPoint[] {
+  let softened = points.map((point) => ({ ...point }));
+
+  for (let pass = 0; pass < PEN_CORNER_CUTTING_PASSES; pass += 1) {
+    if (softened.length < 3) break;
+
+    const next: ScreenPoint[] = [{ ...softened[0] }];
+
+    for (let index = 0; index < softened.length - 1; index += 1) {
+      const current = softened[index];
+      const following = softened[index + 1];
+
+      next.push(
+        {
+          x: current.x * 0.75 + following.x * 0.25,
+          y: current.y * 0.75 + following.y * 0.25,
+        },
+        {
+          x: current.x * 0.25 + following.x * 0.75,
+          y: current.y * 0.25 + following.y * 0.75,
+        },
+      );
+    }
+
+    next.push({ ...softened[softened.length - 1] });
+    softened = next;
+  }
+
+  return softened;
+}
+
+/**
+ * Trace a freehand stroke guided by every captured point while rounding the
+ * joins between them. Pointer events are not guaranteed to arrive for every
+ * hardware sample, so connecting sparse samples with lineTo leaves visible
+ * polygon edges on small circles. Screen-space corner cutting first removes
+ * small horizontal/vertical quantisation steps; Catmull-Rom-to-Bezier then
+ * gives all remaining adjacent segments a continuous tangent.
+ */
+export function traceSmoothPenPath(context: PenPathContext, points: ScreenPoint[]): void {
+  if (points.length === 0) return;
+
+  context.moveTo(points[0].x, points[0].y);
+
+  if (points.length === 1) return;
+  if (points.length === 2) {
+    context.lineTo(points[1].x, points[1].y);
+    return;
+  }
+
+  const softened = softenPenCorners(points);
+
+  for (let index = 0; index < softened.length - 1; index += 1) {
+    const previous = softened[Math.max(0, index - 1)];
+    const current = softened[index];
+    const next = softened[index + 1];
+    const following = softened[Math.min(softened.length - 1, index + 2)];
+
+    context.bezierCurveTo(
+      current.x + (next.x - previous.x) / 6,
+      current.y + (next.y - previous.y) / 6,
+      next.x - (following.x - current.x) / 6,
+      next.y - (following.y - current.y) / 6,
+      next.x,
+      next.y,
+    );
+  }
+}
+
 export function drawLine(
   context: CanvasRenderingContext2D,
   start: ScreenPoint,

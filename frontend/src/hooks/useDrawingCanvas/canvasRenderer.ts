@@ -24,6 +24,7 @@ import {
   drawPendingOrderChaseButton,
   drawPendingOrderEditButton,
   drawPendingOrderLabel,
+  traceSmoothPenPath,
 } from "./canvasPrimitives";
 import { clampToEditablePane, getTextRect, isOrderDrawing } from "./drawingGeometry";
 import {
@@ -497,11 +498,7 @@ export function drawCanvasFrame({
         context.lineWidth = selected ? 3 : 2;
         context.lineCap = "round";
         context.lineJoin = "round";
-        context.moveTo(screenPoints[0].x, screenPoints[0].y);
-
-        for (let pointIndex = 1; pointIndex < screenPoints.length; pointIndex += 1) {
-          context.lineTo(screenPoints[pointIndex].x, screenPoints[pointIndex].y);
-        }
+        traceSmoothPenPath(context, screenPoints);
 
         context.stroke();
         context.restore();
