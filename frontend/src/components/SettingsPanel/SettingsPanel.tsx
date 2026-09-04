@@ -12,6 +12,7 @@ import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnosti
 import type { PriceAlert } from "../../types/alert";
 import type { SavedDrawingSet } from "../../types/drawing";
 import { priceAlertsStorageKey } from "../../config/constants";
+import { PRICE_ALERTS_ENABLED } from "../../config/features";
 import { formatSymbolPair } from "../../config/symbols";
 import { loadStoredAlerts } from "../../utils/alerts";
 import { listAllPersistentPriceAlerts, type ListedPriceAlert } from "../../trading/api/priceAlerts";
@@ -293,6 +294,7 @@ export default function SettingsPanel({
   const [isFullyOpen, setIsFullyOpen] = useState(false);
 
   useEffect(() => {
+    if (!PRICE_ALERTS_ENABLED) return;
     // triggered alerts can belong to a background symbol, so use the
     // existing global event to refresh even when activePriceAlerts did not change.
     const refreshAfterTrigger = () => setAlertsListRevision((value) => value + 1);
@@ -302,7 +304,7 @@ export default function SettingsPanel({
   }, []);
 
   useEffect(() => {
-    if (!isOpen || !isAlertsSectionVisible) return;
+    if (!PRICE_ALERTS_ENABLED || !isOpen || !isAlertsSectionVisible) return;
 
     const localAlerts = (): ListedPriceAlert[] =>
       availableSymbols.flatMap((symbol) => {

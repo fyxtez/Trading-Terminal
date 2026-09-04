@@ -26,4 +26,14 @@ describe("buildSettingsSearchModel", () => {
     expect(model.showDesktopConnections).toBe(false);
     expect(model.hasAnySettingsSearchResult).toBe(false);
   });
+
+  it("does not expose dormant alert or notification settings", () => {
+    const alerts = buildSettingsSearchModel("alerts", true, sizingFields);
+    const telegram = buildSettingsSearchModel("telegram", true, sizingFields);
+
+    expect(alerts.showAlertsSection).toBe(false);
+    expect(alerts.hasAnySettingsSearchResult).toBe(false);
+    expect(telegram.showDesktopConnections).toBe(false);
+    expect(telegram.hasAnySettingsSearchResult).toBe(false);
+  });
 });

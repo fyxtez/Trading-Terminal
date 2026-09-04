@@ -1,5 +1,6 @@
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 
 type DiagnosticsSectionProps = {
   diagnostics: OperationalDiagnostics;
@@ -84,13 +85,17 @@ export default function DiagnosticsSection({
       status: (backend?.requests.duplicateCount ?? 0) > 0 ? "degraded" : "healthy",
       detail: `${backend?.requests.duplicateCount ?? 0} detected since backend start`,
     },
-    {
-      label: "Notification delivery",
-      status: (backend?.notifications.failureCount ?? 0) > 0 ? "attention" : "healthy",
-      detail: backend?.notifications.lastFailure
-        ? `${backend.notifications.failureCount} failure(s) · ${backend.notifications.lastFailure}`
-        : "No delivery failures since backend start",
-    },
+    ...(EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
+      ? [
+          {
+            label: "Notification delivery",
+            status: (backend?.notifications.failureCount ?? 0) > 0 ? "attention" : "healthy",
+            detail: backend?.notifications.lastFailure
+              ? `${backend.notifications.failureCount} failure(s) · ${backend.notifications.lastFailure}`
+              : "No delivery failures since backend start",
+          },
+        ]
+      : []),
   ];
 
   return (

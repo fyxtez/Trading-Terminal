@@ -1,5 +1,6 @@
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 
 type DesktopConnectionsSectionProps = {
   credentials: DesktopCredentialsContextValue;
@@ -21,9 +22,15 @@ export function DesktopConnectionsSection({
       credentials.status.binanceConfigured,
       credentials.status.binanceNetwork?.toUpperCase(),
     ],
-    ["ntfy", "ntfy", credentials.status.ntfyConfigured, undefined],
-    ["Telegram", "telegram", credentials.status.telegramConfigured, undefined],
-  ] as const;
+    ...(EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
+      ? ([
+          ["ntfy", "ntfy", credentials.status.ntfyConfigured, undefined],
+          ["Telegram", "telegram", credentials.status.telegramConfigured, undefined],
+        ] as const)
+      : []),
+  ] as const satisfies ReadonlyArray<
+    readonly [string, "binance" | "ntfy" | "telegram", boolean, string | undefined]
+  >;
   const hasMissingConnection = connections.some(([, , configured]) => !configured);
 
   return (

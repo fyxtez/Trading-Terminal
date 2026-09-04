@@ -1,7 +1,7 @@
 # Local data, backup and restore
 
 Fyxtez Terminal is local-first. There is no cloud copy of chart drawings,
-settings, alerts, symbols or the financial intent journal.
+settings, symbols, the financial intent journal, or retained legacy alert data.
 
 ## What is stored
 
@@ -18,10 +18,11 @@ viewports and UI preferences. Standalone backend development instead defaults
 to `backend/data/`; browser-development storage belongs to that browser profile
 and is not the installed desktop profile.
 
-Binance, ntfy and Telegram credentials are intentionally **not** in this
-directory. They remain in the operating-system credential manager and must be
-reconnected separately after a machine migration. Never put an exported
-keyring or plaintext API credentials in a backup archive.
+Binance credentials are intentionally **not** in this directory. They remain in
+the operating-system credential manager and must be reconnected separately
+after a machine migration. Dormant legacy ntfy/Telegram entries may also remain
+in that manager but are not used. Never put an exported keyring or plaintext
+credentials in a backup archive.
 
 ## Consistent Linux backup
 
@@ -48,10 +49,10 @@ layout.
 3. Restore the complete backed-up directory to the path above with the original
    user ownership. Do not merge individual WebKit database files.
 4. Launch the application in chart-only mode first. Verify symbols, drawings,
-   settings and alerts.
-5. Reconnect notification providers and Binance through Settings. Confirm the
-   selected Testnet/Mainnet environment explicitly; credentials are not part of
-   the restored data.
+   settings and retained application data. Legacy alerts remain intentionally
+   invisible while ADR 0013 is active.
+5. Reconnect Binance through Settings. Confirm the selected Testnet/Mainnet
+   environment explicitly; credentials are not part of the restored data.
 6. Compare account, positions and open orders with Binance before submitting a
    mutation. The exchange wins over restored UI or journal state.
 

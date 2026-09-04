@@ -67,7 +67,8 @@ application to recover.
 
 After the account is safe—or immediately when compromise is suspected:
 
-1. Revoke the dedicated Binance API key. Rotate ntfy/Telegram credentials too
+1. Revoke the dedicated Binance API key. If dormant legacy ntfy/Telegram
+   credentials still exist in the OS credential store, remove or rotate them
    if they may have been exposed.
 2. Preserve screenshots of Binance positions, open orders, order/trade history,
    and the terminal Diagnostics section. Redact API keys, private notification

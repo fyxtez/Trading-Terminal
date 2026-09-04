@@ -13,15 +13,18 @@ requires a CSP, timeout, redirect and redaction review.
 | Binance token metadata | Binance public Alpha endpoint | Public symbol lookup | 5 s connect, 15 s total; best effort only |
 | CoinGecko / DexScreener / MEXC metadata | Public provider APIs | Public ticker/address lookup | 5 s connect, 15 s total, at most three redirects; failure cannot reject a valid symbol |
 | TradingView/FMP/provider images | Provider image URL returned by metadata | Image request only | 5 s connect, 15 s total, at most three redirects; downloaded bytes are validated and cached; icon failure is cosmetic |
-| ntfy | User-selected HTTP(S) publish URL, or `https://ntfy.sh/<topic>` | Notification title/body/click URL; topic is part of destination | 5 s connect, 10–12 s total; redirects disabled to avoid disclosing private topics; failure is visible but cannot change the completed alert/trade result |
-| Telegram Bot API | `api.telegram.org` | Bot token in the fixed URL plus configured chat ID and message | 5 s connect, 10–12 s total; redirects disabled; token, URL and chat ID are excluded from diagnostics and logs |
+
+The repository retains dormant ntfy and Telegram client code, but ADR 0013
+removes every product entry point: their native command is not registered and
+the backend alert worker is not started. Current builds therefore make no ntfy
+or Telegram requests.
 
 ## Invariants
 
-- Exchange and notification secrets come only from the OS credential manager.
-- Signed Binance URLs, Telegram bot URLs and ntfy private topics are never
-  written to the audit journal or diagnostics. Diagnostic URL sanitization
-  retains only scheme and authority.
+- Exchange secrets come only from the OS credential manager.
+- Signed Binance URLs are never written to the audit journal or diagnostics.
+  Diagnostic URL sanitization retains only scheme and authority. Dormant legacy
+  notification credentials are not read.
 - Native URLs reject non-HTTP(S) schemes, embedded username/password fields and
   oversized values. Credential and message fields have explicit size limits.
 - Axum applies a 64 KiB request-body limit and a 90-second outer request limit;
@@ -31,8 +34,8 @@ requires a CSP, timeout, redirect and redaction review.
 - CSP lists current direct frontend data hosts. Backend-only providers do not
   need WebView CSP access.
 - A provider failure is classified by authority: exchange prerequisite failure
-  blocks new exposure, market-data failure degrades charting, and notification
-  or icon failure is secondary and visible/best-effort.
+  blocks new exposure, market-data failure degrades charting, and icon failure
+  is secondary and visible/best-effort.
 
-Testnet, offline, malformed-response and notification-provider drills remain
-necessary because static review cannot prove remote behavior.
+Testnet, offline, and malformed-response drills remain necessary because static
+review cannot prove remote behavior.

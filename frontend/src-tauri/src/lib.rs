@@ -23,6 +23,7 @@ const BINANCE_NETWORK: &str = "binance-network";
 const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
 const MAX_URL_LENGTH: usize = 2_048;
 const MAX_CREDENTIAL_LENGTH: usize = 256;
+const EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED: bool = false;
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +46,7 @@ struct CredentialInput {
     telegram_chat_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NotificationInput {
@@ -174,8 +176,8 @@ fn credential_status() -> CredentialStatus {
             && has_secret("binance-api-key")
             && has_secret("binance-api-secret"),
         binance_network,
-        ntfy_configured: has_secret("ntfy-url"),
-        telegram_configured: has_secret("telegram-bot-token") && has_secret("telegram-chat-id"),
+        ntfy_configured: false,
+        telegram_configured: false,
     }
 }
 
@@ -184,6 +186,14 @@ async fn save_credentials(
     input: CredentialInput,
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
+    if !EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
+        && (input.ntfy_url.is_some()
+            || input.telegram_bot_token.is_some()
+            || input.telegram_chat_id.is_some())
+    {
+        return Err("External notification connections are not available".into());
+    }
+
     let normalized_ntfy_url = input
         .ntfy_url
         .as_deref()
@@ -294,6 +304,7 @@ fn exit_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+#[allow(dead_code)]
 async fn send_notification(input: NotificationInput) -> Result<(), String> {
     if input.title.trim().is_empty()
         || input.title.chars().count() > 160
@@ -427,8 +438,7 @@ pub fn run() {
             exit_app,
             credential_status,
             save_credentials,
-            clear_credentials,
-            send_notification
+            clear_credentials
         ])
         .build(tauri::generate_context!())
         .expect("error while building Fyxtez Terminal desktop");

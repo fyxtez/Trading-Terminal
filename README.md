@@ -2,7 +2,7 @@
 
 Fyxtez Terminal is a personal derivatives-trading terminal with a React charting
 interface and a Rust execution service. It combines live market data, chart
-tools, position management, price alerts, and Binance USD-M Futures execution in
+tools, position management, and Binance USD-M Futures execution in
 a self-hosted Tauri 2 native application. Linux desktop is the supported release
 target; an Android arm64 development build embeds the same Rust backend for
 physical-device UI testing. Browser development remains available for chart/UI
@@ -21,8 +21,7 @@ work and suppresses account requests and execution controls.
 - Market, limit, stop-market, take-profit, reduce, chase, and close-position flows
 - Isolated-margin enforcement, leverage controls, and configurable sizing
 - Live account, position, order, PNL, and trading-event updates
-- Drawing tools, drawing sets, trade markers, sessions, hotkeys, and chart alerts
-- Persistent SQLite-backed price alerts with optional ntfy/Telegram notifications
+- Drawing tools, drawing sets, trade markers, sessions, and hotkeys
 - Explicit market-data degradation/retry UI and redacted runtime diagnostics
 - Dynamic local symbol registry without an arbitrary account-wide limit, plus
   best-effort locally cached symbol icons
@@ -61,12 +60,13 @@ cd ..
 Tauri compiles and starts Axum as its managed sidecar, chooses a random loopback
 port and per-launch capability, waits for readiness, starts Vite, and opens the
 desktop window. Desktop mode does not read project `.env` files. Configure
-Binance, ntfy, and Telegram from the first-run wizard or Settings. See the
+Binance from the first-run wizard or Settings. Price alerts, ntfy, and Telegram
+are intentionally dormant in the current product; see
+[ADR 0013](docs/adr/0013-dormant-alerts-and-notifications.md) and the
 [architecture decision records](docs/adr/README.md).
 
-Development builds open in a resizable 1280×800 window, allow mobile-width
-testing down to 320×480, and show the current viewport size in the lower-right
-corner. Release builds remain fullscreen and do not show the viewport badge.
+Development builds open in a resizable 1280×800 window and allow mobile-width
+testing down to 320×480. Release builds remain fullscreen.
 
 ### Android device development
 
@@ -88,12 +88,9 @@ runtime data stays in the app's private data directory.
 This is currently a signed direct-distribution preview. The protected release
 workflow produces and verifies an arm64 APK/AAB using the provisioned upload
 identity, but Android is not yet a supported Play Store release.
-Android can suspend or terminate an app in the background, so persistent alerts
-and user-stream monitoring are only guaranteed while the app process remains
-active. A foreground-service design is required before promising continuous
-background operation. Desktop monitoring likewise stops on explicit app exit;
-the accepted platform plan is a Linux tray runtime and Android foreground
-service. See [ADR 0012](docs/adr/0012-continuous-background-monitoring.md).
+Price alerts and their ntfy/Telegram delivery are dormant on Android and Linux.
+No foreground alert service or alert-specific background connection is started.
+Trading state still reconciles after the application resumes or reconnects.
 
 ### Linux release bundle
 
@@ -135,8 +132,7 @@ cp .env.example .env
 ```
 
 Edit `backend/.env` and provide a `SERVICE_API_TOKEN` (use a long random
-value, not the placeholder). Do not put Binance, ntfy or Telegram credentials
-in this file.
+value, not the placeholder). Do not put Binance credentials in this file.
 
 `BINANCE_TESTNET` and `ALLOW_MAINNET` select the standalone browser-development
 backend network. They do not configure the desktop build. Desktop users select
@@ -170,8 +166,7 @@ npm run dev
 
 Open the URL printed by Vite, normally `http://localhost:5173`. This browser UI
 is chart-only by design. `./run.sh browser` starts the complete standalone
-browser-development stack. Use `./run.sh` for account access, execution, and
-native notifications.
+browser-development stack. Use `./run.sh` for account access and execution.
 
 ## Validation
 
@@ -201,11 +196,9 @@ build is necessary but not sufficient validation for real-money trading flows.
 
 ## Configuration
 
-Binance keys, the selected Binance network, private ntfy topics and Telegram
-credentials belong only in the platform credential manager and are
-configured through the Tauri UI. A short ntfy topic is expanded to its
-`https://ntfy.sh/<topic>` publish URL before secure storage; complete URLs remain
-supported for self-hosted ntfy. Native Axum never falls back to `.env`. Tauri
+Binance keys and the selected Binance network belong only in the platform
+credential manager and are configured through the Tauri UI. Native Axum never
+falls back to `.env`. Tauri
 creates its API endpoint and capability in memory for each launch. Desktop sends
 the bootstrap payload to the sidecar over stdin; Android passes it directly to
 the embedded backend. Neither path uses Vite, argv, a URL, or a file.
@@ -220,7 +213,7 @@ Standalone backend development defaults to `backend/data/`:
 
 - `sizing.json` — sizing configuration
 - `symbols.json` — dynamic symbol registry
-- `alerts.sqlite3` — persistent alert database
+- `alerts.sqlite3` — retained legacy alert data; dormant code does not open it
 - `operations.sqlite3` — durable financial intents and redacted audit metadata
 - `icons/` — downloaded icon cache
 

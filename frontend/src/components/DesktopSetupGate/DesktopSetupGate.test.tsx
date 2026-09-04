@@ -75,16 +75,18 @@ describe("DesktopSetupGate", () => {
     fireEvent.change(screen.getByLabelText("Binance API secret"), {
       target: { value: "api-secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
+    fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
     expect(screen.getByText("Choose Binance Mainnet or Testnet.")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
-    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
+    fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
     expect(screen.getByText("Confirm that Mainnet orders use real funds.")).toBeVisible();
 
     fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
-    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
-    expect(await screen.findByRole("heading", { name: "Connect ntfy" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
+    await waitFor(() => expect(screen.getByText("Terminal")).toBeVisible());
+    expect(screen.queryByText("Connect ntfy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connect Telegram")).not.toBeInTheDocument();
   });
 
   it("shows rejected Mainnet credentials in the styled setup error without closing setup", async () => {
@@ -115,13 +117,11 @@ describe("DesktopSetupGate", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
     fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
-    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
-    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
-    fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
+    fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
 
     const error = await screen.findByText(/withdrawals enabled\. It was not saved/);
     expect(error).toHaveClass("desktop-setup-error");
-    expect(screen.getByRole("heading", { name: "Connect Telegram" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Connect Binance" })).toBeVisible();
     expect(screen.queryByText("Terminal")).not.toBeInTheDocument();
   });
 
@@ -133,8 +133,6 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
-    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
     fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
 
     await waitFor(() => expect(screen.getByText("Terminal")).toBeVisible());
@@ -151,7 +149,7 @@ describe("DesktopSetupGate", () => {
     });
   });
 
-  it("accepts an ntfy topic without requiring the complete publish URL", async () => {
+  it("does not expose dormant ntfy or Telegram setup steps", async () => {
     render(
       <DesktopSetupGate>
         <div>Terminal</div>
@@ -159,16 +157,8 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    fireEvent.click(screen.getByRole("button", { name: "SKIP STEP" }));
-    fireEvent.change(screen.getByLabelText("Private ntfy topic"), {
-      target: { value: "fyxtez_private-42" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "NEXT" }));
-    fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
-
-    await waitFor(() => expect(screen.getByText("Terminal")).toBeVisible());
-    expect(invokeMock).toHaveBeenCalledWith("save_credentials", {
-      input: expect.objectContaining({ ntfyUrl: "fyxtez_private-42" }),
-    });
+    expect(screen.getByText("STEP 01 OF 01")).toBeVisible();
+    expect(screen.queryByText(/ntfy/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/telegram/i)).not.toBeInTheDocument();
   });
 });

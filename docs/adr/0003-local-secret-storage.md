@@ -1,6 +1,6 @@
 # ADR 0003: Store secrets in the operating-system credential store
 
-- Status: Accepted; credential handoff superseded by ADR 0005
+- Status: Partially superseded by ADR 0005 and ADR 0013
 - Date: 2026-09-02
 
 ## Context
@@ -36,3 +36,9 @@ order polling, execution controls and the private trading stream fail closed.
 Credential access is completed by ADR 0005. Sidecar packaging, lifecycle and a
 per-launch service capability are completed by ADR 0004. Explicit Binance
 network selection is recorded in ADR 0006.
+
+## Implementation status update (2026-09-04)
+
+ADR 0013 makes price alerts, ntfy, and Telegram dormant. Legacy notification
+credentials may remain in the OS store, but current UI and runtime paths do not
+read or use them. Binance remains the only exposed connection.

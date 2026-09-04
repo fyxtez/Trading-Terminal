@@ -7,6 +7,7 @@ import {
   isSymbolUnconfirmed,
   restartDesktopBackend,
 } from "../../config/constants";
+import { PRICE_ALERTS_ENABLED } from "../../config/features";
 import { getLocalZoneLabel } from "../../utils/time";
 import { getSymbolInfo } from "../../config/symbols";
 import { deleteSymbol } from "../../trading/api/symbols";
@@ -166,6 +167,7 @@ function App() {
     currentSymbol,
     marketData.lastPrice,
     persistentAlertsEnabled,
+    PRICE_ALERTS_ENABLED,
   );
 
   const tradeMarkersApi = useTradeMarkers(refs, currentSymbol);
@@ -1076,7 +1078,7 @@ function App() {
             onCommitTextEditing={drawingCanvas.commitTextEditing}
             onCancelTextEditing={drawingCanvas.cancelTextEditing}
             alerts={priceAlertsApi.alerts}
-            showAlerts={showPriceAlerts}
+            showAlerts={PRICE_ALERTS_ENABLED && showPriceAlerts}
             onRemoveAlert={priceAlertsApi.removeAlert}
             onUpdateAlertPrice={priceAlertsApi.updateAlertPrice}
             onToggleAlertSide={priceAlertsApi.toggleAlertSide}
@@ -1261,6 +1263,7 @@ function App() {
           onDeleteAllDrawings={drawingsApi.deleteAllDrawings}
           onDeleteDrawingsByTimeframe={drawingsApi.deleteDrawingsByTimeframe}
           onDeleteAllTradeMarkers={tradeMarkersApi.clearMarkers}
+          priceAlertsEnabled={PRICE_ALERTS_ENABLED}
           onCreateAlert={priceAlertsApi.addAlert}
           onCreateCoordinateMarker={(time, price) =>
             drawingsApi.addDrawing({

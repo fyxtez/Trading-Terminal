@@ -20,7 +20,7 @@ mod trading_events;
 use std::{collections::HashMap, future::Future, sync::Arc};
 
 use account_state::{AccountState, spawn_refresh_worker};
-use alerts::{AlertStore, spawn_alert_worker};
+use alerts::{AlertRuntime, AlertStore, spawn_alert_worker};
 use api::{AppState, router};
 use binance::BinanceClient;
 use diagnostics::DiagnosticsState;
@@ -41,6 +41,10 @@ use tokio::{
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use trade_lock::TradeLock;
+
+/// Alert implementation remains available in the source tree, but the product
+/// does not expose alert routes or start their market-monitoring worker.
+pub(crate) const PRICE_ALERTS_ENABLED: bool = false;
 
 pub async fn run_from_environment() -> AppResult<()> {
     let runtime = RuntimeConfig::load()?;
@@ -249,14 +253,24 @@ where
 
     let (trading_events, _) = broadcast::channel(512);
 
-    let alert_store = AlertStore::connect(&runtime.alerts_db_path).await?;
+    let alert_store = if PRICE_ALERTS_ENABLED {
+        AlertStore::connect(&runtime.alerts_db_path).await?
+    } else {
+        AlertStore::disabled()
+    };
     let operation_safety = OperationSafety::connect(&runtime.operation_journal_path).await?;
-    let (alert_runtime, alert_worker_task) = spawn_alert_worker(
-        alert_store.clone(),
-        binance.user_stream_ws_base().to_string(),
-        trading_events.clone(),
-        diagnostics.clone(),
-    );
+    let (alert_runtime, alert_worker_task) = if PRICE_ALERTS_ENABLED {
+        let (runtime, task) = spawn_alert_worker(
+            alert_store.clone(),
+            binance.user_stream_ws_base().to_string(),
+            trading_events.clone(),
+            diagnostics.clone(),
+        );
+        (runtime, Some(task))
+    } else {
+        info!("Price alerts are dormant; alert market worker is disabled");
+        (AlertRuntime::disabled(), None)
+    };
 
     let state = AppState {
         binance: binance.clone(),
@@ -313,7 +327,9 @@ where
         .map_err(|error| AppError::Config(format!("server error: {error}")));
 
     user_stream_task.abort();
-    alert_worker_task.abort();
+    if let Some(task) = alert_worker_task {
+        task.abort();
+    }
     reference_data_task.abort();
     account_refresh_task.abort();
     position_risk_refresh_task.abort();

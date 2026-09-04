@@ -1,7 +1,11 @@
 # ADR 0012: Keep continuous monitoring explicit and platform-native
 
-- Status: Accepted; implementation pending
+- Status: Superseded by ADR 0013
 - Date: 2026-09-04
+
+> Price alerts and external notification delivery were later made dormant for
+> the current product. The Linux tray and Android foreground-service work below
+> is therefore no longer planned; see ADR 0013.
 
 ## Context
 

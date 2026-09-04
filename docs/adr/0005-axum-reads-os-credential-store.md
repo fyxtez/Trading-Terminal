@@ -1,6 +1,6 @@
 # ADR 0005: Let Axum read the operating-system credential store
 
-- Status: Accepted
+- Status: Notification portion superseded by ADR 0013
 - Date: 2026-09-02
 
 ## Context
@@ -49,3 +49,10 @@ of this decision. ADR 0006 defines explicit Binance network selection.
 
 Verify credential-manager behavior on every supported operating system during
 clean-machine release acceptance.
+
+## Implementation status update (2026-09-04)
+
+ADR 0013 supersedes the alert-delivery portion of this decision. Axum still
+reads Binance credentials from the OS store, but the disabled alert runtime
+does not read ntfy or Telegram credentials and Tauri does not expose the native
+delivery command.

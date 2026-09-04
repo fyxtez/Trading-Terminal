@@ -42,6 +42,8 @@ describe("DesktopConnectionsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "SHOW" }));
     expect(screen.getByText("Binance")).toBeVisible();
+    expect(screen.queryByText("ntfy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Telegram")).not.toBeInTheDocument();
   });
 
   it("opens the editor for the selected connection", () => {

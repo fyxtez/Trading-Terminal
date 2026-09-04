@@ -1,3 +1,8 @@
+import {
+  EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED,
+  PRICE_ALERTS_ENABLED,
+} from "../../config/features";
+
 export type SettingsSearchModel = ReturnType<typeof buildSettingsSearchModel>;
 
 type SearchableSizingField = {
@@ -69,9 +74,10 @@ export function buildSettingsSearchModel(
     active: matches("Active alerts", "symbol price side info active alert list"),
   };
   const showAlertsSection =
-    !isSearchingSettings ||
-    alertsSectionTitleMatches ||
-    Object.values(alertOptionMatches).some(Boolean);
+    PRICE_ALERTS_ENABLED &&
+    (!isSearchingSettings ||
+      alertsSectionTitleMatches ||
+      Object.values(alertOptionMatches).some(Boolean));
 
   const chartDisplaySectionTitleMatches = matches(
     "Chart display",
@@ -93,9 +99,13 @@ export function buildSettingsSearchModel(
   const showBalanceCard = matches("Available balance", "USDT futures wallet balance");
   const showDesktopConnections =
     isDesktop &&
-    matches("Third-Party Connections Binance ntfy Telegram credentials API key notifications");
+    matches(
+      "Third-Party Connections Binance credentials API key",
+      EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
+    );
   const showDiagnostics = matches(
-    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests notification failures health",
+    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests health",
+    EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
   );
   const hasAnySettingsSearchResult =
     showDesktopConnections ||

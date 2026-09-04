@@ -57,18 +57,16 @@ The backend still enforces exchange filters, isolated margin, fresh prerequisite
 durable intents, reduction semantics and workflow compensation. This decision is
 recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 
-## Security, data and notifications
+## Security and data
 
-- [x] Binance, ntfy and Telegram secrets live in the OS credential manager.
+- [x] Binance secrets live in the OS credential manager.
 - [x] Frontend code can read connection status but cannot retrieve stored secrets.
 - [x] Native inputs, outbound redirects, request sizes and timeouts have bounded policies.
 - [x] Outbound providers and secret-redaction behavior are documented.
 - [x] Local backup and restore steps are documented.
 - [x] Redacted durable intent/audit metadata is stored in `operations.sqlite3`.
-- [x] Provider delivery failures are visible without changing a completed alert/trade result.
-- [ ] Implement continuous monitoring through Linux close-to-tray and an Android
-      foreground service as defined by ADR 0012.
-- [ ] Test ntfy and Telegram independently, together, misconfigured and offline.
+- [x] Price alerts, ntfy and Telegram are dormant: no UI, API routes, alert
+      database access, alert worker, or provider delivery (ADR 0013).
 - [ ] Exercise backup and restore on a clean supported system.
 - [ ] Test locked, unavailable and corrupt credential-store behavior on each supported OS.
 - [ ] Audit repository history and old archives, then rotate any credential whose

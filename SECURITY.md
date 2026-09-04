@@ -6,14 +6,20 @@ detail, not a public or multi-user service.
 
 ## Secrets
 
-Binance API keys, the Binance API secret, private ntfy URLs, Telegram bot tokens
-and Telegram chat IDs are stored through the Tauri setup UI in the operating
-system credential manager under service `com.fyxtez.terminal`. They must not be
+Binance API keys and the Binance API secret are stored through the Tauri setup
+UI in the operating system credential manager under service
+`com.fyxtez.terminal`. They must not be
 placed in `.env`, Vite variables, localStorage, SQLite, command-line arguments or
 logs. Secret text necessarily exists transiently in the WebView while the user
 types it and while the save IPC call is in progress; clear fields immediately
 afterward. Once stored, React receives only configuration booleans plus the
 non-secret Binance network and cannot retrieve a saved secret.
+
+Legacy ntfy and Telegram validation/storage code remains in the repository, and
+older installations may still have those credentials in the platform manager.
+ADR 0013 makes those integrations dormant: the UI does not expose them, the
+native delivery command is not registered, and the backend does not read or use
+them. Existing entries are deliberately not deleted automatically.
 
 Installed desktop builds generate a 256-bit capability and choose an ephemeral
 loopback port for every application launch. Tauri sends both to Axum over child
@@ -48,7 +54,7 @@ route reveals only service/network status and is intentionally unauthenticated.
 Native input, Axum body and request-duration limits are explicit. Outbound
 credentials-bearing HTTP clients reject redirects, provider calls have bounded
 timeouts, and diagnostics remove URL paths/query/userinfo that may contain
-private topics, tokens or signatures. The reviewed destination matrix is in
+tokens or signatures. The reviewed destination matrix is in
 [docs/OUTBOUND-CONNECTIONS.md](docs/OUTBOUND-CONNECTIONS.md).
 
 Financial mutations require a durable intent UUID. Axum persists request
@@ -86,9 +92,8 @@ Back up the complete closed-app data directory according to
 [docs/LOCAL-DATA-BACKUP.md](docs/LOCAL-DATA-BACKUP.md). Do not include exported
 credential-manager data or plaintext secrets.
 
-Run the validation commands documented in the root README. Test notification
-delivery separately for each configured provider because notification failure
-must never be treated as proof that a trading action failed.
+Run the validation commands documented in the root README. Price alerts and
+external notification providers are not part of current release acceptance.
 
 For unexpected orders, uncertain request results, stale account state, or a
 suspected credential compromise, follow the

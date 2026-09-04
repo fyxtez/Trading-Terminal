@@ -98,7 +98,7 @@ the repository installed.
 - Edit the connection, select Mainnet, and verify explicit real-funds
   confirmation is required. Do not submit a real order during installation
   acceptance.
-- Configure and remove ntfy and Telegram independently.
+- Confirm Settings and onboarding do not expose price alerts, ntfy, or Telegram.
 - Launch the app a second time and verify the existing window receives focus.
 - Terminate the sidecar during a session and verify bounded recovery/degraded
   behavior plus the explicit **Retry backend** action after retries are

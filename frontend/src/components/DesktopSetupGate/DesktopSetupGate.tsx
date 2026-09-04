@@ -12,6 +12,7 @@ import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import "./DesktopSetupGate.css";
 import "./DesktopSetupGate.layout.css";
 import { useAndroidBackNavigation } from "../../hooks/useAndroidBackNavigation";
+import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 
 const emptyStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
@@ -43,7 +44,7 @@ function isValidNtfyDestination(value: string): boolean {
   }
 }
 
-const steps = [
+const allSteps = [
   {
     key: "binance",
     statusKey: "binanceConfigured",
@@ -75,6 +76,10 @@ const steps = [
   title: string;
   description: string;
 }>;
+
+const steps = allSteps.filter(
+  (item) => item.key === "binance" || EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED,
+);
 
 export default function DesktopSetupGate({ children }: { children: ReactNode }) {
   const desktop = isTauri();
@@ -271,7 +276,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 ? `${configured ? "Edit" : "Connect"} ${activeStep.short.toLowerCase()}`
                 : "Set up your terminal"}
             </h1>
-            <p>Everything is optional. Change these connections later in Settings.</p>
+            <p>Binance is optional. Change this connection later in Settings.</p>
           </div>
         </header>
 

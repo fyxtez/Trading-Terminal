@@ -50,14 +50,15 @@ export function usePriceAlerts(
   symbol: string,
   lastPrice: number | null,
   persistentAlertsEnabled: boolean,
+  enabled = true,
 ) {
   const normalizedSymbol = normalizeSymbol(symbol);
   const [state, setState] = useState<SymbolAlertsState>(() => ({
     symbol: normalizedSymbol,
-    alerts: loadStoredAlerts(priceAlertsStorageKey(normalizedSymbol)),
+    alerts: enabled ? loadStoredAlerts(priceAlertsStorageKey(normalizedSymbol)) : [],
   }));
   const isHydrated = state.symbol === normalizedSymbol;
-  const alerts = isHydrated ? state.alerts : [];
+  const alerts = enabled && isHydrated ? state.alerts : [];
 
   /*
    * Mirrors the current alert list into a ref so the price-watching
@@ -116,6 +117,7 @@ export function usePriceAlerts(
   };
 
   const addAlert = (price: number) => {
+    if (!enabled) return;
     // Automatic LONG/SHORT guess: a price below the current market is
     // read as "waiting to go long from here", above as "waiting to go
     // short from here" - the same directional assumption a trader
@@ -164,6 +166,7 @@ export function usePriceAlerts(
   };
 
   const removeAlert = (id: string) => {
+    if (!enabled) return;
     const removed = alertsRef.current.find((alert) => alert.id === id);
 
     setState((previous) => {
@@ -190,6 +193,7 @@ export function usePriceAlerts(
    * PositionBracketOverlay.tsx's beginDrag/finishDrag).
    */
   const updateAlertPrice = (id: string, price: number) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
@@ -215,6 +219,7 @@ export function usePriceAlerts(
    * alert's price or firing behavior.
    */
   const toggleAlertSide = (id: string) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
@@ -246,6 +251,7 @@ export function usePriceAlerts(
    * receive an update to an already-created alert).
    */
   const setAlertPattern = (id: string, pattern: AlertPattern) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
@@ -270,6 +276,7 @@ export function usePriceAlerts(
    * updates SQLite so the backend-owned notification can append it later.
    */
   const setAlertAdditionalInfo = (id: string, additionalInfo: string) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
@@ -290,6 +297,7 @@ export function usePriceAlerts(
   };
 
   const toggleAlertLocked = (id: string) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before) return;
 
@@ -309,6 +317,7 @@ export function usePriceAlerts(
   };
 
   const toggleAlertHidden = (id: string) => {
+    if (!enabled) return;
     const before = alertsRef.current.find((alert) => alert.id === id);
     if (!before || before.locked) return;
 
@@ -385,6 +394,7 @@ export function usePriceAlerts(
    * types/drawing.ts for why that comparison is correct.
    */
   const undo = () => {
+    if (!enabled) return;
     const action = refs.alertUndoRef.current.pop();
     if (!action) return;
 
@@ -394,6 +404,7 @@ export function usePriceAlerts(
 
   /** Redo counterpart to undo() above - see the same useHotkeys.ts routing. */
   const redo = () => {
+    if (!enabled) return;
     const action = refs.alertRedoRef.current.pop();
     if (!action) return;
 
@@ -406,6 +417,14 @@ export function usePriceAlerts(
   // this symbol-scoped undo/redo history, since it refers to alerts
   // that belonged to whichever symbol was active before.
   useEffect(() => {
+    if (!enabled) {
+      setState({ symbol: normalizedSymbol, alerts: [] });
+      previousPriceRef.current = null;
+      previousPriceSymbolRef.current = null;
+      refs.alertUndoRef.current = [];
+      refs.alertRedoRef.current = [];
+      return;
+    }
     const next = loadStoredAlerts(priceAlertsStorageKey(normalizedSymbol));
     setState({ symbol: normalizedSymbol, alerts: next });
     previousPriceRef.current = null;
@@ -413,13 +432,13 @@ export function usePriceAlerts(
     refs.alertUndoRef.current = [];
     refs.alertRedoRef.current = [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [normalizedSymbol]);
+  }, [enabled, normalizedSymbol]);
 
   // When persistent mode is enabled, restore backend alerts and hand any
   // local-only alerts to the backend. Backend-generated UUIDs replace the
   // temporary browser IDs so later PUT/DELETE requests target the right row.
   useEffect(() => {
-    if (!persistentAlertsEnabled || !isHydrated) return;
+    if (!enabled || !persistentAlertsEnabled || !isHydrated) return;
     let cancelled = false;
 
     const sync = async () => {
@@ -451,11 +470,12 @@ export function usePriceAlerts(
     return () => {
       cancelled = true;
     };
-  }, [persistentAlertsEnabled, normalizedSymbol, isHydrated]);
+  }, [enabled, persistentAlertsEnabled, normalizedSymbol, isHydrated]);
 
   // Persistent alerts are removed only when the backend confirms the
   // trigger through the trading WebSocket.
   useEffect(() => {
+    if (!enabled) return;
     const handleTriggeredAlert = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ id: string; symbol: string }>;
       triggeredPersistentAlertIdsRef.current.add(event.detail.id);
@@ -474,7 +494,7 @@ export function usePriceAlerts(
     return () => {
       window.removeEventListener("persistent-price-alert-triggered", handleTriggeredAlert);
     };
-  }, [normalizedSymbol]);
+  }, [enabled, normalizedSymbol]);
 
   // Watches every incoming price tick for a crossing of any alert's
   // level, in either direction, and removes each one that fired -
@@ -486,7 +506,7 @@ export function usePriceAlerts(
   // mistake to offer "undo" for; only the direct user actions above
   // (create, drag, remove, flip side, set pattern) are undoable.
   useEffect(() => {
-    if (lastPrice === null || persistentAlertsEnabledRef.current) return;
+    if (!enabled || lastPrice === null || persistentAlertsEnabledRef.current) return;
 
     // `lastPrice` is React state owned by useMarketData and can survive for
     // one render while a symbol switch is in progress. Without symbol-tagging
@@ -534,7 +554,7 @@ export function usePriceAlerts(
         alert.additionalInfo,
       );
     }
-  }, [lastPrice, normalizedSymbol]);
+  }, [enabled, lastPrice, normalizedSymbol]);
 
   return {
     alerts,

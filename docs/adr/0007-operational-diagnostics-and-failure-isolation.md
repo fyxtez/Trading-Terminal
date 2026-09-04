@@ -48,3 +48,10 @@ or already-completed exchange action keeps its authoritative result.
 Exercise diagnostics and durable audit correlation during the Testnet
 lost-response and sidecar-crash drills without placing secrets or full payloads
 in logs.
+
+## Implementation status update (2026-09-04)
+
+ADR 0013 makes external notification delivery dormant. Its retained diagnostic
+counter remains part of the backend schema for compatibility, but the Settings
+UI does not show a notification-delivery row and no alert provider can update
+the counter in the current runtime.

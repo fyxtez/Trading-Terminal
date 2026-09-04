@@ -86,7 +86,7 @@ pub struct AppState {
 }
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/health", get(health))
         .route("/api/diagnostics", get(diagnostics))
         .route(
@@ -138,8 +138,6 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/ws/trading", get(trading_websocket))
         .route("/api/auth/ws-ticket", post(issue_websocket_ticket))
-        .route("/api/alerts", get(list_alerts).post(create_alert))
-        .route("/api/alerts/{id}", put(update_alert).delete(delete_alert))
         .route(
             "/api/orders/open",
             get(open_orders).delete(cancel_all_orders),
@@ -149,7 +147,17 @@ pub fn router(state: AppState) -> Router {
             get(query_order)
                 .put(modify_limit_order)
                 .delete(cancel_order),
-        )
+        );
+
+    let router = if crate::PRICE_ALERTS_ENABLED {
+        router
+            .route("/api/alerts", get(list_alerts).post(create_alert))
+            .route("/api/alerts/{id}", put(update_alert).delete(delete_alert))
+    } else {
+        router
+    };
+
+    router
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
         .layer(middleware::from_fn_with_state(
             state.clone(),

@@ -4,8 +4,8 @@
 
 Fyxtez Terminal is split into a browser client and a single Rust service. The
 browser owns presentation and interactive chart state. The backend is the trust
-boundary for exchange credentials, order validation, account state, persistent
-alerts, and exchange communication.
+boundary for exchange credentials, order validation, account state, and
+exchange communication.
 
 The desktop runtime adds a Tauri 2 native process around the existing SPA while
 preserving the React/Axum contract:
@@ -50,8 +50,8 @@ Android Tauri process
   and Mainnet needs an explicit real-funds confirmation. New Mainnet
   credentials are stored only after Binance confirms reading/Futures access
   and `enableWithdrawals=false`.
-- **Optional notifications:** ntfy and Telegram are configured independently
-  and never gate chart or trading access.
+- **Dormant integrations:** price alerts, ntfy, and Telegram remain in source
+  but expose no UI, routes, background worker, or provider delivery.
 
 ```text
 Browser (React/Vite)
@@ -61,9 +61,8 @@ Browser (React/Vite)
 Rust API (Axum/Tokio)
   ├── Binance USD-M REST and user-data streams
   ├── proxied MEXC history and Binance reference data
-  ├── SQLite alert store
   ├── JSON symbol and sizing stores
-  └── ntfy and external icon providers
+  └── external icon providers
 ```
 
 ## Frontend
@@ -75,8 +74,9 @@ Lightweight Charts.
 
 - `components/` contains UI surfaces and chart overlays.
 - `hooks/` coordinates chart lifecycle, market streams, positions, orders,
-  drawings, alerts, tabs, and hotkeys. The drawing overlay is decomposed under
-  `hooks/useDrawingCanvas/` into rendering, canvas primitives, geometry,
+  drawings, tabs, and hotkeys. Dormant alert hooks remain feature-gated. The
+  drawing overlay is decomposed under `hooks/useDrawingCanvas/` into rendering,
+  canvas primitives, geometry,
   pending-order layout/hit-testing, and armed pointer interactions.
 - `components/PositionsPanel/` separates panel orchestration from position and
   open-order row rendering; row-specific styles follow the same boundary.
@@ -91,8 +91,7 @@ Lightweight Charts.
 - `components/SettingsPanel/settingsSearch.ts` owns the pure settings
   section/field search model independently of the drawer rendering.
 - `hooks/useOperationalDiagnostics.ts` combines protected backend diagnostics
-  with frontend sidecar and market-feed state. Settings renders the snapshot;
-  transient notification failures also produce a dismissible global warning.
+  with frontend sidecar and market-feed state. Settings renders the snapshot.
 - `components/AppErrorBoundary/` is the fail-closed recovery surface for
   uncaught React render/lifecycle failures.
 - `components/PositionBracketOverlay/positionBracketModel.ts` owns persisted
@@ -137,8 +136,8 @@ The backend is a reusable Tokio application exposed through Axum.
 - `runtime_config.rs` separates standalone `.env` development from the bounded
   stdin bootstrap used by the desktop sidecar.
 - `api.rs` composes routes and the remaining multi-step trading workflows.
-  Account read models, regular-order CRUD, WebSocket/runtime middleware, alerts,
-  and symbol/icon/market-data handlers live in focused `api/` route modules
+  Account read models, regular-order CRUD, WebSocket/runtime middleware, and
+  symbol/icon/market-data handlers live in focused `api/` route modules
   while preserving the same public URLs.
 - `binance.rs` signs and sends Binance REST requests and caches exchange metadata.
 - `binance_stream/` maintains the Binance user-data stream.
@@ -148,7 +147,8 @@ The backend is a reusable Tokio application exposed through Axum.
   counters exposed through the authenticated diagnostics endpoint.
 - `operation_safety.rs` persists financial request intents, replayable results
   and redacted audit correlation in SQLite.
-- `alerts.rs` stores and evaluates persistent price alerts.
+- `alerts.rs` retains the dormant persistent-alert implementation. Its routes,
+  database, worker, and provider delivery are disabled by ADR 0013.
 - `symbol_registry.rs` owns registered symbols and their market-data source.
   The single-user local registry has no arbitrary symbol-count ceiling; icon
   resolution is best-effort and cannot reject an otherwise valid symbol.
@@ -170,13 +170,11 @@ contention test verifies that a second workflow cannot enter before the first
 guard is released.
 
 Background tasks refresh exchange reference data, account state, position risk,
-alerts, and user-stream events. They do not submit account mutations through the
+and user-stream events. They do not submit account mutations through the
 HTTP trading workflows and are aborted during graceful shutdown.
 
-The current background workers live only as long as their owning desktop or
-Android process. ADR 0012 defines continuous monitoring as a Linux tray-owned
-runtime and an Android foreground service; that lifecycle work is not yet
-implemented.
+Price-alert monitoring is not a background task. ADR 0013 supersedes the earlier
+Linux tray/Android foreground-service alert plan.
 
 ## Request and event flows
 
@@ -212,21 +210,12 @@ serialized but are not exchange transactions; their recovery and authority
 rules are defined in
 [ADR 0008](docs/adr/0008-authoritative-exchange-reconciliation.md).
 
-### Persistent alerts
+### Dormant alerts
 
-1. The frontend creates an authenticated alert through the API.
-2. The backend stores it in SQLite.
-3. The alert worker observes market/trading events and evaluates triggers.
-4. Triggered alerts may be delivered through ntfy and Telegram and linked back
-   to the terminal. Destinations are loaded from the OS credential store.
-
-Local, non-persistent alerts depend on frontend lifetime. In Tauri they delegate
-delivery to native Rust; plain browser development does not have notification
-credential access.
-
-Notification delivery is best-effort and cannot change the authoritative result
-of a triggered alert or completed exchange action. Delivery failures are shown
-as frontend warnings and retained as process-lifetime diagnostic counters.
+The alert UI, frontend monitoring, `/api/alerts` routes, SQLite alert store,
+market websocket worker, and ntfy/Telegram delivery are inactive. Their source
+is retained but no runtime path invokes it. Existing alert data and notification
+credentials are preserved without being read. See ADR 0013.
 
 ### Failure and diagnostics flow
 
@@ -243,11 +232,12 @@ a manual retry; uncaught render failures enter the global fail-closed boundary.
 | --- | --- | --- |
 | Sizing policy | `backend/data/sizing.json` | Backend |
 | Symbol registry | `backend/data/symbols.json` | Backend |
-| Persistent alerts | `backend/data/alerts.sqlite3` | Backend |
+| Legacy alert data (dormant) | `backend/data/alerts.sqlite3` | Preserved, not opened |
 | Financial intents and redacted audit metadata | `backend/data/operations.sqlite3` | Backend |
 | Icon cache | `backend/data/icons/` | Backend |
 | UI settings/drawings/tabs | Browser `localStorage` | Frontend |
-| Binance/ntfy/Telegram secrets | OS credential manager | Native Rust |
+| Binance secrets | OS credential manager | Native Rust |
+| Legacy ntfy/Telegram secrets (dormant) | OS credential manager | Preserved, not read |
 
 The table shows standalone development defaults. In installed native builds,
 backend-owned JSON, SQLite, and icon data live under the operating system's

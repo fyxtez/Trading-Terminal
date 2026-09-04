@@ -20,6 +20,7 @@ vi.mock("../trading/api/priceAlerts", () => ({
 
 describe("usePriceAlerts persistent trigger reconciliation", () => {
   beforeEach(() => {
+    localStorage.clear();
     apiMocks.cancel.mockReset();
     apiMocks.create.mockReset();
     apiMocks.list.mockReset().mockResolvedValue([]);
@@ -61,5 +62,35 @@ describe("usePriceAlerts persistent trigger reconciliation", () => {
 
     await waitFor(() => expect(result.current.alerts).toEqual([]));
     expect(localStorage.getItem("price-alerts-BTCUSDT")).toBe("[]");
+  });
+
+  it("does not load, create, or synchronize alerts while the feature is dormant", async () => {
+    localStorage.setItem(
+      "price-alerts-BTCUSDT",
+      JSON.stringify([
+        {
+          id: "legacy-alert",
+          price: 77_000,
+          createdAt: Date.now(),
+          side: "LONG",
+          pattern: "support",
+          additionalInfo: "",
+          locked: true,
+          hidden: false,
+        },
+      ]),
+    );
+
+    const { result } = renderHook(() => {
+      const refs = useChartRefs();
+      return usePriceAlerts(refs, "BTCUSDT", 76_000, true, false);
+    });
+
+    expect(result.current.alerts).toEqual([]);
+    act(() => result.current.addAlert(78_000));
+    expect(result.current.alerts).toEqual([]);
+    expect(apiMocks.list).not.toHaveBeenCalled();
+    expect(apiMocks.create).not.toHaveBeenCalled();
+    expect(localStorage.getItem("price-alerts-BTCUSDT")).toContain("legacy-alert");
   });
 });

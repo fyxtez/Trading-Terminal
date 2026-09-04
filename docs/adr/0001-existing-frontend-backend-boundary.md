@@ -24,3 +24,9 @@ Keep the HTTP/WebSocket contract during the first desktop milestones. Tauri host
 
 Keep execution behavior in Axum unless a future ADR deliberately replaces the
 whole contract. Do not implement a second execution path in Tauri commands.
+
+## Implementation status update (2026-09-04)
+
+ADR 0013 leaves the alert implementation on the Axum side of this boundary but
+makes it dormant: the database, routes, and worker are not active. Exchange
+execution and the rest of the React/Axum ownership model remain unchanged.

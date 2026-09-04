@@ -69,6 +69,16 @@ pub struct AlertStore {
 }
 
 impl AlertStore {
+    /// Supplies inert route state while alerts are disabled without opening,
+    /// migrating, or reading the user's persisted alert database.
+    pub fn disabled() -> Self {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("sqlite::memory:")
+            .expect("the static in-memory SQLite URL must be valid");
+        Self { pool }
+    }
+
     pub async fn connect(path: impl AsRef<std::path::Path>) -> AppResult<Self> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
@@ -213,6 +223,14 @@ enum AlertCommand {
 }
 
 impl AlertRuntime {
+    /// Keeps alert route state constructible while the product feature is
+    /// dormant, without starting the market websocket worker.
+    pub fn disabled() -> Self {
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
+        drop(command_rx);
+        Self { command_tx }
+    }
+
     pub fn refresh(&self) {
         let _ = self.command_tx.send(AlertCommand::Refresh);
     }

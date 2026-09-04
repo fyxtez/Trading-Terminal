@@ -56,3 +56,9 @@ and the signed APK has been installed successfully on a physical device. Play
 Store publication and clean-device acceptance remain out of scope. Continuous
 monitoring is now confirmed as a product requirement; ADR 0012 defines the
 foreground-service implementation that remains pending.
+
+## Later status update (2026-09-04)
+
+ADR 0013 supersedes that monitoring plan. Price alerts and external
+notification delivery are dormant, so Android does not start an alert
+foreground service in the current product.

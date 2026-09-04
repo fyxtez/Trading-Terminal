@@ -96,6 +96,8 @@ type ContextMenuProps = {
   onDeleteAllDrawings: () => void;
   onDeleteDrawingsByTimeframe: (timeframe: Interval) => void;
   onDeleteAllTradeMarkers: () => void;
+  /** Feature gate that keeps the dormant alert implementation out of the product UI. */
+  priceAlertsEnabled: boolean;
   /**
    * Creates a price alert at the price under the cursor when the menu
    * was opened (contextMenu.price - see types/drawing.ts). Only ever
@@ -132,6 +134,7 @@ export default function ContextMenu({
   onDeleteAllDrawings,
   onDeleteDrawingsByTimeframe,
   onDeleteAllTradeMarkers,
+  priceAlertsEnabled,
   onCreateAlert,
   onCreateCoordinateMarker,
   onClose,
@@ -173,6 +176,7 @@ export default function ContextMenu({
               Straighten selected on X axis
             </button>
           ) : (
+            priceAlertsEnabled &&
             canCreateAlertFromDrawing && (
               <>
                 <button
@@ -281,16 +285,18 @@ export default function ContextMenu({
             Reset chart view
           </button>
 
-          <button
-            className="context-action"
-            disabled={contextMenu.price === null}
-            onClick={() => {
-              onCreateAlert(contextMenu.price!);
-              onClose();
-            }}
-          >
-            Create alert
-          </button>
+          {priceAlertsEnabled && (
+            <button
+              className="context-action"
+              disabled={contextMenu.price === null}
+              onClick={() => {
+                onCreateAlert(contextMenu.price!);
+                onClose();
+              }}
+            >
+              Create alert
+            </button>
+          )}
 
           <button
             className="context-action"
