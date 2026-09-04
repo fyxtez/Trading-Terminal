@@ -131,16 +131,42 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fyxtez-upload.jks"
+
+          missing_secrets=()
+          for secret_name in \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD
+          do
+            if [[ -z "${!secret_name:-}" ]]; then
+              missing_secrets+=("$secret_name")
+            fi
+          done
+
+          if (( ${#missing_secrets[@]} > 0 )); then
+            printf '::error::Missing or empty releases environment secret(s): %s\n' \
+              "${missing_secrets[*]}"
+            exit 1
+          fi
+
+          if ! printf '%s' "$ANDROID_KEYSTORE_BASE64" \
+            | base64 --decode > "$RUNNER_TEMP/fyxtez-upload.jks"
+          then
+            echo '::error::ANDROID_KEYSTORE_BASE64 is not valid base64.'
+            exit 1
+          fi
           chmod 600 "$RUNNER_TEMP/fyxtez-upload.jks"
-          keytool -list \
-            -keystore "$RUNNER_TEMP/fyxtez-upload.jks" \
-            -storepass:env ANDROID_KEYSTORE_PASSWORD \
-            -alias "$ANDROID_KEY_ALIAS"
+
+          if ! keytool -list \
+              -keystore "$RUNNER_TEMP/fyxtez-upload.jks" \
+              -storepass:env ANDROID_KEYSTORE_PASSWORD \
+              -alias "$ANDROID_KEY_ALIAS"
+          then
+            echo '::error::Keystore validation failed. Check its base64, store password, and alias.'
+            exit 1
+          fi
+
           printf 'ANDROID_KEYSTORE_PATH=%s\n' "$RUNNER_TEMP/fyxtez-upload.jks" >> "$GITHUB_ENV"
       - name: Build signed Android APK and AAB
         working-directory: frontend
