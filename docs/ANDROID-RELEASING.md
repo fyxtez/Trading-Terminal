@@ -92,9 +92,13 @@ jarsigner -verify -strict \
 
 ## Release and rollback
 
-The `Signed Linux and Android release` workflow attaches the signed APK, signed
-AAB and Android SHA-256 manifest to the same draft as the Linux bundles. It also
-generates GitHub build-provenance attestations for every published file.
+The `Signed Linux and Android release` workflow first builds, verifies, attests
+and preserves both platform payloads as workflow artifacts. Only after both
+platform jobs succeed does the final publish job create or update the draft and
+attach the signed APK, signed AAB, Linux bundles and both SHA-256 manifests. A
+failed platform build therefore does not create or modify a draft release. The
+failed deployment entry GitHub records when a protected environment job starts
+is an audit record, not a GitHub Release.
 
 Never replace a published tag or reuse a version for corrected bytes. Withdraw
 the affected release without deleting it, restore the last known-good signed

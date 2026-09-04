@@ -14,7 +14,6 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-22.04
-    environment: releases
     outputs:
       app_version: ${{ steps.tauri.outputs.appVersion }}
     steps:
@@ -42,21 +41,8 @@ jobs:
         run: npm run test:run
       - id: tauri
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: frontend
-          tagName: v__VERSION__
-          releaseName: Fyxtez Terminal v__VERSION__
-          releaseBody: |
-            Signed release candidate. Linux users should install the `.deb` package
-            on Ubuntu/Debian or use the AppImage as a portable fallback. Android is
-            an arm64 preview and does not yet promise persistent background alerts.
-
-            Every asset is covered by GitHub build-provenance attestation and the
-            platform-specific SHA-256 manifest attached to this draft.
-          releaseDraft: true
-          prerelease: true
       - name: Stage Linux release assets and checksums
         shell: bash
         run: |
@@ -76,12 +62,6 @@ jobs:
         uses: actions/attest@v4
         with:
           subject-path: release-assets/linux/*
-      - name: Attach Linux checksum manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          gh release upload "v${{ steps.tauri.outputs.appVersion }}"
-          release-assets/linux/SHA256SUMS-linux-x86_64.txt --clobber
       - name: Preserve attested Linux artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -197,12 +177,6 @@ jobs:
         uses: actions/attest@v4
         with:
           subject-path: release-assets/android/*
-      - name: Attach signed Android artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          gh release upload "v${{ needs.linux.outputs.app_version }}"
-          release-assets/android/* --clobber
       - name: Preserve attested Android artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -213,3 +187,72 @@ jobs:
         if: always()
         run: |
           rm -f "$RUNNER_TEMP/fyxtez-upload.jks"
+
+  publish:
+    needs: [linux, android]
+    runs-on: ubuntu-22.04
+    environment: releases
+    steps:
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: signed-*-${{ needs.linux.outputs.app_version }}
+          path: release-assets
+          merge-multiple: true
+      - name: Verify complete release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t debs < <(find release-assets -maxdepth 1 -type f -name '*.deb')
+          mapfile -t appimages < <(find release-assets -maxdepth 1 -type f -name '*.AppImage')
+          mapfile -t apks < <(find release-assets -maxdepth 1 -type f -name '*.apk')
+          mapfile -t aabs < <(find release-assets -maxdepth 1 -type f -name '*.aab')
+          test "${#debs[@]}" -eq 1
+          test "${#appimages[@]}" -eq 1
+          test "${#apks[@]}" -eq 1
+          test "${#aabs[@]}" -eq 1
+          test -f release-assets/SHA256SUMS-linux-x86_64.txt
+          test -f release-assets/SHA256SUMS-android-arm64.txt
+          (
+            cd release-assets
+            sha256sum --check SHA256SUMS-linux-x86_64.txt
+            sha256sum --check SHA256SUMS-android-arm64.txt
+          )
+      - name: Create draft and attach complete release payload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: |
+            Signed release candidate. Linux users should install the `.deb` package
+            on Ubuntu/Debian or use the AppImage as a portable fallback. Android is
+            an arm64 preview and does not yet promise persistent background alerts.
+
+            Every asset is covered by GitHub build-provenance attestation and the
+            platform-specific SHA-256 manifest attached to this draft.
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.linux.outputs.app_version }}"
+          created_release=false
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            is_draft="$(gh release view "$tag" --json isDraft --jq .isDraft)"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "::error::Release $tag already exists and is not a draft. Refusing to replace it."
+              exit 1
+            fi
+          else
+            gh release create "$tag" \
+              --draft \
+              --prerelease \
+              --title "Fyxtez Terminal $tag" \
+              --notes "$RELEASE_NOTES"
+            created_release=true
+          fi
+
+          if ! gh release upload "$tag" release-assets/* --clobber; then
+            if [[ "$created_release" == "true" ]]; then
+              gh release delete "$tag" --yes
+            fi
+            echo '::error::Release upload failed; a newly-created incomplete draft was removed.'
+            exit 1
+          fi

@@ -70,6 +70,11 @@ outside this repository, while CI receives it only through protected `releases`
 environment secrets. See [ANDROID-RELEASING.md](ANDROID-RELEASING.md) for the
 one-time setup, fingerprint verification and recovery rules.
 
+CI stages and verifies every Linux and Android artifact before creating or
+updating a draft. The final publish job runs only after both platform jobs
+succeed. Failed protected-environment jobs remain visible in GitHub's deployment
+audit history, but they do not create or modify a GitHub Release.
+
 Rollback is manual in v1: withdraw the affected GitHub release, leave the tag
 for auditability, publish the last known-good signed artifact and checksums, and
 issue a higher patch version with the fix. Application data and OS credential
