@@ -237,8 +237,8 @@ type ChartPanelProps = {
   onSaveDrawingSet: (name: string) => boolean;
   isToolbarCollapsed: boolean;
   onShowToolbar: () => void;
-  /** Blocks Lightweight Charts gestures while an order line owns pointer movement. */
-  isPlacingOrderLine: boolean;
+  /** Blocks Lightweight Charts while a drawing tool or drawing owns pointer movement. */
+  isDrawingInteractionActive: boolean;
   onPointerDownCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMoveCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUpCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -334,7 +334,7 @@ export default function ChartPanel({
   onSaveDrawingSet,
   isToolbarCollapsed,
   onShowToolbar,
-  isPlacingOrderLine,
+  isDrawingInteractionActive,
   onPointerDownCapture,
   onPointerMoveCapture,
   onPointerUpCapture,
@@ -363,11 +363,11 @@ export default function ChartPanel({
 
     // A newly-mounted DOM shield cannot steal a touch sequence that already
     // began on Lightweight Charts. Disable the chart's own gesture handlers
-    // for the complete order-line placement instead, then restore the normal
-    // pan/zoom behavior as soon as the line is confirmed or cancelled.
+    // for every drawing tool and manipulation, then restore normal pan/zoom as
+    // soon as the drawing owns no pointer interaction.
     chart.applyOptions({
-      handleScroll: !isPlacingOrderLine,
-      handleScale: isPlacingOrderLine
+      handleScroll: !isDrawingInteractionActive,
+      handleScale: isDrawingInteractionActive
         ? false
         : {
             axisPressedMouseMove: { time: true, price: true },
@@ -375,7 +375,7 @@ export default function ChartPanel({
             pinch: true,
           },
     });
-  }, [chartRef, isPlacingOrderLine]);
+  }, [chartRef, isDrawingInteractionActive]);
 
   useEffect(() => {
     let previousLeft: number | null = null;
@@ -693,7 +693,9 @@ export default function ChartPanel({
       ref={chartWrapRef}
       className={`chart-wrap tool-${tool} ${
         isHoveringDrawing ? "hovering-drawing" : ""
-      } ${isHoveringHorizontalDrawing ? "hovering-horizontal-drawing" : ""}`}
+      } ${isHoveringHorizontalDrawing ? "hovering-horizontal-drawing" : ""} ${
+        isDrawingInteractionActive ? "drawing-interaction-active" : ""
+      }`}
       onPointerDownCapture={handlePointerDown}
       onPointerMoveCapture={handlePointerMove}
       onPointerUpCapture={handlePointerUp}
@@ -706,7 +708,9 @@ export default function ChartPanel({
         className={`chart ${isChartLoading ? "chart-loading" : "chart-ready"}`}
       />
 
-      {isPlacingOrderLine && <div className="chart-interaction-shield" aria-hidden="true" />}
+      {isDrawingInteractionActive && (
+        <div className="chart-interaction-shield" aria-hidden="true" />
+      )}
 
       {tool !== "cursor" && !isChartLoading && (
         <div

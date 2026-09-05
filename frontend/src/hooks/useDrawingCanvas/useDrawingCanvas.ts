@@ -70,6 +70,7 @@ export function useDrawingCanvas(
   showDrawings: boolean,
 ) {
   const [isHoveringDrawing, setIsHoveringDrawing] = useState(false);
+  const [isDirectManipulationActive, setIsDirectManipulationActive] = useState(false);
   const [editingText, setEditingText] = useState<EditingTextState | null>(null);
   const editingTextRef = useRef<typeof editingText>(null);
   // the canvas paint loop is intentionally mounted once, so mirror this
@@ -179,6 +180,7 @@ export function useDrawingCanvas(
 
   const {
     armedGroupMove,
+    isGroupMarqueeActive,
     setArmedGroupMove,
     setIsGroupMarqueeActive,
     armedOrderLineId,
@@ -1033,6 +1035,7 @@ export function useDrawingCanvas(
       pointerStart: chartPoint,
       mode: dragMode,
     };
+    setIsDirectManipulationActive(true);
 
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -1213,6 +1216,7 @@ export function useDrawingCanvas(
 
     if (!drag) return;
 
+    setIsDirectManipulationActive(false);
     event.preventDefault();
     event.stopPropagation();
 
@@ -1565,6 +1569,15 @@ export function useDrawingCanvas(
     commitTextEditing,
     cancelTextEditing,
     isPlacingOrderLine: armedOrderLineId !== null,
+    isDrawingInteractionActive:
+      drawingsApi.tool !== "cursor" ||
+      isDirectManipulationActive ||
+      isGroupMarqueeActive ||
+      armedGroupMove !== null ||
+      armedOrderLineId !== null ||
+      armedTrendEndpoint !== null ||
+      armedTrendMove !== null ||
+      armedBoxHandle !== null,
     handlePointerDownCapture,
     handlePointerMoveCapture,
     handlePointerUpCapture,

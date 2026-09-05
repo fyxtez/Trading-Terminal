@@ -75,17 +75,41 @@ where
     let diagnostics = DiagnosticsState::new(binance.is_configured());
 
     info!("Synchronizing Binance server time");
-    binance.sync_server_time().await?;
-    diagnostics.exchange_success();
+    if let Err(error) = binance.sync_server_time().await {
+        // Android can briefly expose its process before DNS/network state is
+        // usable. Exchange prerequisites must still fail closed, but a cold
+        // start outage must not prevent the loopback API, Settings, and manual
+        // recovery controls from opening at all.
+        diagnostics.exchange_failure(error.to_string());
+        tracing::warn!(
+            target: "api",
+            %error,
+            "Starting with unsynchronized Binance time until connectivity returns"
+        );
+    } else {
+        diagnostics.exchange_success();
+    }
 
-    if binance.is_configured() {
+    let initial_reference_data = if binance.is_configured() {
         info!("Loading Binance exchange information and leverage brackets");
-        binance.initialize_reference_data().await?;
+        binance.initialize_reference_data().await
     } else {
         info!("Binance credentials are not configured; loading public exchange information");
-        binance.initialize_public_reference_data().await?;
+        binance.initialize_public_reference_data().await
+    };
+    let reference_data_ready = initial_reference_data.is_ok();
+    if let Err(error) = initial_reference_data {
+        diagnostics.exchange_failure(error.to_string());
+        tracing::warn!(
+            target: "api",
+            %error,
+            "Starting without Binance reference data; exposure remains blocked until refresh"
+        );
+    } else {
+        diagnostics.exchange_success();
     }
-    let reference_data_task = binance.spawn_reference_data_worker();
+    let reference_data_task =
+        binance.spawn_reference_data_worker(reference_data_ready, diagnostics.clone());
 
     let symbol_registry = SymbolRegistry::load(&runtime.symbol_registry_path).await?;
 

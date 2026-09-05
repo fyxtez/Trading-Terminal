@@ -5,6 +5,10 @@
   min-height: 0;
   overflow: hidden;
 }
+.chart-wrap.drawing-interaction-active {
+  overscroll-behavior: contain;
+  touch-action: none;
+}
 .chart {
   width: 100%;
   height: 100%;
@@ -20,9 +24,9 @@
   pointer-events: none;
 }
 
-/* The order-line editor listens on window so it can follow and confirm a
- * click-move-click gesture. This transparent layer keeps that same pointer
- * stream from reaching Lightweight Charts and panning/zooming it underneath. */
+/* Drawing editors may listen on chart-wrap or window depending on their
+ * gesture. This transparent layer gives every active drawing interaction sole
+ * ownership of touch input instead of also panning/zooming the chart below. */
 .chart-interaction-shield {
   position: absolute;
   inset: 0;

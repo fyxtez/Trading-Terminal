@@ -1,10 +1,12 @@
 .desktop-runtime-gate {
+  height: 100dvh;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 48px;
   color: #f3f4f6;
   background: #080b10;
+  overflow: hidden;
 }
 
 .desktop-runtime-gate section {
@@ -12,6 +14,57 @@
   padding: 56px;
   border: 1px solid #27303d;
   background: #10151d;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+@media (max-width: 520px) {
+  .desktop-runtime-gate {
+    min-height: 100dvh;
+    padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+
+  .desktop-runtime-gate section {
+    padding: 28px 24px;
+    width: 100%;
+  }
+
+  .desktop-runtime-gate img {
+    height: 42px;
+    margin-bottom: 18px;
+    width: 42px;
+  }
+
+  .desktop-runtime-gate h1 {
+    font-size: 32px;
+    line-height: 1.05;
+    margin: 10px 0;
+  }
+
+  .desktop-runtime-gate p {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .desktop-runtime-gate .loading-indicator--panel {
+    margin-top: 22px;
+  }
+}
+
+@media (max-width: 360px) {
+  .desktop-runtime-gate {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .desktop-runtime-gate section {
+    padding: 24px 20px;
+  }
+
+  .desktop-runtime-gate h1 {
+    font-size: 29px;
+  }
 }
 
 .desktop-runtime-gate img {

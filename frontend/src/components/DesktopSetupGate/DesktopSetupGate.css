@@ -7,8 +7,11 @@
   inset: 0;
   justify-content: center;
   min-height: 100vh;
+  max-width: 100vw;
+  overflow: hidden;
   padding: clamp(32px, 5vw, 84px);
   position: fixed;
+  width: 100%;
   z-index: 10000;
 }
 .desktop-setup-card {
@@ -21,8 +24,16 @@
   height: min(820px, calc(100dvh - 96px));
   max-width: 1280px;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   width: 100%;
+}
+.desktop-setup-header > div,
+.desktop-setup-body > *,
+.desktop-setup-fields,
+.desktop-setup-actions,
+.desktop-setup-actions > div {
+  min-width: 0;
 }
 .desktop-setup-header {
   align-items: center;
@@ -156,6 +167,8 @@
   font: 15px monospace;
   outline: 0;
   padding: 16px;
+  min-width: 0;
+  width: 100%;
 }
 .desktop-setup-fields input:focus {
   border-color: #dda139;
@@ -297,7 +310,7 @@
 
 @media (max-width: 520px) {
   .desktop-setup {
-    padding: 0;
+    padding: 0 max(env(safe-area-inset-right), 0px) 0 max(env(safe-area-inset-left), 0px);
   }
   .desktop-setup-card {
     border: 0;
@@ -356,8 +369,10 @@
     display: flex;
     gap: 8px;
     justify-content: flex-end;
-    padding-left: 10px;
-    padding-right: 10px;
+    max-width: 100%;
+    overflow: hidden;
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
   }
   .desktop-setup-actions > i {
     display: none;
@@ -367,18 +382,24 @@
     min-width: 68px;
   }
   .desktop-setup-actions > div {
+    display: grid;
     flex: 1 1 auto;
     gap: 6px;
-    justify-content: flex-end;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     min-width: 0;
+    width: 100%;
   }
   .desktop-setup-actions button {
     min-height: 48px;
-    padding: 0 12px;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    min-width: 0;
+    padding: 0 8px;
+    white-space: nowrap;
   }
   .desktop-setup-actions .skip,
   .desktop-setup-actions .primary {
-    flex: 1 1 0;
+    width: 100%;
   }
   .desktop-setup-actions .skip {
     background: #11151b;

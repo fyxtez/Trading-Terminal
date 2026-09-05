@@ -18,6 +18,7 @@ use url::form_urlencoded;
 use zeroize::Zeroizing;
 
 use crate::{
+    diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
     models::{
         AlgoOrderResponse, BinanceOrderResponse, ExchangeInfo, FuturesAccountInfo, LeverageBracket,
@@ -33,6 +34,8 @@ const TESTNET_BASE: &str = "https://demo-fapi.binance.com";
 const MAINNET_BASE: &str = "https://fapi.binance.com";
 const RECV_WINDOW: &str = "10000";
 const REFERENCE_DATA_REFRESH_INTERVAL: Duration = Duration::from_secs(3 * 24 * 60 * 60);
+const REFERENCE_DATA_RETRY_INITIAL: Duration = Duration::from_secs(2);
+const REFERENCE_DATA_RETRY_MAX: Duration = Duration::from_secs(60);
 
 /// Binance's code for "the symbol is already in the requested margin
 /// mode" - a true no-op, not a genuine rejection (see ensure_isolated_margin).
@@ -331,19 +334,24 @@ impl BinanceClient {
         Ok(())
     }
 
-    pub fn spawn_reference_data_worker(&self) -> tokio::task::JoinHandle<()> {
+    pub fn spawn_reference_data_worker(
+        &self,
+        initial_data_ready: bool,
+        diagnostics: DiagnosticsState,
+    ) -> tokio::task::JoinHandle<()> {
         let client = self.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(REFERENCE_DATA_REFRESH_INTERVAL);
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-            // The initial cache load is performed synchronously during startup.
-            // Consume the immediate first interval tick, then wait three days.
-            interval.tick().await;
+            let mut data_ready = initial_data_ready;
+            let mut retry_delay = REFERENCE_DATA_RETRY_INITIAL;
 
             loop {
-                interval.tick().await;
+                tokio::time::sleep(if data_ready {
+                    REFERENCE_DATA_REFRESH_INTERVAL
+                } else {
+                    retry_delay
+                })
+                .await;
 
                 let result = if client.is_configured() {
                     client.refresh_reference_data().await
@@ -351,12 +359,22 @@ impl BinanceClient {
                     client.initialize_public_reference_data().await
                 };
 
-                if let Err(error) = result {
-                    tracing::error!(
-                        target: "api",
-                        %error,
-                        "Failed to refresh Binance reference-data caches; keeping previous data"
-                    );
+                match result {
+                    Ok(()) => {
+                        diagnostics.exchange_success();
+                        data_ready = true;
+                        retry_delay = REFERENCE_DATA_RETRY_INITIAL;
+                    }
+                    Err(error) => {
+                        diagnostics.exchange_failure(error.to_string());
+                        tracing::error!(
+                            target: "api",
+                            %error,
+                            "Failed to refresh Binance reference-data caches; keeping previous data"
+                        );
+                        data_ready = false;
+                        retry_delay = std::cmp::min(retry_delay * 2, REFERENCE_DATA_RETRY_MAX);
+                    }
                 }
             }
         })

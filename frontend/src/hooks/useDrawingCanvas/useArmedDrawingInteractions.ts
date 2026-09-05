@@ -785,6 +785,7 @@ export function useArmedDrawingInteractions(
   }, [armedBoxHandle]);
   return {
     armedGroupMove,
+    isGroupMarqueeActive,
     setArmedGroupMove,
     setIsGroupMarqueeActive,
     armedOrderLineId,

@@ -1136,7 +1136,7 @@ function App() {
             onSaveDrawingSet={drawingsApi.saveCurrentDrawingSet}
             isToolbarCollapsed={isToolbarCollapsed}
             onShowToolbar={() => setIsToolbarCollapsed(false)}
-            isPlacingOrderLine={drawingCanvas.isPlacingOrderLine}
+            isDrawingInteractionActive={drawingCanvas.isDrawingInteractionActive}
             onPointerDownCapture={drawingCanvas.handlePointerDownCapture}
             onPointerMoveCapture={drawingCanvas.handlePointerMoveCapture}
             onPointerUpCapture={drawingCanvas.handlePointerUpCapture}
