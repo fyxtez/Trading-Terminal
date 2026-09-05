@@ -244,7 +244,10 @@ backend-owned JSON, SQLite, and icon data live under the operating system's
 application-data directory resolved by Tauri. Runtime data and secrets are
 ignored by Git.
 
-The supported closed-app backup and restore procedure is documented in
+Native builds expose a versioned, allowlisted backup/restore workflow that
+pauses the managed backend for consistent SQLite snapshots, validates every
+entry and creates a safety archive before restore. The built-in flow and
+closed-app disaster-recovery fallback are documented in
 [`docs/LOCAL-DATA-BACKUP.md`](docs/LOCAL-DATA-BACKUP.md). Outbound provider,
 timeout, redirect and failure boundaries are listed in
 [`docs/OUTBOUND-CONNECTIONS.md`](docs/OUTBOUND-CONNECTIONS.md).

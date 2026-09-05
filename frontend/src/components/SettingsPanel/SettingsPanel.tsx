@@ -21,6 +21,7 @@ import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsCon
 import { AvailableBalanceCard, DesktopConnectionsSection } from "./SettingsSummaryCards";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import DiagnosticsSection from "./DiagnosticsSection";
+import DataBackupSection from "./DataBackupSection";
 import { buildSettingsSearchModel } from "./settingsSearch";
 import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
@@ -857,6 +858,7 @@ export default function SettingsPanel({
     showBalanceCard,
     showDesktopConnections,
     showDiagnostics,
+    showDataBackup,
     hasAnySettingsSearchResult,
   } = buildSettingsSearchModel(
     settingsSearchQuery,
@@ -948,7 +950,11 @@ export default function SettingsPanel({
               onToggle={() => setIsDiagnosticsSectionVisible((visible) => !visible)}
             />
           )}
-          {showDiagnostics && (showBalanceCard || showMarginSection) && (
+          {showDiagnostics && showDataBackup && <div className="settings-separator" />}
+
+          {showDataBackup && <DataBackupSection forceExpanded={isSearchingSettings} />}
+
+          {(showDiagnostics || showDataBackup) && (showBalanceCard || showMarginSection) && (
             <div className="settings-separator" />
           )}
 

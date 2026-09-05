@@ -88,9 +88,11 @@ Run `git status --short --ignored` and verify that `.env`, SQLite/WAL files,
 `node_modules`, `dist` and Rust `target` directories are ignored. Commit
 `.env.example` templates only.
 
-Back up the complete closed-app data directory according to
-[docs/LOCAL-DATA-BACKUP.md](docs/LOCAL-DATA-BACKUP.md). Do not include exported
-credential-manager data or plaintext secrets.
+Use the native allowlisted export under **Settings > Local data backup**, or the
+documented complete closed-app fallback, according to
+[docs/LOCAL-DATA-BACKUP.md](docs/LOCAL-DATA-BACKUP.md). The portable archive is
+integrity checked but not encrypted. Do not include exported credential-manager
+data or plaintext secrets.
 
 Run the validation commands documented in the root README. Price alerts and
 external notification providers are not part of current release acceptance.

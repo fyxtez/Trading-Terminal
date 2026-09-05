@@ -80,6 +80,12 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 - [x] Native inputs, outbound redirects, request sizes and timeouts have bounded policies.
 - [x] Outbound providers and secret-redaction behavior are documented.
 - [x] Local backup and restore steps are documented.
+      Linux and Android Settings now expose the same versioned export/restore
+      flow. Native code pauses the supervised backend, allowlists and hashes
+      archive entries, limits expansion, creates a pre-restore safety archive
+      and rolls backend/frontend data back when restore fails. Rust round-trip,
+      exclusion and exact-file-set tests pass; the manual clean-system exercise
+      remains open below.
 - [x] Redacted durable intent/audit metadata is stored in `operations.sqlite3`.
 - [x] Price alerts, ntfy and Telegram are dormant: no UI, API routes, alert
       database access, alert worker, or provider delivery (ADR 0013).

@@ -1,5 +1,6 @@
 #[cfg(desktop)]
 mod backend_supervisor;
+mod backup;
 mod binance_credentials;
 mod credential_store;
 #[cfg(mobile)]
@@ -12,6 +13,7 @@ use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tauri::{Manager, State};
+use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
 use binance_credentials::validate_binance_credentials;
@@ -26,6 +28,9 @@ const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
 const MAX_URL_LENGTH: usize = 2_048;
 const MAX_CREDENTIAL_LENGTH: usize = 256;
 const EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED: bool = false;
+
+#[derive(Default)]
+struct BackupOperationLock(Mutex<()>);
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -336,6 +341,133 @@ async fn restart_backend(
 }
 
 #[tauri::command]
+async fn export_local_backup(
+    app: tauri::AppHandle,
+    supervisor: State<'_, BackendSupervisor>,
+    operation_lock: State<'_, BackupOperationLock>,
+    input: backup::BackupInput,
+) -> Result<backup::BackupExportInfo, String> {
+    let _guard = operation_lock.0.lock().await;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Could not resolve application data storage".to_string())?;
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Could not resolve application cache storage".to_string())?;
+    supervisor.pause().await?;
+    let result = backup::create_export(
+        &data_dir,
+        &cache_dir,
+        &app.package_info().version.to_string(),
+        &input.frontend_storage,
+    );
+    let restart = supervisor.restart().await;
+    match (result, restart) {
+        (Ok(export), Ok(_)) => Ok(export),
+        (Err(error), Ok(_)) => Err(error),
+        (Ok(_), Err(restart_error)) => Err(format!(
+            "Backup was created, but the local backend did not restart: {restart_error}"
+        )),
+        (Err(error), Err(restart_error)) => Err(format!(
+            "{error}; the local backend also did not restart: {restart_error}"
+        )),
+    }
+}
+
+#[tauri::command]
+fn inspect_local_backup(app: tauri::AppHandle) -> Result<backup::BackupInspection, String> {
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Could not resolve application cache storage".to_string())?;
+    backup::inspect_import(&cache_dir).map(|validated| validated.inspection())
+}
+
+#[tauri::command]
+async fn restore_local_backup(
+    app: tauri::AppHandle,
+    supervisor: State<'_, BackendSupervisor>,
+    operation_lock: State<'_, BackupOperationLock>,
+    input: backup::BackupInput,
+) -> Result<backup::RestoreResult, String> {
+    let _guard = operation_lock.0.lock().await;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Could not resolve application data storage".to_string())?;
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Could not resolve application cache storage".to_string())?;
+    let validated = backup::inspect_import(&cache_dir)?;
+
+    supervisor.pause().await?;
+    let previous_backend = match backup::collect_backend_files(&data_dir) {
+        Ok(files) => files,
+        Err(error) => {
+            let _ = supervisor.restart().await;
+            return Err(error);
+        }
+    };
+    let (_, safety_backup_name) = match backup::create_safety_backup(
+        &data_dir,
+        &app.package_info().version.to_string(),
+        &input.frontend_storage,
+    ) {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = supervisor.restart().await;
+            return Err(format!("Restore stopped before changing data: {error}"));
+        }
+    };
+    if let Err(error) = backup::install_backend_files(&data_dir, validated.backend_files()) {
+        let restart = supervisor.restart().await;
+        return if let Err(restart_error) = restart {
+            Err(format!(
+                "{error}; the local backend also did not restart: {restart_error}"
+            ))
+        } else {
+            Err(error)
+        };
+    }
+
+    if let Err(restart_error) = supervisor.restart().await {
+        let rollback_pause = supervisor.pause().await;
+        if let Err(pause_error) = rollback_pause {
+            return Err(format!(
+                "CRITICAL: restored backend did not start ({restart_error}) and could not be stopped for rollback ({pause_error}). Keep trading closed and preserve safety backup {safety_backup_name}"
+            ));
+        }
+        let rollback = backup::install_backend_files(&data_dir, &previous_backend);
+        let recovery_restart = supervisor.restart().await;
+        return match (rollback, recovery_restart) {
+            (Ok(()), Ok(_)) => Err(format!(
+                "Restore was rolled back because the restored backend did not start: {restart_error}"
+            )),
+            (rollback, recovery) => Err(format!(
+                "CRITICAL: restored backend did not start ({restart_error}); rollback result: {}; recovery restart result: {}. Keep trading closed and preserve safety backup {safety_backup_name}",
+                rollback.err().unwrap_or_else(|| "ok".into()),
+                recovery.err().unwrap_or_else(|| "ok".into()),
+            )),
+        };
+    }
+
+    let _ = backup::cleanup_stages(&cache_dir);
+    Ok(backup::RestoreResult { safety_backup_name })
+}
+
+#[tauri::command]
+fn cleanup_local_backup_stages(app: tauri::AppHandle) -> Result<(), String> {
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Could not resolve application cache storage".to_string())?;
+    backup::cleanup_stages(&cache_dir)
+}
+
+#[tauri::command]
 fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -428,7 +560,9 @@ async fn send_notification(input: NotificationInput) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init());
 
     #[cfg(desktop)]
     let builder = builder
@@ -467,6 +601,7 @@ pub fn run() {
                 std::io::Error::other(format!("backend startup failed: {error}"))
             })?;
             app.manage(supervisor);
+            app.manage(BackupOperationLock::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -475,7 +610,11 @@ pub fn run() {
             exit_app,
             credential_status,
             save_credentials,
-            disconnect_binance
+            disconnect_binance,
+            export_local_backup,
+            inspect_local_backup,
+            restore_local_backup,
+            cleanup_local_backup_stages
         ])
         .build(tauri::generate_context!())
         .expect("error while building Fyxtez Terminal desktop");

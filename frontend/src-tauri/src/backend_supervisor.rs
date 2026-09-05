@@ -7,7 +7,7 @@ use std::{
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_shell::{ShellExt, process::CommandEvent};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 const SIDECAR_NAME: &str = "fyxtez-backend";
 const MAX_AUTOMATIC_RESTARTS: usize = 3;
@@ -25,12 +25,14 @@ pub struct DesktopRuntimeInfo {
 enum BackendStatus {
     Starting,
     Ready(DesktopRuntimeInfo),
+    Paused,
     Failed(String),
     Stopped,
 }
 
 enum SupervisorCommand {
     Restart,
+    Pause(oneshot::Sender<Result<(), String>>),
     Shutdown,
 }
 
@@ -64,6 +66,7 @@ impl BackendSupervisor {
                     BackendStatus::Ready(info) => return Ok(info),
                     BackendStatus::Failed(error) => return Err(error),
                     BackendStatus::Stopped => return Err("local backend is stopped".into()),
+                    BackendStatus::Paused => return Err("local backend is paused".into()),
                     BackendStatus::Starting => {}
                 }
                 status
@@ -108,6 +111,17 @@ impl BackendSupervisor {
         tokio::time::timeout(Duration::from_secs(60), wait)
             .await
             .map_err(|_| "local backend restart timed out".to_string())?
+    }
+
+    pub async fn pause(&self) -> Result<(), String> {
+        let (ack_tx, ack_rx) = oneshot::channel();
+        self.commands
+            .send(SupervisorCommand::Pause(ack_tx))
+            .map_err(|_| "local backend supervisor is unavailable".to_string())?;
+        tokio::time::timeout(Duration::from_secs(10), ack_rx)
+            .await
+            .map_err(|_| "local backend pause timed out".to_string())?
+            .map_err(|_| "local backend pause was interrupted".to_string())?
     }
 
     pub fn shutdown(&self) {
@@ -206,6 +220,29 @@ async fn run_supervisor<R: Runtime>(
                 automatic_restarts = 0;
                 continue;
             }
+            StartupOutcome::Pause(ack) => {
+                if child.kill().is_err() {
+                    let _ = ack.send(Err(
+                        "local backend could not be stopped safely for the data operation".into(),
+                    ));
+                    continue;
+                }
+                if wait_for_termination(&mut events).await.is_err() {
+                    let error =
+                        "local backend shutdown could not be confirmed for the data operation";
+                    let _ = status_tx.send(BackendStatus::Failed(error.into()));
+                    let _ = ack.send(Err(error.into()));
+                    automatic_restarts = 0;
+                    continue;
+                }
+                let _ = status_tx.send(BackendStatus::Paused);
+                let _ = ack.send(Ok(()));
+                if wait_while_paused(&mut commands).await {
+                    automatic_restarts = 0;
+                    continue;
+                }
+                break;
+            }
             StartupOutcome::Shutdown => {
                 let _ = child.kill();
                 break;
@@ -234,6 +271,29 @@ async fn run_supervisor<R: Runtime>(
                         let _ = child.kill();
                         automatic_restarts = 0;
                         continue 'supervisor;
+                    }
+                    Some(SupervisorCommand::Pause(ack)) => {
+                        if child.kill().is_err() {
+                            let _ = ack.send(Err(
+                                "local backend could not be stopped safely for the data operation".into(),
+                            ));
+                            continue 'supervisor;
+                        }
+                        if wait_for_termination(&mut events).await.is_err() {
+                            let error =
+                                "local backend shutdown could not be confirmed for the data operation";
+                            let _ = status_tx.send(BackendStatus::Failed(error.into()));
+                            let _ = ack.send(Err(error.into()));
+                            automatic_restarts = 0;
+                            continue 'supervisor;
+                        }
+                        let _ = status_tx.send(BackendStatus::Paused);
+                        let _ = ack.send(Ok(()));
+                        if wait_while_paused(&mut commands).await {
+                            automatic_restarts = 0;
+                            continue 'supervisor;
+                        }
+                        break 'supervisor;
                     }
                     Some(SupervisorCommand::Shutdown) | None => {
                         let _ = child.kill();
@@ -297,6 +357,7 @@ async fn run_supervisor<R: Runtime>(
 enum StartupOutcome {
     Ready,
     Restart,
+    Pause(oneshot::Sender<Result<(), String>>),
     Shutdown,
     Failed(String),
 }
@@ -317,6 +378,7 @@ async fn wait_until_ready(
         tokio::select! {
             command = commands.recv() => return match command {
                 Some(SupervisorCommand::Restart) => StartupOutcome::Restart,
+                Some(SupervisorCommand::Pause(ack)) => StartupOutcome::Pause(ack),
                 Some(SupervisorCommand::Shutdown) | None => StartupOutcome::Shutdown,
             },
             event = events.recv() => match event {
@@ -348,10 +410,45 @@ async fn wait_until_ready(
 async fn wait_for_manual_restart(
     commands: &mut mpsc::UnboundedReceiver<SupervisorCommand>,
 ) -> bool {
-    match commands.recv().await {
-        Some(SupervisorCommand::Restart) => true,
-        Some(SupervisorCommand::Shutdown) | None => false,
+    loop {
+        match commands.recv().await {
+            Some(SupervisorCommand::Restart) => return true,
+            Some(SupervisorCommand::Pause(ack)) => {
+                let _ = ack.send(Ok(()));
+            }
+            Some(SupervisorCommand::Shutdown) | None => return false,
+        }
     }
+}
+
+async fn wait_while_paused(commands: &mut mpsc::UnboundedReceiver<SupervisorCommand>) -> bool {
+    loop {
+        match commands.recv().await {
+            Some(SupervisorCommand::Restart) => return true,
+            Some(SupervisorCommand::Pause(ack)) => {
+                let _ = ack.send(Ok(()));
+            }
+            Some(SupervisorCommand::Shutdown) | None => return false,
+        }
+    }
+}
+
+async fn wait_for_termination(
+    events: &mut tauri::async_runtime::Receiver<CommandEvent>,
+) -> Result<(), ()> {
+    let wait = async {
+        while let Some(event) = events.recv().await {
+            match event {
+                CommandEvent::Terminated(_) => return,
+                CommandEvent::Stdout(line) => log_sidecar_line("stdout", &line),
+                CommandEvent::Stderr(line) => log_sidecar_line("stderr", &line),
+                _ => {}
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), wait)
+        .await
+        .map_err(|_| ())
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {

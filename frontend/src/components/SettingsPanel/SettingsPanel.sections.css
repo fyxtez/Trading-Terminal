@@ -739,3 +739,140 @@
   font-size: 13px;
   text-align: right;
 }
+
+.data-backup-content {
+  display: grid;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.data-backup-notice,
+.data-backup-confirmation {
+  display: grid;
+  gap: 5px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: rgba(13, 18, 27, 0.7);
+}
+
+.data-backup-notice strong,
+.data-backup-summary strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.data-backup-notice span,
+.data-backup-summary span,
+.data-backup-confirmation label > span {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.data-backup-actions,
+.data-backup-confirmation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.data-backup-actions button,
+.data-backup-confirmation-actions button,
+.data-backup-restart {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+}
+
+.data-backup-actions button:hover,
+.data-backup-confirmation-actions button:hover,
+.data-backup-restart:hover {
+  border-color: rgba(245, 166, 35, 0.58);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.data-backup-actions button:disabled,
+.data-backup-confirmation-actions button:disabled,
+.data-backup-restart:disabled {
+  cursor: wait;
+  opacity: 0.52;
+}
+
+.data-backup-confirmation {
+  gap: 12px;
+  border-color: rgba(255, 82, 104, 0.38);
+  background: rgba(255, 82, 104, 0.05);
+}
+
+.data-backup-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.data-backup-summary code {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.data-backup-confirmation label {
+  display: grid;
+  gap: 6px;
+}
+
+.data-backup-confirmation input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.data-backup-confirmation input:focus {
+  border-color: rgba(245, 166, 35, 0.7);
+  box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.08);
+}
+
+.data-backup-confirmation-actions button.danger {
+  border-color: rgba(255, 82, 104, 0.5);
+  background: rgba(255, 82, 104, 0.1);
+  color: var(--red);
+}
+
+.data-backup-message {
+  padding: 9px 10px;
+  border: 1px solid rgba(58, 217, 165, 0.3);
+  border-radius: var(--radius-s);
+  background: rgba(58, 217, 165, 0.07);
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.data-backup-error {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.data-backup-restart {
+  width: 100%;
+  border-color: rgba(245, 166, 35, 0.55);
+  background: var(--amber-soft);
+  color: var(--amber);
+}

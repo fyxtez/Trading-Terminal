@@ -226,10 +226,11 @@ Standalone backend development defaults to `backend/data/`:
   explicitly confirmed Settings > Diagnostics reconciliation tombstones them
 - `icons/` — downloaded icon cache
 
-Paths can be overridden through backend environment variables. Use the
-[closed-app backup and restore procedure](docs/LOCAL-DATA-BACKUP.md) for an
-installed desktop profile; credentials remain in the OS credential manager and
-are never included in that backup.
+Paths can be overridden through backend environment variables. Native Linux and
+Android builds expose versioned export/restore under **Settings > Local data
+backup**, with a documented closed-app fallback. Credentials remain in the OS
+credential manager and are never included in either backup method. See
+[local data and backup](docs/LOCAL-DATA-BACKUP.md).
 
 ## Deployment status
 

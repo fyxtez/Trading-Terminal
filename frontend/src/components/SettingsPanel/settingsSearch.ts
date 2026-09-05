@@ -107,9 +107,16 @@ export function buildSettingsSearchModel(
     "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests health uncertain operation intent recovery blocked exposure Binance order history",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
   );
+  const showDataBackup =
+    isDesktop &&
+    matches(
+      "Local data backup",
+      "export restore migrate drawings layouts settings safety copy archive",
+    );
   const hasAnySettingsSearchResult =
     showDesktopConnections ||
     showDiagnostics ||
+    showDataBackup ||
     showBalanceCard ||
     showMarginSection ||
     showDrawingSetsSection ||
@@ -140,6 +147,7 @@ export function buildSettingsSearchModel(
     showBalanceCard,
     showDesktopConnections,
     showDiagnostics,
+    showDataBackup,
     hasAnySettingsSearchResult,
   };
 }

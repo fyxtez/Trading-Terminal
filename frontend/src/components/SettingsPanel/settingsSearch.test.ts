@@ -11,6 +11,7 @@ describe("buildSettingsSearchModel", () => {
     expect(model.showMarginSection).toBe(true);
     expect(model.showDrawingSetsSection).toBe(true);
     expect(model.showDesktopConnections).toBe(true);
+    expect(model.showDataBackup).toBe(true);
   });
 
   it("limits a kill-zone search to the drawings section", () => {
@@ -41,5 +42,10 @@ describe("buildSettingsSearchModel", () => {
     const model = buildSettingsSearchModel("uncertain operation", true, sizingFields);
     expect(model.showDiagnostics).toBe(true);
     expect(model.hasAnySettingsSearchResult).toBe(true);
+  });
+
+  it("finds native backup and restore without exposing it in browser mode", () => {
+    expect(buildSettingsSearchModel("restore", true, sizingFields).showDataBackup).toBe(true);
+    expect(buildSettingsSearchModel("restore", false, sizingFields).showDataBackup).toBe(false);
   });
 });

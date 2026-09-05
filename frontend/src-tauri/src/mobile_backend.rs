@@ -24,12 +24,14 @@ pub struct DesktopRuntimeInfo {
 enum BackendStatus {
     Starting,
     Ready(DesktopRuntimeInfo),
+    Paused,
     Failed(String),
     Stopped,
 }
 
 enum SupervisorCommand {
     Restart,
+    Pause(oneshot::Sender<Result<(), String>>),
     Shutdown,
 }
 
@@ -69,6 +71,17 @@ impl BackendSupervisor {
         wait_for_ready(self.status.clone(), previous_generation).await
     }
 
+    pub async fn pause(&self) -> Result<(), String> {
+        let (ack_tx, ack_rx) = oneshot::channel();
+        self.commands
+            .send(SupervisorCommand::Pause(ack_tx))
+            .map_err(|_| "embedded backend supervisor is unavailable".to_string())?;
+        tokio::time::timeout(Duration::from_secs(10), ack_rx)
+            .await
+            .map_err(|_| "embedded backend pause timed out".to_string())?
+            .map_err(|_| "embedded backend pause was interrupted".to_string())?
+    }
+
     pub fn shutdown(&self) {
         let _ = self.commands.send(SupervisorCommand::Shutdown);
     }
@@ -86,6 +99,7 @@ async fn wait_for_ready(
                 }
                 BackendStatus::Failed(error) => return Err(error),
                 BackendStatus::Stopped => return Err("embedded backend is stopped".into()),
+                BackendStatus::Paused => return Err("embedded backend is paused".into()),
                 BackendStatus::Starting | BackendStatus::Ready(_) => {}
             }
             status
@@ -158,6 +172,23 @@ async fn run_supervisor(
                         server_task.abort();
                         automatic_restarts = 0;
                         continue 'supervisor;
+                    }
+                    Some(SupervisorCommand::Pause(ack)) => {
+                        let _ = shutdown_tx.send(());
+                        if tokio::time::timeout(Duration::from_secs(5), &mut server_task)
+                            .await
+                            .is_err()
+                        {
+                            server_task.abort();
+                            let _ = server_task.await;
+                        }
+                        let _ = status_tx.send(BackendStatus::Paused);
+                        let _ = ack.send(Ok(()));
+                        if wait_while_paused(&mut commands).await {
+                            automatic_restarts = 0;
+                            continue 'supervisor;
+                        }
+                        break 'supervisor;
                     }
                     Some(SupervisorCommand::Shutdown) | None => {
                         let _ = shutdown_tx.send(());
@@ -237,7 +268,27 @@ async fn run_supervisor(
 async fn wait_for_manual_restart(
     commands: &mut mpsc::UnboundedReceiver<SupervisorCommand>,
 ) -> bool {
-    matches!(commands.recv().await, Some(SupervisorCommand::Restart))
+    loop {
+        match commands.recv().await {
+            Some(SupervisorCommand::Restart) => return true,
+            Some(SupervisorCommand::Pause(ack)) => {
+                let _ = ack.send(Ok(()));
+            }
+            Some(SupervisorCommand::Shutdown) | None => return false,
+        }
+    }
+}
+
+async fn wait_while_paused(commands: &mut mpsc::UnboundedReceiver<SupervisorCommand>) -> bool {
+    loop {
+        match commands.recv().await {
+            Some(SupervisorCommand::Restart) => return true,
+            Some(SupervisorCommand::Pause(ack)) => {
+                let _ = ack.send(Ok(()));
+            }
+            Some(SupervisorCommand::Shutdown) | None => return false,
+        }
+    }
 }
 
 fn reserve_loopback_address() -> Result<SocketAddr, String> {
