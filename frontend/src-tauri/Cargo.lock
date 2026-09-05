@@ -1508,7 +1508,7 @@ dependencies = [
  "android-native-keyring-store",
  "fyxtez-backend",
  "getrandom 0.3.4",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "keyring",
  "keyring-core",
  "reqwest 0.12.28",
