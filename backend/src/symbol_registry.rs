@@ -99,13 +99,6 @@ impl SymbolRegistry {
         // because an existing symbols.json wins over the built-in defaults.
         registry.migrate_legacy_mexc_symbols().await?;
 
-        // registry files created before market_kind deserialize as crypto.
-        // Refresh existing Binance entries so SNDK/PLTR-like contracts heal on
-        // restart without requiring the user to delete and re-add each symbol.
-        if let Err(error) = registry.refresh_binance_market_kinds().await {
-            tracing::warn!(%error, "Failed to refresh Binance market classifications");
-        }
-
         Ok(registry)
     }
 
@@ -283,7 +276,10 @@ impl SymbolRegistry {
         Ok(())
     }
 
-    async fn refresh_binance_market_kinds(&self) -> AppResult<()> {
+    /// Refresh old registry entries after startup. This is deliberately not
+    /// part of `load`: it is an outbound request and must never delay the local
+    /// health endpoint or first paint on a cold mobile launch.
+    pub async fn refresh_binance_market_kinds(&self) -> AppResult<()> {
         let response = self.http.get(BINANCE_EXCHANGE_INFO_URL).send().await?;
         let status = response.status();
         let payload: Value = response.json().await?;

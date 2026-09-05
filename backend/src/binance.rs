@@ -303,10 +303,6 @@ impl BinanceClient {
         parse_f64("price", &response.price)
     }
 
-    pub async fn initialize_reference_data(&self) -> AppResult<()> {
-        self.refresh_reference_data().await
-    }
-
     pub async fn initialize_public_reference_data(&self) -> AppResult<()> {
         let exchange_info = self
             .public::<ExchangeInfo>(Method::GET, "/fapi/v1/exchangeInfo", Vec::new())
@@ -344,14 +340,22 @@ impl BinanceClient {
         tokio::spawn(async move {
             let mut data_ready = initial_data_ready;
             let mut retry_delay = REFERENCE_DATA_RETRY_INITIAL;
+            let mut first_attempt = true;
 
             loop {
-                tokio::time::sleep(if data_ready {
-                    REFERENCE_DATA_REFRESH_INTERVAL
+                // A cold start no longer performs outbound requests before the
+                // API binds. Make the background worker's first attempt
+                // immediate, then retain the existing bounded retry schedule.
+                if first_attempt {
+                    first_attempt = false;
                 } else {
-                    retry_delay
-                })
-                .await;
+                    tokio::time::sleep(if data_ready {
+                        REFERENCE_DATA_REFRESH_INTERVAL
+                    } else {
+                        retry_delay
+                    })
+                    .await;
+                }
 
                 let result = if client.is_configured() {
                     client.refresh_reference_data().await

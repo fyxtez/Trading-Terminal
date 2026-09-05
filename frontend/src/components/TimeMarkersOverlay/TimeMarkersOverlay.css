@@ -10,13 +10,36 @@
   z-index: 11;
   overflow: hidden;
   pointer-events: none;
+  font-family: var(--font-mono);
 }
 
 .time-marker-line {
   position: absolute;
   top: 0;
   width: 0;
-  border-left: 1px dashed var(--amber, #f5a623);
-  opacity: 0.55;
   pointer-events: none;
+}
+
+.time-marker-line::before {
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 100%;
+  border-left: 1px dashed var(--amber, #f5a623);
+  content: "";
+  opacity: 0.55;
+}
+
+.time-marker-label {
+  position: absolute;
+  top: 6px;
+  left: 5px;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgb(13 16 23 / 82%);
+  color: var(--amber, #f5a623);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
 }

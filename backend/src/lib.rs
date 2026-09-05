@@ -74,49 +74,12 @@ where
     let binance = BinanceClient::from_secure_store(runtime.use_secure_network)?;
     let diagnostics = DiagnosticsState::new(binance.is_configured());
 
-    info!("Synchronizing Binance server time");
-    if let Err(error) = binance.sync_server_time().await {
-        // Android can briefly expose its process before DNS/network state is
-        // usable. Exchange prerequisites must still fail closed, but a cold
-        // start outage must not prevent the loopback API, Settings, and manual
-        // recovery controls from opening at all.
-        diagnostics.exchange_failure(error.to_string());
-        tracing::warn!(
-            target: "api",
-            %error,
-            "Starting with unsynchronized Binance time until connectivity returns"
-        );
-    } else {
-        diagnostics.exchange_success();
-    }
-
-    let initial_reference_data = if binance.is_configured() {
-        info!("Loading Binance exchange information and leverage brackets");
-        binance.initialize_reference_data().await
-    } else {
-        info!("Binance credentials are not configured; loading public exchange information");
-        binance.initialize_public_reference_data().await
-    };
-    let reference_data_ready = initial_reference_data.is_ok();
-    if let Err(error) = initial_reference_data {
-        diagnostics.exchange_failure(error.to_string());
-        tracing::warn!(
-            target: "api",
-            %error,
-            "Starting without Binance reference data; exposure remains blocked until refresh"
-        );
-    } else {
-        diagnostics.exchange_success();
-    }
-    let reference_data_task =
-        binance.spawn_reference_data_worker(reference_data_ready, diagnostics.clone());
-
+    // Only local, deterministic initialization belongs before the API bind.
+    // Outbound exchange/metadata work is started below and may complete after
+    // first paint; routes that increase exposure already fail closed until the
+    // required reference/account data exists.
     let symbol_registry = SymbolRegistry::load(&runtime.symbol_registry_path).await?;
-
     let icon_store = IconStore::load(&runtime.icon_cache_dir).await?;
-
-    info!("Seeding default token icons");
-    icon_store.seed(icons::DEFAULT_SEED_SYMBOLS).await;
 
     // Backfill icons for symbols already sitting in the registry from
     // before the icon-cache feature existed at all (or symbols.json
@@ -135,32 +98,11 @@ where
     // increasing routes enforce ISOLATED immediately before submission, and
     // symbol registration performs the same guard for newly added contracts.
 
-    // purge token images cached before market_kind existed. Stock tickers
-    // such as PLTR can collide with unrelated crypto tokens by symbol alone.
-    for entry in registered_symbols
-        .iter()
-        .filter(|entry| entry.market_kind == MarketKind::Traditional)
-    {
-        if let Err(error) = icon_store.remove_misclassified(&entry.symbol).await {
-            tracing::warn!(symbol = %entry.symbol, %error, "Failed to purge misclassified TradFi icon");
-        }
-    }
-
     let registered_tradfi_symbols: Vec<String> = registered_symbols
         .iter()
         .filter(|entry| entry.market_kind == MarketKind::Traditional)
         .map(|entry| entry.symbol.clone())
         .collect();
-    let registered_tradfi_symbol_refs: Vec<&str> = registered_tradfi_symbols
-        .iter()
-        .map(String::as_str)
-        .collect();
-    info!(
-        count = registered_tradfi_symbol_refs.len(),
-        "Backfilling icons for pre-existing TradFi symbols"
-    );
-    icon_store.seed_tradfi(&registered_tradfi_symbol_refs).await;
-
     let registered_mexc_symbols: Vec<String> = registered_symbols
         .iter()
         .filter(|entry| {
@@ -168,16 +110,6 @@ where
         })
         .map(|entry| entry.symbol.clone())
         .collect();
-    let registered_mexc_symbol_refs: Vec<&str> =
-        registered_mexc_symbols.iter().map(String::as_str).collect();
-    // self-heal MEXC symbols persisted by older builds that skipped
-    // artwork entirely; the resolver no-ops cheaply when an icon is cached.
-    info!(
-        count = registered_mexc_symbol_refs.len(),
-        "Backfilling icons for pre-existing MEXC symbols"
-    );
-    icon_store.seed_mexc(&registered_mexc_symbol_refs).await;
-
     let registered_binance_symbols: Vec<String> = registered_symbols
         .iter()
         // startup token-icon backfill applies only to actual crypto.
@@ -187,54 +119,16 @@ where
         })
         .map(|entry| entry.symbol.clone())
         .collect();
-    let registered_binance_symbol_refs: Vec<&str> = registered_binance_symbols
-        .iter()
-        .map(String::as_str)
-        .collect();
-
-    info!(
-        count = registered_binance_symbol_refs.len(),
-        "Backfilling icons for pre-existing registered symbols"
-    );
-    icon_store.seed(&registered_binance_symbol_refs).await;
-
     let sizing_defaults = load_sizing_config()?;
     let sizing_store = SizingStore::new(&runtime.sizing_config_path);
     let sizing = sizing_store.load(sizing_defaults).await?;
 
-    let initial_account = if binance.is_configured() {
-        info!("Loading initial Binance account snapshot");
-        match account_state::initialize(&binance).await {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                // Account connectivity is allowed to be degraded at startup.
-                // The authenticated REST routes still fail explicitly until
-                // Binance recovers, while charts/settings and manual retry stay
-                // available instead of crashing the complete local backend.
-                diagnostics.exchange_failure(error.to_string());
-                diagnostics.reconciliation_failure("account", error.to_string());
-                tracing::warn!(
-                    target: "api",
-                    %error,
-                    "Starting with an empty account cache until Binance reconnects"
-                );
-                FuturesAccountInfo {
-                    total_wallet_balance: "0".into(),
-                    available_balance: "0".into(),
-                    assets: Vec::new(),
-                    positions: Vec::new(),
-                    extra: serde_json::json!({}),
-                }
-            }
-        }
-    } else {
-        FuturesAccountInfo {
-            total_wallet_balance: "0".into(),
-            available_balance: "0".into(),
-            assets: Vec::new(),
-            positions: Vec::new(),
-            extra: serde_json::json!({}),
-        }
+    let initial_account = FuturesAccountInfo {
+        total_wallet_balance: "0".into(),
+        available_balance: "0".into(),
+        assets: Vec::new(),
+        positions: Vec::new(),
+        extra: serde_json::json!({}),
     };
     let (account_state, account_refresh_rx) = AccountState::new(initial_account);
     let account_refresh_task = spawn_refresh_worker(
@@ -244,24 +138,7 @@ where
         diagnostics.clone(),
     );
 
-    let initial_position_risk = if binance.is_configured() {
-        info!("Loading initial Binance position-risk snapshot");
-        match position_risk_state::initialize(&binance).await {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                diagnostics.exchange_failure(error.to_string());
-                diagnostics.reconciliation_failure("position-risk", error.to_string());
-                tracing::warn!(
-                    target: "api",
-                    %error,
-                    "Starting with an empty position-risk cache until Binance reconnects"
-                );
-                Vec::new()
-            }
-        }
-    } else {
-        Vec::new()
-    };
+    let initial_position_risk = Vec::new();
     let (position_risk_state, position_risk_refresh_rx) =
         PositionRiskState::new(initial_position_risk);
     let position_risk_refresh_task = spawn_position_risk_refresh_worker(
@@ -277,6 +154,59 @@ where
         account_state.request_refresh();
         position_risk_state.request_refresh();
     }
+
+    let reference_data_task = binance.spawn_reference_data_worker(false, diagnostics.clone());
+
+    let server_time_task = {
+        let binance = binance.clone();
+        let diagnostics = diagnostics.clone();
+        tokio::spawn(async move {
+            info!("Synchronizing Binance server time in background");
+            match binance.sync_server_time().await {
+                Ok(()) => diagnostics.exchange_success(),
+                Err(error) => {
+                    diagnostics.exchange_failure(error.to_string());
+                    tracing::warn!(target: "api", %error, "Binance time sync will retry on the next signed request");
+                }
+            }
+        })
+    };
+
+    let registry_refresh_task = {
+        let symbol_registry = symbol_registry.clone();
+        tokio::spawn(async move {
+            // Registry files created before market_kind deserialize as crypto.
+            // Heal them after the app is usable instead of blocking first paint.
+            if let Err(error) = symbol_registry.refresh_binance_market_kinds().await {
+                tracing::warn!(%error, "Failed to refresh Binance market classifications");
+            }
+        })
+    };
+
+    let icon_seed_task = {
+        let icon_store = icon_store.clone();
+        tokio::spawn(async move {
+            info!("Refreshing cached market icons in background");
+            for symbol in &registered_tradfi_symbols {
+                if let Err(error) = icon_store.remove_misclassified(symbol).await {
+                    tracing::warn!(%symbol, %error, "Failed to purge misclassified TradFi icon");
+                }
+            }
+            let tradfi: Vec<&str> = registered_tradfi_symbols
+                .iter()
+                .map(String::as_str)
+                .collect();
+            let mexc: Vec<&str> = registered_mexc_symbols.iter().map(String::as_str).collect();
+            let binance: Vec<&str> = registered_binance_symbols
+                .iter()
+                .map(String::as_str)
+                .collect();
+            icon_store.seed(icons::DEFAULT_SEED_SYMBOLS).await;
+            icon_store.seed_tradfi(&tradfi).await;
+            icon_store.seed_mexc(&mexc).await;
+            icon_store.seed(&binance).await;
+        })
+    };
 
     let (trading_events, _) = broadcast::channel(512);
 
@@ -358,6 +288,9 @@ where
         task.abort();
     }
     reference_data_task.abort();
+    server_time_task.abort();
+    registry_refresh_task.abort();
+    icon_seed_task.abort();
     account_refresh_task.abort();
     position_risk_refresh_task.abort();
     server_result?;

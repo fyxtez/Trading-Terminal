@@ -4,11 +4,7 @@ use serde_json::Value;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::{Duration, MissedTickBehavior, interval, sleep};
 
-use crate::{
-    binance::BinanceClient,
-    diagnostics::DiagnosticsState,
-    error::{AppError, AppResult},
-};
+use crate::{binance::BinanceClient, diagnostics::DiagnosticsState};
 
 // User-data websocket events request immediate reconciliation when trading state
 // changes. This slow periodic tick is only a safety reconciliation, not a live feed.
@@ -59,8 +55,8 @@ pub fn spawn_refresh_worker(
         let mut periodic = interval(POSITION_RISK_REFRESH_INTERVAL);
         periodic.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
-        // `interval` ticks immediately once. Startup already fetched the initial
-        // snapshot, so consume that first tick without issuing a duplicate call.
+        // `interval` ticks immediately once. Cold startup queues an explicit,
+        // debounced refresh, so consume the timer's first tick to avoid two calls.
         periodic.tick().await;
 
         loop {
@@ -110,13 +106,5 @@ pub fn spawn_refresh_worker(
             // Binance requests.
             periodic.reset();
         }
-    })
-}
-
-pub async fn initialize(binance: &BinanceClient) -> AppResult<Vec<Value>> {
-    binance.position_risk().await.map_err(|error| {
-        AppError::Config(format!(
-            "failed to initialize Binance position-risk cache: {error}"
-        ))
     })
 }

@@ -144,8 +144,10 @@ Start it with:
 cargo run
 ```
 
-By default it listens on `127.0.0.1:8657`. A successful startup initializes
-exchange metadata and account state before accepting requests.
+By default it listens on `127.0.0.1:8657`. Startup loads local state and begins
+accepting requests without waiting for external providers. Exchange metadata,
+account state and cached artwork refresh in the background; actions that could
+increase exposure remain blocked until their required Binance data is ready.
 
 ### 2. Configure the frontend
 

@@ -125,7 +125,9 @@ export default function TimeMarkersOverlay({
           key={line.id}
           className="time-marker-line"
           style={{ left: line.x, height: paneHeight }}
-        />
+        >
+          <span className="time-marker-label">START OF DAY</span>
+        </div>
       ))}
     </div>
   );

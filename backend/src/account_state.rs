@@ -6,7 +6,6 @@ use tokio::time::{Duration, sleep};
 use crate::{
     binance::BinanceClient,
     diagnostics::DiagnosticsState,
-    error::{AppError, AppResult},
     models::{FuturesAccountInfo, FuturesPosition},
 };
 
@@ -115,13 +114,5 @@ pub fn spawn_refresh_worker(
                 }
             }
         }
-    })
-}
-
-pub async fn initialize(binance: &BinanceClient) -> AppResult<FuturesAccountInfo> {
-    binance.account_info().await.map_err(|error| {
-        AppError::Config(format!(
-            "failed to initialize Binance account-state cache: {error}"
-        ))
     })
 }
