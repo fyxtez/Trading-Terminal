@@ -24,9 +24,14 @@ and recorded rather than silently ignored.
 
 ## Update cadence
 
-- Review direct dependency updates at least monthly and before every release.
-- Apply security updates immediately, then repeat frontend tests, Rust tests,
-  Clippy, dependency audits, bundle builds, and the relevant smoke tests.
+- Dependabot checks npm, both Rust workspaces, and GitHub Actions quarterly
+  (January, April, July, and October). Non-major version updates are grouped by
+  workspace; major updates remain separate so breaking changes are visible.
+- Dependabot pull requests are never merged automatically. Review their release
+  notes and require the complete CI pipeline before merging.
+- Apply security updates immediately rather than waiting for the quarterly
+  version-update window, then repeat frontend tests, Rust tests, Clippy,
+  dependency audits, bundle builds, and the relevant smoke tests.
 - Do not merge automated lockfile changes without reviewing release notes and
   trading/runtime behavior.
 - Add a time-bounded entry here for every accepted advisory or warning. Remove

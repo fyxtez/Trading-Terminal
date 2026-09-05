@@ -1,0 +1,63 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: quarterly
+      time: "06:00"
+      timezone: Europe/Belgrade
+    open-pull-requests-limit: 5
+    groups:
+      frontend-non-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /backend
+    schedule:
+      interval: quarterly
+      time: "06:00"
+      timezone: Europe/Belgrade
+    open-pull-requests-limit: 5
+    groups:
+      backend-rust-non-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /frontend/src-tauri
+    schedule:
+      interval: quarterly
+      time: "06:00"
+      timezone: Europe/Belgrade
+    open-pull-requests-limit: 5
+    groups:
+      tauri-rust-non-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: quarterly
+      time: "06:00"
+      timezone: Europe/Belgrade
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
