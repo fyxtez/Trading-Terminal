@@ -243,5 +243,6 @@ has no automatic updater.
 - [Android signed release procedure](docs/ANDROID-RELEASING.md)
 - [Continuous background monitoring decision](docs/adr/0012-continuous-background-monitoring.md)
 - [Desktop release and live-trading checklist](docs/RELEASE-CHECKLIST.md)
+- [Binance Testnet failure drill](docs/TESTNET-FAILURE-DRILL.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
 - [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)

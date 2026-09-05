@@ -41,8 +41,13 @@ The complete install procedure and signing policy are in [RELEASING.md](RELEASIN
 - [x] Reversal has been removed from the product UI and backend request contract.
 - [x] Mock-exchange scenarios cover cancel/replace failures and
       authoritative refresh after partial workflows.
-- [ ] Exercise REST timeout, time drift, dropped user stream, sidecar restart and
-      unresolved-intent recovery against Binance Futures Testnet.
+- [x] A hard-gated Testnet drill command covers rejected orders, simulated lost
+      submit/cancel responses, client-ID recovery, clock resynchronization,
+      backend reconstruction, user-stream reconnect and final cleanup.
+- [x] Exercise REST timeout, time drift, dropped user stream, sidecar restart and
+      unresolved-intent recovery against Binance Futures Testnet. The automated
+      execute-mode drill passed on 2026-09-05, including 27 clean authoritative
+      snapshots during the final 60-second soak.
 - [x] Native onboarding verifies Mainnet key permissions before storage and
       rejects withdrawal-enabled, non-readable, and non-Futures keys.
 - [ ] Configure the actual Mainnet key with an IP restriction where practical
@@ -92,7 +97,7 @@ See [OUTBOUND-CONNECTIONS.md](OUTBOUND-CONNECTIONS.md),
 - [x] Chart-only mode works without private credentials.
 - [x] Binance network selection explicitly distinguishes `LIVE` Mainnet from `DEMO` Testnet.
 - [ ] A clean supported machine passes the complete install/upgrade/uninstall procedure.
-- [ ] Testnet failure-injection and soak tests finish without unresolved drift.
+- [x] Testnet failure-injection and soak tests finish without unresolved drift.
 - [x] Android release signatures are verified in CI and the signed APK installs
       and runs on a physical device.
 - [ ] Backup/restore is exercised on a clean supported system.

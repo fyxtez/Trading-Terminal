@@ -1,0 +1,99 @@
+{
+  "startedAt": "2026-09-05T08:09:51.124773408+00:00",
+  "finishedAt": "2026-09-05T08:11:10.972591073+00:00",
+  "network": "testnet",
+  "mode": "execute",
+  "symbol": "BTCUSDT",
+  "steps": [
+    {
+      "name": "hard Mainnet gate",
+      "status": "PASS",
+      "detail": "stored desktop network is DEMO/Testnet",
+      "durationMs": 0
+    },
+    {
+      "name": "authoritative preflight",
+      "status": "PASS",
+      "detail": "time, filters, account, position risk and open orders loaded",
+      "durationMs": 4392
+    },
+    {
+      "name": "clean-symbol safety gate",
+      "status": "PASS",
+      "detail": "no position and no open orders on the drill symbol",
+      "durationMs": 0
+    },
+    {
+      "name": "uncertain intent fails closed",
+      "status": "PASS",
+      "detail": "retry of in-progress intent was rejected without replay",
+      "durationMs": 11
+    },
+    {
+      "name": "isolated-margin safety gate",
+      "status": "PASS",
+      "detail": "drill symbol is configured for ISOLATED margin",
+      "durationMs": 554
+    },
+    {
+      "name": "exchange rejection",
+      "status": "PASS",
+      "detail": "Binance rejected invalid quantity with code -1111",
+      "durationMs": 287
+    },
+    {
+      "name": "lost REST submit response",
+      "status": "PASS",
+      "detail": "injected after Binance accepted the LIMIT order",
+      "durationMs": 278
+    },
+    {
+      "name": "client-ID submit reconciliation",
+      "status": "PASS",
+      "detail": "accepted order recovered as NEW",
+      "durationMs": 325
+    },
+    {
+      "name": "backend restart reconciliation",
+      "status": "PASS",
+      "detail": "fresh client recovered account, risk and order state",
+      "durationMs": 1641
+    },
+    {
+      "name": "timestamp drift auto-recovery",
+      "status": "PASS",
+      "detail": "-1021 path resynchronized time and retried once",
+      "durationMs": 1053
+    },
+    {
+      "name": "user-stream reconnect",
+      "status": "PASS",
+      "detail": "production loop reconnected and refreshed authoritative state",
+      "durationMs": 8798
+    },
+    {
+      "name": "lost REST cancel response",
+      "status": "PASS",
+      "detail": "injected after Binance accepted the cancellation",
+      "durationMs": 275
+    },
+    {
+      "name": "cancel reconciliation",
+      "status": "PASS",
+      "detail": "authoritative status is CANCELED",
+      "durationMs": 264
+    },
+    {
+      "name": "final cleanup and reconciliation",
+      "status": "PASS",
+      "detail": "no drill orders or exposure remain on Binance",
+      "durationMs": 1170
+    },
+    {
+      "name": "authoritative-state soak",
+      "status": "PASS",
+      "detail": "27 clean authoritative snapshot(s)",
+      "durationMs": 60746
+    }
+  ]
+}

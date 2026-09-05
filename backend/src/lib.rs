@@ -15,6 +15,8 @@ mod runtime_config;
 mod secure_store;
 mod sizing_store;
 mod symbol_registry;
+#[cfg(feature = "testnet-drills")]
+pub mod testnet_drill;
 mod trade_lock;
 mod trading_events;
 

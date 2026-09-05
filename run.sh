@@ -19,12 +19,17 @@ Usage:
   ./run.sh desktop         Start the Tauri desktop application
   ./run.sh browser         Start backend + Vite and open the browser UI
   ./run.sh android         Build, install, and launch the Android debug APK
+  ./run.sh testnet-drill   Check Testnet drill prerequisites (read-only)
   ./run.sh --help          Show this help
 
 Aliases:
   tauri -> desktop
   web   -> browser
   apk   -> android
+
+Testnet failure drill:
+  ./run.sh testnet-drill
+  ./run.sh testnet-drill --execute --confirm-testnet-mutations
 EOF
 }
 
@@ -252,26 +257,48 @@ run_android() {
   adb shell am start -n com.fyxtez.terminal/.MainActivity
 }
 
+run_testnet_drill() {
+  require_command cargo
+
+  echo "[fyxtez] Starting the hard-gated Binance Testnet failure drill..."
+  (
+    cd "$BACKEND_DIR"
+    cargo run --locked --features testnet-drills --bin fyxtez-testnet-drill -- "$@"
+  )
+}
+
 mode="${1:-desktop}"
 if [[ $# -gt 0 ]]; then
   shift
 fi
 
-if [[ $# -gt 0 ]]; then
-  echo "[fyxtez] Unexpected arguments: $*" >&2
-  usage >&2
-  exit 2
-fi
-
 case "$mode" in
   desktop | tauri)
+    if [[ $# -gt 0 ]]; then
+      echo "[fyxtez] Unexpected arguments: $*" >&2
+      usage >&2
+      exit 2
+    fi
     run_desktop
     ;;
   browser | web)
+    if [[ $# -gt 0 ]]; then
+      echo "[fyxtez] Unexpected arguments: $*" >&2
+      usage >&2
+      exit 2
+    fi
     run_browser
     ;;
   android | apk)
+    if [[ $# -gt 0 ]]; then
+      echo "[fyxtez] Unexpected arguments: $*" >&2
+      usage >&2
+      exit 2
+    fi
     run_android
+    ;;
+  testnet-drill)
+    run_testnet_drill "$@"
     ;;
   -h | --help | help)
     usage

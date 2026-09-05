@@ -3,6 +3,15 @@ name = "fyxtez-backend"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+testnet-drills = []
+
+[[bin]]
+name = "fyxtez-testnet-drill"
+path = "src/bin/testnet_drill.rs"
+required-features = ["testnet-drills"]
+
 [dependencies]
 axum = { version = "0.8.8", features = ["macros", "ws"] }
 axum-extra = { version = "0.12.5", features = ["typed-header"] }

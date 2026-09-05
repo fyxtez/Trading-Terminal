@@ -126,6 +126,34 @@ impl BinanceClient {
         self.credential_generation.load(Ordering::Acquire)
     }
 
+    /// Testnet drill hook: emulate a badly skewed local clock and exercise the
+    /// normal -1021 resynchronization path on the next signed request.
+    #[cfg(feature = "testnet-drills")]
+    pub(crate) fn force_time_drift_for_drill(&self, offset_ms: i64) -> AppResult<()> {
+        if !self.testnet {
+            return Err(AppError::Config(
+                "testnet drill hooks refuse to run against Mainnet".into(),
+            ));
+        }
+        self.server_time_offset_ms
+            .store(offset_ms, Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Testnet drill hook: invalidate the active user-stream credential
+    /// generation. The production reconnect loop observes this change, closes
+    /// its current socket and establishes a fresh stream with reconciliation.
+    #[cfg(feature = "testnet-drills")]
+    pub(crate) fn force_user_stream_reconnect_for_drill(&self) -> AppResult<()> {
+        if !self.testnet {
+            return Err(AppError::Config(
+                "testnet drill hooks refuse to run against Mainnet".into(),
+            ));
+        }
+        self.credential_generation.fetch_add(1, Ordering::AcqRel);
+        Ok(())
+    }
+
     pub fn reload_secure_credentials(&self) -> AppResult<bool> {
         let next = load_secure_credentials()?;
         let mut current = self

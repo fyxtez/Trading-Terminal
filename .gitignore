@@ -6,3 +6,5 @@ frontend/tsconfig.tsbuildinfo
 *.jks
 *.keystore
 **/keystore.properties
+zip.sh
+*.zip
