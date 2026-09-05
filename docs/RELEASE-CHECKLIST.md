@@ -74,8 +74,12 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 - [x] Redacted durable intent/audit metadata is stored in `operations.sqlite3`.
 - [x] Price alerts, ntfy and Telegram are dormant: no UI, API routes, alert
       database access, alert worker, or provider delivery (ADR 0013).
+- [x] Credential-store fault injection covers unavailable/locked reads,
+      incomplete or corrupt Binance sets, rollback after partial write/delete,
+      secret-free errors and retry recovery without replacing intact values.
 - [ ] Exercise backup and restore on a clean supported system.
-- [ ] Test locked, unavailable and corrupt credential-store behavior on each supported OS.
+- [ ] Manually test locked/unavailable credential-store behavior on every newly
+      supported desktop/mobile OS; automated platform-independent behavior is covered.
 - [ ] Audit repository history and old archives, then rotate any credential whose
       confidentiality is uncertain.
 

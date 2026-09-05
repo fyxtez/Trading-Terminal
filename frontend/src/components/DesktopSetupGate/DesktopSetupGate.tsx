@@ -91,6 +91,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const [targetConnection, setTargetConnection] = useState<DesktopConnection | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [credentialStatusFailed, setCredentialStatusFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState(emptyValues);
   const onboardingComplete = !desktop || localStorage.getItem(DESKTOP_ONBOARDING_KEY) === "true";
@@ -117,6 +118,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
         binanceNetwork: connection === "binance" ? (status.binanceNetwork ?? "") : "",
       });
       setError(null);
+      setCredentialStatusFailed(false);
       setShowSetup(true);
     },
     [status.binanceNetwork],
@@ -126,14 +128,27 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     if (!desktop) return;
     void invoke<DesktopCredentialStatus>("credential_status")
       .then((next) => {
+        setCredentialStatusFailed(false);
         setStatus(next);
         setDesktopCredentialStatus(next);
       })
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      )
+      .catch((reason: unknown) => {
+        setStatus(emptyStatus);
+        setDesktopCredentialStatus(emptyStatus);
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setCredentialStatusFailed(true);
+        // A locked, unavailable or incomplete credential store is not the same
+        // as an unconfigured account. Keep trading disabled and open the styled
+        // Binance editor so recovery guidance is visible even after onboarding.
+        setTargetConnection("binance");
+        setStep(0);
+        setShowSetup(true);
+      })
       .finally(() => setLoaded(true));
+  }, [desktop]);
 
+  useEffect(() => {
+    if (!desktop) return;
     const open = () => openSetup();
     window.addEventListener(DESKTOP_SETUP_EVENT, open);
     return () => window.removeEventListener(DESKTOP_SETUP_EVENT, open);
@@ -183,6 +198,28 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : String(reason)),
       )
+      .finally(() => setSaving(false));
+  };
+
+  const retryCredentialStatus = () => {
+    setSaving(true);
+    setError(null);
+    void invoke<DesktopCredentialStatus>("credential_status")
+      .then((next) => {
+        setStatus(next);
+        setDesktopCredentialStatus(next);
+        setCredentialStatusFailed(false);
+        setValues(emptyValues());
+        setTargetConnection(null);
+        setStep(0);
+        setShowSetup(!onboardingComplete);
+      })
+      .catch((reason: unknown) => {
+        setStatus(emptyStatus);
+        setDesktopCredentialStatus(emptyStatus);
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setCredentialStatusFailed(true);
+      })
       .finally(() => setSaving(false));
   };
 
@@ -263,6 +300,11 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const stepNumber = String(step + 1).padStart(2, "0");
   const stepCount = String(activeSteps.length).padStart(2, "0");
   const configured = activeStep ? status[activeStep.statusKey] : false;
+  const credentialReplacementReady =
+    values.binanceApiKey.trim().length > 0 &&
+    values.binanceApiSecret.trim().length > 0 &&
+    values.binanceNetwork !== "" &&
+    (values.binanceNetwork !== "mainnet" || values.confirmMainnet);
 
   const wizard = showSetup && activeStep && (
     <main className="desktop-setup">
@@ -452,19 +494,38 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           )}
           <span>Secrets stay in your device credential manager.</span>
           <div>
+            {credentialStatusFailed && (
+              <button
+                className="skip"
+                type="button"
+                disabled={saving}
+                onClick={retryCredentialStatus}
+              >
+                RETRY CREDENTIAL STORE
+              </button>
+            )}
             {!editingSingleConnection && (
               <button className="skip" type="button" disabled={saving} onClick={skip}>
                 {isLastStep ? "SKIP & FINISH" : "SKIP STEP"}
               </button>
             )}
-            <button className="primary" type="button" disabled={saving} onClick={next}>
-              {saving
-                ? "SAVING…"
-                : editingSingleConnection
-                  ? "SAVE"
-                  : isLastStep
-                    ? "FINISH"
-                    : "NEXT"}
+            <button
+              className="primary"
+              type="button"
+              disabled={saving || (credentialStatusFailed && !credentialReplacementReady)}
+              onClick={next}
+            >
+              {credentialStatusFailed
+                ? saving
+                  ? "SAVING…"
+                  : "SAVE REPLACEMENT"
+                : saving
+                  ? "SAVING…"
+                  : editingSingleConnection
+                    ? "SAVE"
+                    : isLastStep
+                      ? "FINISH"
+                      : "NEXT"}
             </button>
           </div>
         </footer>

@@ -1,15 +1,12 @@
 #[cfg(desktop)]
 mod backend_supervisor;
 mod binance_credentials;
+mod credential_store;
 #[cfg(mobile)]
 mod mobile_backend;
 
 #[cfg(desktop)]
 use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
-#[cfg(not(target_os = "android"))]
-use keyring::{Entry, Error as KeyringError};
-#[cfg(target_os = "android")]
-use keyring_core::{Entry, Error as KeyringError};
 #[cfg(mobile)]
 use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
@@ -17,8 +14,8 @@ use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
 use binance_credentials::validate_binance_credentials;
+use credential_store::{CredentialStore, PlatformCredentialStore, replace_values};
 
-const SERVICE: &str = "com.fyxtez.terminal";
 const BINANCE_NETWORK: &str = "binance-network";
 const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
 const MAX_URL_LENGTH: usize = 2_048;
@@ -55,27 +52,12 @@ struct NotificationInput {
     click_url: String,
 }
 
-fn entry(name: &str) -> Result<Entry, String> {
-    Entry::new(SERVICE, name).map_err(|error| format!("credential store unavailable: {error}"))
-}
-
-fn has_secret(name: &str) -> bool {
-    read_secret(name).is_ok_and(|value| value.is_some())
-}
-
 fn read_secret(name: &str) -> Result<Option<Zeroizing<String>>, String> {
-    match entry(name)?.get_password() {
-        Ok(value) if value.trim().is_empty() => Ok(None),
-        Ok(value) => Ok(Some(Zeroizing::new(value))),
-        Err(KeyringError::NoEntry) => Ok(None),
-        Err(error) => Err(format!("failed to read {name}: {error}")),
-    }
+    PlatformCredentialStore.read(name)
 }
 
 fn store(name: &str, value: &str) -> Result<(), String> {
-    entry(name)?
-        .set_password(value)
-        .map_err(|error| format!("failed to store {name}: {error}"))
+    PlatformCredentialStore.write(name, value)
 }
 
 fn validate_http_url(name: &str, value: &str) -> Result<(), String> {
@@ -158,27 +140,45 @@ fn normalize_ntfy_destination(value: &str) -> Result<String, String> {
     Ok(format!("{NTFY_PUBLIC_BASE_URL}/{value}"))
 }
 
-fn remove(name: &str) {
-    if let Ok(value) = entry(name) {
-        let _ = value.delete_credential();
-    }
+fn remove(name: &str) -> Result<(), String> {
+    PlatformCredentialStore.delete(name)
 }
 
 #[tauri::command]
-fn credential_status() -> CredentialStatus {
-    let binance_network = read_secret(BINANCE_NETWORK)
-        .ok()
-        .flatten()
-        .map(|value| value.to_string())
-        .filter(|value| matches!(value.as_str(), "mainnet" | "testnet"));
-    CredentialStatus {
-        binance_configured: binance_network.is_some()
-            && has_secret("binance-api-key")
-            && has_secret("binance-api-secret"),
+fn credential_status() -> Result<CredentialStatus, String> {
+    credential_status_from(&PlatformCredentialStore)
+}
+
+fn credential_status_from<S: CredentialStore>(store: &S) -> Result<CredentialStatus, String> {
+    let network = store.read(BINANCE_NETWORK)?;
+    let api_key = store.read("binance-api-key")?;
+    let api_secret = store.read("binance-api-secret")?;
+
+    let (binance_configured, binance_network) = match (network, api_key, api_secret) {
+        (None, None, None) => (false, None),
+        (Some(network), Some(_), Some(_)) if matches!(network.as_str(), "mainnet" | "testnet") => {
+            (true, Some(network.to_string()))
+        }
+        (Some(_), Some(_), Some(_)) => {
+            return Err(
+                "Stored Binance network is invalid. Trading is blocked; reopen Settings and replace the complete Binance connection"
+                    .into(),
+            );
+        }
+        _ => {
+            return Err(
+                "Stored Binance credentials are incomplete. Trading is blocked; reopen Settings and replace or clear the complete Binance connection"
+                    .into(),
+            );
+        }
+    };
+
+    Ok(CredentialStatus {
+        binance_configured,
         binance_network,
         ntfy_configured: false,
         telegram_configured: false,
-    }
+    })
 }
 
 #[tauri::command]
@@ -236,9 +236,14 @@ async fn save_credentials(
             let api_key = Zeroizing::new(validate_secret("Binance API key", &api_key)?);
             let api_secret = Zeroizing::new(validate_secret("Binance API secret", &api_secret)?);
             validate_binance_credentials(&api_key, &api_secret, network).await?;
-            store("binance-api-key", &api_key)?;
-            store("binance-api-secret", &api_secret)?;
-            store(BINANCE_NETWORK, network)?;
+            replace_values(
+                &PlatformCredentialStore,
+                &[
+                    ("binance-api-key", Some(api_key.as_str())),
+                    ("binance-api-secret", Some(api_secret.as_str())),
+                    (BINANCE_NETWORK, Some(network)),
+                ],
+            )?;
         }
         (None, None) => {}
         _ => return Err("Enter both the Binance API key and secret".into()),
@@ -253,16 +258,13 @@ async fn save_credentials(
         store_optional("telegram-chat-id", normalized_telegram_chat_id.as_deref())?;
     }
     supervisor.restart().await?;
-    Ok(credential_status())
+    credential_status()
 }
 
 fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {
     match value.map(str::trim).filter(|value| !value.is_empty()) {
         Some(value) => store(name, value),
-        None => {
-            remove(name);
-            Ok(())
-        }
+        None => remove(name),
     }
 }
 
@@ -270,18 +272,19 @@ fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {
 async fn clear_credentials(
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
-    for name in [
-        "binance-api-key",
-        "binance-api-secret",
-        BINANCE_NETWORK,
-        "ntfy-url",
-        "telegram-bot-token",
-        "telegram-chat-id",
-    ] {
-        remove(name);
-    }
+    replace_values(
+        &PlatformCredentialStore,
+        &[
+            ("binance-api-key", None),
+            ("binance-api-secret", None),
+            (BINANCE_NETWORK, None),
+            ("ntfy-url", None),
+            ("telegram-bot-token", None),
+            ("telegram-chat-id", None),
+        ],
+    )?;
     supervisor.restart().await?;
-    Ok(credential_status())
+    credential_status()
 }
 
 #[tauri::command]
@@ -456,9 +459,65 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_ntfy_destination, validate_http_url, validate_secret, validate_telegram_chat_id,
-        validate_telegram_token,
+        BINANCE_NETWORK, credential_status_from, normalize_ntfy_destination, validate_http_url,
+        validate_secret, validate_telegram_chat_id, validate_telegram_token,
     };
+    use crate::credential_store::tests::MemoryCredentialStore;
+
+    #[test]
+    fn complete_credential_set_reports_configured_without_returning_secrets() {
+        let store = MemoryCredentialStore::with_values(&[
+            ("binance-api-key", "a-private-key-value"),
+            ("binance-api-secret", "a-private-secret-value"),
+            (BINANCE_NETWORK, "testnet"),
+        ]);
+
+        let status = credential_status_from(&store).expect("complete status");
+        assert!(status.binance_configured);
+        assert_eq!(status.binance_network.as_deref(), Some("testnet"));
+    }
+
+    #[test]
+    fn incomplete_or_corrupt_credential_sets_fail_closed() {
+        for store in [
+            MemoryCredentialStore::with_values(&[("binance-api-key", "a-private-key-value")]),
+            MemoryCredentialStore::with_values(&[
+                ("binance-api-key", "a-private-key-value"),
+                ("binance-api-secret", "a-private-secret-value"),
+            ]),
+            MemoryCredentialStore::with_values(&[
+                ("binance-api-key", "a-private-key-value"),
+                ("binance-api-secret", "a-private-secret-value"),
+                (BINANCE_NETWORK, "corrupt-network"),
+            ]),
+        ] {
+            let error = credential_status_from(&store).expect_err("invalid set must fail");
+            assert!(error.contains("Trading is blocked"));
+            assert!(!error.contains("private"));
+        }
+    }
+
+    #[test]
+    fn locked_status_recovers_without_mutating_stored_values() {
+        let store = MemoryCredentialStore::with_values(&[
+            ("binance-api-key", "a-private-key-value"),
+            ("binance-api-secret", "a-private-secret-value"),
+            (BINANCE_NETWORK, "testnet"),
+        ]);
+        store.fail_reads("credential store locked");
+        assert_eq!(
+            credential_status_from(&store).unwrap_err(),
+            "credential store locked"
+        );
+
+        store.recover_reads();
+        let status = credential_status_from(&store).expect("store recovered");
+        assert!(status.binance_configured);
+        assert_eq!(
+            store.value("binance-api-key").as_deref(),
+            Some("a-private-key-value")
+        );
+    }
 
     #[test]
     fn expands_an_ntfy_topic_to_the_public_publish_url() {

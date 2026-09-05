@@ -207,6 +207,9 @@ Before a newly entered Mainnet Binance pair is stored, the native layer checks
 Binance's signed API-key permission response. Reading and Futures access are
 required, and any key with withdrawals enabled is rejected with a request to
 create a new restricted key. Testnet keys cannot authorize real withdrawals.
+Key, secret and network updates are rollback-safe: an unavailable, incomplete
+or corrupt credential store blocks trading and opens a retryable native setup
+error without revealing or automatically deleting stored values.
 
 Installed desktop runtime data uses the platform application-data directory.
 Standalone backend development defaults to `backend/data/`:

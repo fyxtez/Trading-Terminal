@@ -23,7 +23,10 @@ use crate::{
         AlgoOrderResponse, BinanceOrderResponse, ExchangeInfo, FuturesAccountInfo, LeverageBracket,
         LeverageBracketSymbol, OrderSide, PriceResponse, SymbolFilters,
     },
-    secure_store::{self, BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_NETWORK},
+    secure_store::{
+        self, BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_NETWORK, PlatformSecretReader,
+        SecretReader,
+    },
 };
 
 const TESTNET_BASE: &str = "https://demo-fapi.binance.com";
@@ -65,18 +68,8 @@ pub struct BinanceClient {
 
 impl BinanceClient {
     pub fn from_secure_store(desktop_sidecar: bool) -> AppResult<Self> {
-        let stored_network = load_secure_network()?;
         let (testnet, credentials) = if desktop_sidecar {
-            // A desktop key pair without an explicit network is deliberately
-            // ignored. Mainnet and testnet keys are not interchangeable, and
-            // guessing here could point signed requests at the wrong venue.
-            let testnet = matches!(stored_network.as_deref(), Some("testnet"));
-            let credentials = if stored_network.is_some() {
-                load_secure_credentials()?
-            } else {
-                None
-            };
-            (testnet, credentials)
+            load_desktop_configuration(&PlatformSecretReader)?
         } else {
             let testnet = env_bool("BINANCE_TESTNET", true)?;
             if !testnet && !env_bool("ALLOW_MAINNET", false)? {
@@ -989,20 +982,27 @@ impl BinanceClient {
     }
 }
 
-fn load_secure_network() -> AppResult<Option<String>> {
-    let network = secure_store::read(BINANCE_NETWORK).map_err(AppError::Config)?;
+fn load_secure_network_from<R: SecretReader>(reader: &R) -> AppResult<Option<String>> {
+    let network = reader.read(BINANCE_NETWORK).map_err(AppError::Config)?;
     match network.as_ref().map(|value| value.as_str().trim()) {
         Some("mainnet") => Ok(Some("mainnet".into())),
         Some("testnet") => Ok(Some("testnet".into())),
         Some(_) => Err(AppError::Config(
-            "stored Binance network must be mainnet or testnet".into(),
+            "stored Binance network is invalid; trading is blocked until Settings replaces or clears the complete connection"
+                .into(),
         )),
         None => Ok(None),
     }
 }
 
 fn load_secure_credentials() -> AppResult<Option<BinanceCredentials>> {
-    secure_store::read_pair(BINANCE_API_KEY, BINANCE_API_SECRET)
+    load_secure_credentials_from(&PlatformSecretReader)
+}
+
+fn load_secure_credentials_from<R: SecretReader>(
+    reader: &R,
+) -> AppResult<Option<BinanceCredentials>> {
+    secure_store::read_pair_from(reader, BINANCE_API_KEY, BINANCE_API_SECRET)
         .map(|pair| {
             pair.map(|(api_key, api_secret)| BinanceCredentials {
                 api_key,
@@ -1010,6 +1010,36 @@ fn load_secure_credentials() -> AppResult<Option<BinanceCredentials>> {
             })
         })
         .map_err(AppError::Config)
+}
+
+fn load_desktop_configuration<R: SecretReader>(
+    reader: &R,
+) -> AppResult<(bool, Option<BinanceCredentials>)> {
+    let network = load_secure_network_from(reader)?;
+    let api_key = reader.read(BINANCE_API_KEY).map_err(AppError::Config)?;
+    let api_secret = reader.read(BINANCE_API_SECRET).map_err(AppError::Config)?;
+
+    match (network.as_deref(), api_key, api_secret) {
+        (None, None, None) => Ok((true, None)),
+        (Some("testnet"), Some(api_key), Some(api_secret)) => Ok((
+            true,
+            Some(BinanceCredentials {
+                api_key,
+                api_secret,
+            }),
+        )),
+        (Some("mainnet"), Some(api_key), Some(api_secret)) => Ok((
+            false,
+            Some(BinanceCredentials {
+                api_key,
+                api_secret,
+            }),
+        )),
+        _ => Err(AppError::Config(
+            "stored Binance connection is incomplete; trading is blocked until Settings replaces or clears the complete key, secret and network set"
+                .into(),
+        )),
+    }
 }
 
 async fn parse_response<T: DeserializeOwned>(response: reqwest::Response) -> AppResult<T> {
@@ -1306,13 +1336,112 @@ fn env_bool(name: &str, default: bool) -> AppResult<bool> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::HashMap,
+        sync::{
+            Mutex,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
+
     use serde_json::json;
+    use zeroize::Zeroizing;
 
     use super::{
-        append_reduce_only, floor_to_step, parse_exchange_filters,
+        append_reduce_only, floor_to_step, load_desktop_configuration, parse_exchange_filters,
         parse_leverage_and_maintenance_data, round_to_tick, validate_conditional_quantity_shape,
     };
-    use crate::models::{ExchangeInfo, LeverageBracketSymbol};
+    use crate::{
+        models::{ExchangeInfo, LeverageBracketSymbol},
+        secure_store::{BINANCE_API_KEY, BINANCE_API_SECRET, BINANCE_NETWORK, SecretReader},
+    };
+
+    struct MockSecretReader {
+        values: Mutex<HashMap<String, String>>,
+        unavailable: AtomicBool,
+    }
+
+    impl MockSecretReader {
+        fn new(values: &[(&str, &str)]) -> Self {
+            Self {
+                values: Mutex::new(
+                    values
+                        .iter()
+                        .map(|(name, value)| ((*name).into(), (*value).into()))
+                        .collect(),
+                ),
+                unavailable: AtomicBool::new(false),
+            }
+        }
+    }
+
+    impl SecretReader for MockSecretReader {
+        fn read(&self, name: &str) -> Result<Option<Zeroizing<String>>, String> {
+            if self.unavailable.load(Ordering::Acquire) {
+                return Err("credential store locked".into());
+            }
+            Ok(self
+                .values
+                .lock()
+                .expect("value lock")
+                .get(name)
+                .cloned()
+                .map(Zeroizing::new))
+        }
+    }
+
+    fn complete_testnet_reader() -> MockSecretReader {
+        MockSecretReader::new(&[
+            (BINANCE_API_KEY, "private-key"),
+            (BINANCE_API_SECRET, "private-secret"),
+            (BINANCE_NETWORK, "testnet"),
+        ])
+    }
+
+    #[test]
+    fn desktop_configuration_requires_key_secret_and_network_as_one_set() {
+        let empty = MockSecretReader::new(&[]);
+        let (testnet, credentials) =
+            load_desktop_configuration(&empty).expect("empty chart-only setup is valid");
+        assert!(testnet);
+        assert!(credentials.is_none());
+
+        for incomplete in [
+            MockSecretReader::new(&[(BINANCE_API_KEY, "private-key")]),
+            MockSecretReader::new(&[
+                (BINANCE_API_KEY, "private-key"),
+                (BINANCE_API_SECRET, "private-secret"),
+            ]),
+            MockSecretReader::new(&[(BINANCE_NETWORK, "testnet")]),
+        ] {
+            let error = match load_desktop_configuration(&incomplete) {
+                Err(error) => error,
+                Ok(_) => panic!("incomplete desktop credentials must fail"),
+            };
+            assert!(error.to_string().contains("trading is blocked"));
+            assert!(!error.to_string().contains("private"));
+        }
+    }
+
+    #[test]
+    fn desktop_configuration_rejects_corrupt_network_and_recovers_after_unlock() {
+        let corrupt = MockSecretReader::new(&[
+            (BINANCE_API_KEY, "private-key"),
+            (BINANCE_API_SECRET, "private-secret"),
+            (BINANCE_NETWORK, "invalid"),
+        ]);
+        assert!(load_desktop_configuration(&corrupt).is_err());
+
+        let recovered = complete_testnet_reader();
+        recovered.unavailable.store(true, Ordering::Release);
+        assert!(load_desktop_configuration(&recovered).is_err());
+        recovered.unavailable.store(false, Ordering::Release);
+
+        let (testnet, credentials) =
+            load_desktop_configuration(&recovered).expect("unlocked store recovers");
+        assert!(testnet);
+        assert!(credentials.is_some());
+    }
 
     #[test]
     fn quantity_rounding_always_floors_to_the_exchange_step() {

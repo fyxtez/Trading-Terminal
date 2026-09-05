@@ -9,7 +9,7 @@ Binance API secrets, Telegram bot tokens and private ntfy topics must not be com
 
 ## Decision
 
-Tauri Rust commands store credentials under service `com.fyxtez.terminal` using the cross-platform `keyring` crate. Keys are `binance-api-key`, `binance-api-secret`, `ntfy-url`, `telegram-bot-token` and `telegram-chat-id`.
+Tauri Rust commands store credentials under service `com.fyxtez.terminal` using the cross-platform `keyring` crate. Binance uses one coherent set of `binance-api-key`, `binance-api-secret` and `binance-network`; retained dormant notification entries use `ntfy-url`, `telegram-bot-token` and `telegram-chat-id`.
 
 The WebView can request boolean configuration status, save replacement values, or clear credentials. It cannot read secret values. Sensitive Rust strings used during saving are zeroized on drop. Binance onboarding requires a dedicated API key with withdrawals disabled.
 
@@ -30,6 +30,13 @@ order polling, execution controls and the private trading stream fail closed.
 - A missing or locked keychain is a visible setup error, not an `.env` fallback.
 - Axum reads the same OS credential-store entries directly; this replaces the
   original temporary `.env` compatibility described by this ADR.
+- Binance key, secret and network replacement/clear operations snapshot every
+  target first and restore the previous set if an individual keyring mutation
+  fails. Incomplete or invalid sets block trading instead of being interpreted
+  as chart-only mode.
+- A transient read failure clears the WebView's boolean trading permission and
+  opens a styled recovery panel. `RETRY CREDENTIAL STORE` re-reads status only;
+  it never returns secret values or requires replacing intact credentials.
 
 ## Follow-up
 
@@ -42,3 +49,8 @@ network selection is recorded in ADR 0006.
 ADR 0013 makes price alerts, ntfy, and Telegram dormant. Legacy notification
 credentials may remain in the OS store, but current UI and runtime paths do not
 read or use them. Binance remains the only exposed connection.
+
+Fault-injection tests cover locked/unavailable reads, incomplete and invalid
+Binance sets, successful unlock recovery, failed replacement/clear rollback and
+secret-free errors. Platform-specific manual keychain drills remain release
+acceptance work whenever another operating system is added.
