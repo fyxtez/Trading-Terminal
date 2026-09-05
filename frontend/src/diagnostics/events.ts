@@ -2,7 +2,7 @@ export const SYSTEM_NOTICE_EVENT = "fyxtez:system-notice";
 
 export type SystemNotice = {
   id: string;
-  kind: "warning" | "error";
+  kind: "success" | "warning" | "error";
   title: string;
   message: string;
   occurredAt: number;

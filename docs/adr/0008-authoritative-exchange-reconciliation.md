@@ -56,6 +56,12 @@ Durable client intent IDs and server-side response replay now protect financial
 mutations as defined in [ADR 0009](0009-durable-financial-intents.md).
 An intent left in progress by a crash still has an unknown exchange outcome: it
 fails closed and requires authoritative reconciliation rather than blind replay.
+The journal detects those records at the next process start and blocks only
+operations which can increase exposure. Diagnostics requires explicit operator
+confirmation after independent Binance inspection, refreshes account,
+position-risk and regular open-order snapshots under the trading lock, then
+stores a non-executable resolution tombstone. It never infers the old result or
+resubmits the old exchange request.
 
 ### Process crash and restart
 
@@ -151,9 +157,8 @@ private notification URLs.
   exchange success.
 - An error shown by the terminal does not by itself mean that no trade occurred.
 
-## Follow-up
+## Ongoing verification
 
-- Add automated Testnet drills for lost responses, process exits, stream gaps,
-  partial fills and partial multi-step success.
-- Add an operator workflow for resolving durable intents whose outcome remains
-  uncertain after a crash.
+- Keep lost responses, process exits, stream gaps, partial fills, restart
+  reconstruction and partial multi-step success in automated regression
+  coverage and the hard-gated Testnet drill.

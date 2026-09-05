@@ -28,6 +28,11 @@
   background: rgba(31, 18, 22, 0.98);
 }
 
+.system-notice.success {
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
+  background: color-mix(in srgb, var(--green) 9%, rgba(12, 19, 18, 0.98));
+}
+
 .system-notice strong {
   display: block;
   color: var(--amber);
@@ -36,6 +41,10 @@
 
 .system-notice.error strong {
   color: var(--red);
+}
+
+.system-notice.success strong {
+  color: var(--green);
 }
 
 .system-notice p {

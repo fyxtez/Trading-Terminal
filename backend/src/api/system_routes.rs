@@ -23,6 +23,7 @@ use super::AppState;
 const INTENT_HEADER: &str = "x-fyxtez-intent-id";
 const MAX_INTENT_BODY_BYTES: usize = 64 * 1024;
 const MAX_INTENT_RESPONSE_BYTES: usize = 1024 * 1024;
+pub(super) const INTENT_RESOLUTION_CONFIRMATION: &str = "I VERIFIED BINANCE";
 
 pub(super) async fn record_request_diagnostics(
     State(state): State<AppState>,
@@ -122,6 +123,41 @@ fn requires_financial_intent(method: &Method, path: &str) -> bool {
         || path == "/api/sizing"
 }
 
+fn can_increase_exposure(method: &Method, path: &str, body: &[u8]) -> bool {
+    match (method, path) {
+        (&Method::POST, "/api/orders/auto-market") => true,
+        (&Method::POST, "/api/orders/market" | "/api/orders/limit") => {
+            serde_json::from_slice::<Value>(body)
+                .ok()
+                .and_then(|value| value.get("reduce_only").and_then(Value::as_bool))
+                != Some(true)
+        }
+        (&Method::POST, "/api/positions/intent") => {
+            serde_json::from_slice::<Value>(body)
+                .ok()
+                .and_then(|value| {
+                    value
+                        .get("intent")
+                        .and_then(Value::as_str)
+                        .map(str::to_ascii_uppercase)
+                })
+                .as_deref()
+                != Some("REDUCE")
+        }
+        (&Method::POST, path) if path.ends_with("/chase") && path.starts_with("/api/orders/") => {
+            true
+        }
+        (&Method::PUT, path)
+            if path.starts_with("/api/orders/")
+                && !path.ends_with("/reduce")
+                && !path.ends_with("/reprice-reduce") =>
+        {
+            true
+        }
+        _ => false,
+    }
+}
+
 async fn execute_financial_intent(
     state: AppState,
     request: axum::extract::Request,
@@ -141,11 +177,19 @@ async fn execute_financial_intent(
         .map_err(|_| AppError::Invalid("financial request body is too large".into()))?;
     let fingerprint = OperationSafety::fingerprint(&method, &path, &request_body);
 
-    match state
-        .operation_safety
-        .begin(&intent_id, &method, &path, &fingerprint)
-        .await?
-    {
+    let decision = if can_increase_exposure(&parts.method, &path, &request_body) {
+        state
+            .operation_safety
+            .begin_exposure_increase(&intent_id, &method, &path, &fingerprint)
+            .await?
+    } else {
+        state
+            .operation_safety
+            .begin(&intent_id, &method, &path, &fingerprint)
+            .await?
+    };
+
+    match decision {
         IntentDecision::Replay {
             status,
             content_type,
@@ -318,6 +362,81 @@ pub(super) async fn diagnostics(State(state): State<AppState>) -> Json<Diagnosti
     Json(state.diagnostics.snapshot())
 }
 
+pub(super) async fn unresolved_intents(State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let unresolved = state
+        .operation_safety
+        .unresolved_from_previous_run()
+        .await?;
+    Ok(Json(json!({
+        "blocksNewExposure": !unresolved.is_empty(),
+        "confirmationPhrase": INTENT_RESOLUTION_CONFIRMATION,
+        "unresolved": unresolved,
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub(super) struct ResolveIntentRequest {
+    confirmation: String,
+}
+
+pub(super) async fn resolve_unresolved_intent(
+    State(state): State<AppState>,
+    axum::extract::Path(intent_id): axum::extract::Path<String>,
+    Json(request): Json<ResolveIntentRequest>,
+) -> AppResult<Json<Value>> {
+    if request.confirmation.trim() != INTENT_RESOLUTION_CONFIRMATION {
+        return Err(AppError::Invalid(format!(
+            "type {INTENT_RESOLUTION_CONFIRMATION} after checking Binance Positions, Open Orders, and Order History"
+        )));
+    }
+
+    // Keep reconciliation and journal resolution under the same trade lock.
+    // No exchange mutation is replayed here: the user first verifies Binance,
+    // then these reads refresh all state the terminal can authoritatively
+    // observe before the stale crash marker is removed.
+    let _guard = state.trade_lock.lock().await;
+    if !state
+        .operation_safety
+        .unresolved_from_previous_run()
+        .await?
+        .iter()
+        .any(|intent| intent.intent_id == intent_id)
+    {
+        return Err(AppError::NotFound(
+            "recoverable unresolved intent was not found".into(),
+        ));
+    }
+    if !state.binance.is_configured() {
+        return Err(AppError::Invalid(
+            "connect Binance before resolving an uncertain operation".into(),
+        ));
+    }
+
+    let (account, position_risk, _open_orders) = tokio::try_join!(
+        state.binance.account_info(),
+        state.binance.position_risk(),
+        state.binance.all_open_orders(),
+    )?;
+    state.account_state.replace(account).await;
+    state.position_risk_state.replace(position_risk).await;
+    state.diagnostics.exchange_success();
+    state
+        .diagnostics
+        .reconciliation_success("operator-intent-recovery", false);
+    let resolved = state
+        .operation_safety
+        .resolve_previous_run(&intent_id)
+        .await?;
+    let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
+        reason: format!("uncertain operation {intent_id} reconciled by operator"),
+    });
+
+    Ok(Json(json!({
+        "resolved": resolved,
+        "message": "Binance state refreshed; the operation was not replayed",
+    })))
+}
+
 pub(super) async fn server_time(State(state): State<AppState>) -> AppResult<Json<Value>> {
     Ok(Json(state.binance.server_time().await?))
 }
@@ -326,7 +445,7 @@ pub(super) async fn server_time(State(state): State<AppState>) -> AppResult<Json
 mod tests {
     use axum::http::Method;
 
-    use super::requires_financial_intent;
+    use super::{can_increase_exposure, requires_financial_intent};
 
     #[test]
     fn intent_boundary_covers_every_financial_mutation_family() {
@@ -350,5 +469,69 @@ mod tests {
             &Method::POST,
             "/api/auth/ws-ticket"
         ));
+    }
+
+    #[test]
+    fn uncertain_intent_gate_blocks_only_exposure_increases() {
+        assert!(can_increase_exposure(
+            &Method::POST,
+            "/api/orders/market",
+            br#"{"reduce_only":false}"#,
+        ));
+        assert!(can_increase_exposure(
+            &Method::POST,
+            "/api/positions/intent",
+            br#"{"intent":"ADD"}"#,
+        ));
+        assert!(can_increase_exposure(
+            &Method::POST,
+            "/api/orders/BTCUSDT/42/chase",
+            b"",
+        ));
+        assert!(can_increase_exposure(
+            &Method::PUT,
+            "/api/orders/BTCUSDT/42",
+            b"{}",
+        ));
+
+        for (method, path, body) in [
+            (
+                Method::POST,
+                "/api/orders/market",
+                br#"{"reduce_only":true}"#.as_slice(),
+            ),
+            (
+                Method::POST,
+                "/api/positions/intent",
+                br#"{"intent":"REDUCE"}"#.as_slice(),
+            ),
+            (Method::DELETE, "/api/orders/BTCUSDT/42", b"".as_slice()),
+            (
+                Method::POST,
+                "/api/orders/close-position",
+                br#"{"symbol":"BTCUSDT"}"#.as_slice(),
+            ),
+            (
+                Method::POST,
+                "/api/account/close-everything",
+                b"{}".as_slice(),
+            ),
+            (Method::POST, "/api/orders/stop-market", b"{}".as_slice()),
+            (
+                Method::PUT,
+                "/api/orders/BTCUSDT/42/reduce",
+                b"{}".as_slice(),
+            ),
+            (
+                Method::PUT,
+                "/api/orders/BTCUSDT/42/reprice-reduce",
+                b"{}".as_slice(),
+            ),
+        ] {
+            assert!(
+                !can_increase_exposure(&method, path, body),
+                "{method} {path} must remain available for risk reduction"
+            );
+        }
     }
 }

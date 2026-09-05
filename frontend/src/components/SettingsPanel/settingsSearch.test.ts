@@ -36,4 +36,10 @@ describe("buildSettingsSearchModel", () => {
     expect(telegram.showDesktopConnections).toBe(false);
     expect(telegram.hasAnySettingsSearchResult).toBe(false);
   });
+
+  it("finds uncertain operation recovery under diagnostics", () => {
+    const model = buildSettingsSearchModel("uncertain operation", true, sizingFields);
+    expect(model.showDiagnostics).toBe(true);
+    expect(model.hasAnySettingsSearchResult).toBe(true);
+  });
 });

@@ -14,7 +14,7 @@ export default function SystemNotice({
         <strong>{notice.title}</strong>
         <p>{notice.message}</p>
       </div>
-      <button type="button" onClick={onDismiss} aria-label="Dismiss notification warning">
+      <button type="button" onClick={onDismiss} aria-label="Dismiss notification">
         ×
       </button>
     </aside>

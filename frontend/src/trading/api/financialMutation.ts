@@ -55,3 +55,14 @@ export function runFinancialMutation<T>(
 export function financialMutationFingerprint(endpoint: string, payload?: unknown): string {
   return payload === undefined ? endpoint : `${endpoint}:${JSON.stringify(payload)}`;
 }
+
+/**
+ * Drop a retry token after the backend has reconciled and tombstoned an
+ * uncertain operation. The next deliberate user action must receive a fresh
+ * UUID; the resolved UUID itself remains non-executable on the backend.
+ */
+export function forgetFinancialIntent(intentId: string): void {
+  for (const [fingerprint, retainedIntentId] of retryIntents) {
+    if (retainedIntentId === intentId) retryIntents.delete(fingerprint);
+  }
+}

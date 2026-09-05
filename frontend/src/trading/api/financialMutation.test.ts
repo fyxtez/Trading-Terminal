@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { financialMutationFingerprint, runFinancialMutation } from "./financialMutation";
+import {
+  financialMutationFingerprint,
+  forgetFinancialIntent,
+  runFinancialMutation,
+} from "./financialMutation";
 
 describe("financial mutation intents", () => {
   it("coalesces duplicate in-flight actions under one intent", async () => {
@@ -39,5 +43,26 @@ describe("financial mutation intents", () => {
     });
     expect(ids).toHaveLength(2);
     expect(ids[1]).toBe(ids[0]);
+  });
+
+  it("uses a fresh intent after explicit operator resolution", async () => {
+    const ids: string[] = [];
+    const fingerprint = financialMutationFingerprint("/api/orders/market", {
+      symbol: "ETHUSDT",
+    });
+    await expect(
+      runFinancialMutation(fingerprint, async (intentId) => {
+        ids.push(intentId);
+        throw new TypeError("Failed to fetch");
+      }),
+    ).rejects.toThrow("Failed to fetch");
+
+    forgetFinancialIntent(ids[0]);
+    await runFinancialMutation(fingerprint, async (intentId) => {
+      ids.push(intentId);
+      return "new action";
+    });
+
+    expect(ids[1]).not.toBe(ids[0]);
   });
 });

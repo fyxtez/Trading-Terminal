@@ -29,6 +29,10 @@ The complete install procedure and signing policy are in [RELEASING.md](RELEASIN
 ## Trading safety
 
 - [x] Every financial mutation has a durable intent ID and replay/conflict policy.
+- [x] An unresolved intent surviving backend restart blocks every new exposure
+      even under a new UUID, never expires automatically, and has an audited,
+      explicitly confirmed Diagnostics recovery flow. Cancel, protective and
+      reduce/close operations remain available throughout recovery.
 - [x] Exposure-increasing requests fail closed without fresh price, filters,
       account and position-risk prerequisites.
 - [x] Sensitive workflows are serialized by `TradeLock`.

@@ -221,7 +221,9 @@ Standalone backend development defaults to `backend/data/`:
 - `sizing.json` — sizing configuration
 - `symbols.json` — dynamic symbol registry
 - `alerts.sqlite3` — retained legacy alert data; dormant code does not open it
-- `operations.sqlite3` — durable financial intents and redacted audit metadata
+- `operations.sqlite3` — durable financial intents and redacted audit metadata;
+  restart-surviving uncertain operations block only new exposure until the
+  explicitly confirmed Settings > Diagnostics reconciliation tombstones them
 - `icons/` — downloaded icon cache
 
 Paths can be overridden through backend environment variables. Use the

@@ -24,10 +24,13 @@ establish a safe, unambiguous final state.
    but it does **not** cancel orders already resting on Binance or close open
    positions.
 
-The backend does not yet have the planned server-side
-`disable-new-entries` risk switch. Until that exists, quitting the application
-is the immediate local entry stop; all exchange cleanup must be verified on
-Binance.
+If a financial intent survived a backend restart, the server automatically
+blocks new entries, ADD, entry-order amendments and limit-to-market chase even
+when the frontend creates a new UUID. It deliberately leaves Cancel, Stop Loss,
+Reduce, Close Position and Close Everything available. This gate protects only
+the local installation; quitting the application remains the immediate stop for
+any other suspected repeated behavior, and all exchange cleanup must still be
+verified on Binance.
 
 ## 2. Cancel exposure-creating orders
 
@@ -58,6 +61,13 @@ its per-symbol result and confirm the final state on Binance.
    or an accidental reversal.
 4. Re-check both regular open orders and conditional/algo orders after positions
    are flat.
+
+When Settings > Diagnostics shows **UNCERTAIN OPERATION**, complete every check
+above and inspect Binance Order History before typing `I VERIFIED BINANCE` and
+selecting **RECONCILE & RESOLVE**. The backend refreshes authoritative account,
+position-risk and open-order state and records an audited tombstone. It does not
+replay the uncertain request. If the refresh fails, the marker and entry gate
+remain in place.
 
 If the API key may be compromised, revoke it immediately and perform the steps
 above through the authenticated Binance interface. Do not wait for the local

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
@@ -32,7 +33,9 @@ export default function DiagnosticsSection({
   forceExpanded = false,
   onToggle,
 }: DiagnosticsSectionProps) {
+  const [confirmations, setConfirmations] = useState<Record<string, string>>({});
   const backend = diagnostics.backend;
+  const operationSafety = diagnostics.operationSafety;
   const expanded = forceExpanded || isExpanded;
   const sidecarStatus = diagnostics.isDesktop ? diagnostics.backendConnection : "browser-mode";
   const userStreamStatus =
@@ -117,6 +120,83 @@ export default function DiagnosticsSection({
 
       {expanded && (
         <>
+          {operationSafety?.blocksNewExposure && (
+            <div className="settings-intent-recovery" role="status">
+              <div className="settings-intent-recovery-heading">
+                <div>
+                  <strong>UNCERTAIN OPERATION</strong>
+                  <span>New entries and ADD are blocked</span>
+                </div>
+                <b>{operationSafety.unresolved.length}</b>
+              </div>
+              <p>
+                A previous backend run stopped before it could save the final result. Cancel,
+                Reduce, Stop Loss, Close Position and Close Everything remain available.
+              </p>
+              {operationSafety.unresolved.map((intent) => {
+                const confirmation = confirmations[intent.intentId] ?? "";
+                const resolving = diagnostics.resolvingIntentId === intent.intentId;
+                return (
+                  <div className="settings-intent-recovery-item" key={intent.intentId}>
+                    <div>
+                      <code>
+                        {intent.method} {intent.path}
+                      </code>
+                      <small>
+                        Recorded {relativeTime(intent.createdAtMs)} · ID{" "}
+                        {intent.intentId.slice(0, 8)}
+                      </small>
+                    </div>
+                    <ol>
+                      <li>Check Binance Positions, Open Orders and Order History.</li>
+                      <li>
+                        Type <kbd>{operationSafety.confirmationPhrase}</kbd> below.
+                      </li>
+                    </ol>
+                    <input
+                      type="text"
+                      value={confirmation}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-label={`Confirmation for uncertain operation ${intent.intentId}`}
+                      placeholder={operationSafety.confirmationPhrase}
+                      onChange={(event) =>
+                        setConfirmations((current) => ({
+                          ...current,
+                          [intent.intentId]: event.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        resolving || confirmation.trim() !== operationSafety.confirmationPhrase
+                      }
+                      onClick={() => {
+                        void diagnostics
+                          .resolveIntent(intent.intentId, confirmation)
+                          .then(() =>
+                            setConfirmations((current) => {
+                              const next = { ...current };
+                              delete next[intent.intentId];
+                              return next;
+                            }),
+                          )
+                          .catch(() => undefined);
+                      }}
+                    >
+                      {resolving ? "REFRESHING BINANCE…" : "RECONCILE & RESOLVE"}
+                    </button>
+                  </div>
+                );
+              })}
+              {diagnostics.resolutionError && (
+                <p className="settings-intent-recovery-error" role="alert">
+                  {diagnostics.resolutionError}
+                </p>
+              )}
+            </div>
+          )}
           <div className="settings-diagnostics-toolbar">
             <small>
               {diagnostics.isLoading && !backend ? (

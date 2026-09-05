@@ -104,7 +104,7 @@ export function buildSettingsSearchModel(
       EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
     );
   const showDiagnostics = matches(
-    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests health",
+    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests health uncertain operation intent recovery blocked exposure Binance order history",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
   );
   const hasAnySettingsSearchResult =

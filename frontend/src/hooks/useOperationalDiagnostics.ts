@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConnectionState } from "./useTradingStream";
-import { getBackendDiagnostics, type BackendDiagnostics } from "../trading/api/diagnostics";
+import {
+  getBackendDiagnostics,
+  getOperationSafetyStatus,
+  resolveUnresolvedFinancialIntent,
+  type BackendDiagnostics,
+  type OperationSafetyStatus,
+} from "../trading/api/diagnostics";
+import { forgetFinancialIntent } from "../trading/api/financialMutation";
 import { SYSTEM_NOTICE_EVENT, publishSystemNotice, type SystemNotice } from "../diagnostics/events";
 
 const DIAGNOSTICS_REFRESH_MS = 5_000;
@@ -11,12 +18,16 @@ export type OperationalDiagnostics = {
   marketConnection: ConnectionState;
   frontendStreamConnection: ConnectionState;
   backend: BackendDiagnostics | null;
+  operationSafety: OperationSafetyStatus | null;
   isLoading: boolean;
   error: string | null;
   refreshedAt: number | null;
   notice: SystemNotice | null;
+  resolvingIntentId: string | null;
+  resolutionError: string | null;
   dismissNotice: () => void;
   refresh: () => Promise<void>;
+  resolveIntent: (intentId: string, confirmation: string) => Promise<void>;
 };
 
 export function useOperationalDiagnostics({
@@ -31,10 +42,13 @@ export function useOperationalDiagnostics({
   frontendStreamConnection: ConnectionState;
 }): OperationalDiagnostics {
   const [backend, setBackend] = useState<BackendDiagnostics | null>(null);
+  const [operationSafety, setOperationSafety] = useState<OperationSafetyStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [notice, setNotice] = useState<SystemNotice | null>(null);
+  const [resolvingIntentId, setResolvingIntentId] = useState<string | null>(null);
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
   const previousNotificationFailuresRef = useRef<number | null>(null);
   const lastNotificationNoticeAtRef = useRef(0);
   const mountedAtRef = useRef(Date.now());
@@ -47,7 +61,10 @@ export function useOperationalDiagnostics({
 
     setIsLoading(true);
     try {
-      const next = await getBackendDiagnostics();
+      const [next, nextOperationSafety] = await Promise.all([
+        getBackendDiagnostics(),
+        getOperationSafetyStatus(),
+      ]);
       const previousCount = previousNotificationFailuresRef.current;
       if (
         ((previousCount !== null && next.notifications.failureCount > previousCount) ||
@@ -65,6 +82,7 @@ export function useOperationalDiagnostics({
       }
       previousNotificationFailuresRef.current = next.notifications.failureCount;
       setBackend(next);
+      setOperationSafety(nextOperationSafety);
       setError(null);
       setRefreshedAt(Date.now());
     } catch (refreshError) {
@@ -73,6 +91,31 @@ export function useOperationalDiagnostics({
       setIsLoading(false);
     }
   }, [backendConnection]);
+
+  const resolveIntent = useCallback(
+    async (intentId: string, confirmation: string) => {
+      setResolvingIntentId(intentId);
+      setResolutionError(null);
+      try {
+        await resolveUnresolvedFinancialIntent(intentId, confirmation);
+        forgetFinancialIntent(intentId);
+        publishSystemNotice({
+          kind: "success",
+          title: "Uncertain operation resolved",
+          message: "Binance state was refreshed. No order was replayed.",
+        });
+        await refresh();
+      } catch (resolveError) {
+        setResolutionError(
+          resolveError instanceof Error ? resolveError.message : "Unable to resolve operation",
+        );
+        throw resolveError;
+      } finally {
+        setResolvingIntentId(null);
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     const handleNotice = (event: Event) => {
@@ -99,11 +142,15 @@ export function useOperationalDiagnostics({
     marketConnection,
     frontendStreamConnection,
     backend,
+    operationSafety,
     isLoading,
     error,
     refreshedAt,
     notice,
+    resolvingIntentId,
+    resolutionError,
     dismissNotice: () => setNotice(null),
     refresh,
+    resolveIntent,
   };
 }

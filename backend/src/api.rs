@@ -68,7 +68,8 @@ use catalog_routes::{
 use order_routes::{cancel_all_orders, cancel_order, modify_limit_order, open_orders, query_order};
 use system_routes::{
     authorize, diagnostics, health, issue_websocket_ticket, record_request_diagnostics,
-    reload_desktop_credentials, server_time, trading_websocket,
+    reload_desktop_credentials, resolve_unresolved_intent, server_time, trading_websocket,
+    unresolved_intents,
 };
 
 #[derive(Clone)]
@@ -115,6 +116,11 @@ pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", get(health))
         .route("/api/diagnostics", get(diagnostics))
+        .route("/api/operation-safety/unresolved", get(unresolved_intents))
+        .route(
+            "/api/operation-safety/unresolved/{intent_id}/resolve",
+            post(resolve_unresolved_intent),
+        )
         .route(
             "/api/desktop/credentials/reload",
             post(reload_desktop_credentials),

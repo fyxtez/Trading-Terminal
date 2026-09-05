@@ -281,6 +281,135 @@
   margin-top: 14px;
 }
 
+.settings-intent-recovery {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(240, 69, 98, 0.55);
+  border-radius: var(--radius-m);
+  background: rgba(240, 69, 98, 0.055);
+}
+
+.settings-intent-recovery-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-intent-recovery-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-intent-recovery-heading strong {
+  color: var(--red);
+  font: 800 10px/1 var(--font-mono);
+  letter-spacing: 0.65px;
+}
+
+.settings-intent-recovery-heading span {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.settings-intent-recovery-heading b {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgba(240, 69, 98, 0.45);
+  border-radius: 50%;
+  color: var(--red);
+  font: 800 11px/1 var(--font-mono);
+}
+
+.settings-intent-recovery > p,
+.settings-intent-recovery-item ol {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.settings-intent-recovery-item {
+  display: grid;
+  gap: 9px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(240, 69, 98, 0.2);
+}
+
+.settings-intent-recovery-item > div {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-intent-recovery-item code {
+  color: var(--text-primary);
+  font: 700 11px/1.35 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.settings-intent-recovery-item small {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.settings-intent-recovery-item ol {
+  padding-left: 18px;
+}
+
+.settings-intent-recovery-item kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: 700 10px/1.3 var(--font-mono);
+}
+
+.settings-intent-recovery-item input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  outline: none;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font: 700 11px/1 var(--font-mono);
+}
+
+.settings-intent-recovery-item input:focus {
+  border-color: rgba(245, 166, 35, 0.7);
+  box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.1);
+}
+
+.settings-intent-recovery-item button {
+  min-height: 34px;
+  border: 1px solid rgba(245, 166, 35, 0.52);
+  border-radius: var(--radius-s);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font: 800 10px/1 var(--font-mono);
+  letter-spacing: 0.45px;
+  cursor: pointer;
+}
+
+.settings-intent-recovery-item button:disabled {
+  border-color: var(--border);
+  background: var(--bg-surface-raised);
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.settings-intent-recovery p.settings-intent-recovery-error {
+  color: var(--red);
+}
+
 .settings-diagnostics-toolbar small {
   color: var(--text-faint);
 }

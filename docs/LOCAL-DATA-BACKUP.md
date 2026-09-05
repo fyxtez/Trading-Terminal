@@ -56,9 +56,12 @@ layout.
 6. Compare account, positions and open orders with Binance before submitting a
    mutation. The exchange wins over restored UI or journal state.
 
-An old `in_progress` financial intent is intentionally not auto-replayed after
-restore. Reconcile on Binance and create a new operator action only after its
-outcome is known.
+An old `in_progress` financial intent is intentionally not auto-replayed or
+expired after restore. It appears under Settings > Diagnostics and blocks only
+new exposure. Reconcile Positions, Open Orders and Order History on Binance,
+then use the typed-confirmation recovery control. A successful recovery refreshes
+authoritative snapshots and tombstones the old UUID; it never submits the old
+request. Create a new operator action only after its outcome is known.
 
 ## Upgrade, rollback and uninstall
 
