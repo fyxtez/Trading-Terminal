@@ -71,6 +71,14 @@ impl BackendSupervisor {
         wait_for_ready(self.status.clone(), previous_generation).await
     }
 
+    /// Queue a restart without keeping the account setup screen open until the
+    /// bundled service finishes its complete boot cycle.
+    pub fn request_restart(&self) -> Result<(), String> {
+        self.commands
+            .send(SupervisorCommand::Restart)
+            .map_err(|_| "embedded backend supervisor is unavailable".to_string())
+    }
+
     pub async fn pause(&self) -> Result<(), String> {
         let (ack_tx, ack_rx) = oneshot::channel();
         self.commands

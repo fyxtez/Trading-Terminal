@@ -23,6 +23,7 @@ import type {
   TradeSide,
   TradeToastState,
 } from "../trading/types";
+import { userFacingError } from "../utils/userFacingError";
 
 export type PendingTradeAction =
   | "LIMIT_BUY"
@@ -234,9 +235,7 @@ export function useTradeMenu(
         } else {
           setAvailableBalance(null);
           setBalanceError(
-            balanceResult.reason instanceof Error
-              ? balanceResult.reason.message
-              : "Unable to load available balance",
+            userFacingError(balanceResult.reason, "Unable to load your available balance."),
           );
         }
 
@@ -399,7 +398,7 @@ export function useTradeMenu(
     } catch (error) {
       if (requestId !== leverageRequestIdRef.current) return;
 
-      setLeverageError(error instanceof Error ? error.message : "Failed to update leverage");
+      setLeverageError(userFacingError(error, "Fyxtez could not update leverage."));
     } finally {
       if (requestId === leverageRequestIdRef.current) {
         setIsUpdatingLeverage(false);
@@ -552,7 +551,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Failed to submit order",
+        message: userFacingError(error, "Fyxtez could not place this order."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -654,7 +653,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Failed to submit auto market order",
+        message: userFacingError(error, "Fyxtez could not place this order."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -713,7 +712,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Failed to add",
+        message: userFacingError(error, "Fyxtez could not add to this position."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -778,7 +777,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Failed to reduce position",
+        message: userFacingError(error, "Fyxtez could not reduce this position."),
       });
     } finally {
       setPendingTradeAction(null);

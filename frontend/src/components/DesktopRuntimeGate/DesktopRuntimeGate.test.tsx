@@ -30,7 +30,7 @@ describe("DesktopRuntimeGate", () => {
       </DesktopRuntimeGate>,
     );
     expect(screen.queryByText("terminal")).not.toBeInTheDocument();
-    expect(screen.getByText("Starting local backend")).toBeInTheDocument();
+    expect(screen.getByText("Getting Fyxtez ready")).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
 
     resolveRuntime("http://127.0.0.1:12345");
@@ -46,8 +46,10 @@ describe("DesktopRuntimeGate", () => {
         <div>terminal</div>
       </DesktopRuntimeGate>,
     );
-    const retry = await screen.findByRole("button", { name: "RETRY BACKEND" });
-    expect(screen.getByText("sidecar stopped")).toBeInTheDocument();
+    const retry = await screen.findByRole("button", { name: "TRY AGAIN" });
+    expect(
+      screen.getByText("Fyxtez could not connect. Check your internet connection and try again."),
+    ).toBeInTheDocument();
 
     fireEvent.click(retry);
     expect(await screen.findByText("terminal")).toBeInTheDocument();

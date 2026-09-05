@@ -55,9 +55,7 @@ describe("TradeMenu", () => {
     const onSubmit = vi.fn();
     render(<TradeMenu {...createProps({ backendConnection: "disconnected", onSubmit })} />);
 
-    expect(
-      screen.getByText("Backend disconnected — trading actions are disabled until it reconnects."),
-    ).toBeVisible();
+    expect(screen.getByText(/Trading is temporarily unavailable/)).toBeVisible();
     expect(screen.getByRole("button", { name: /LIMIT ORDER/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /MARKET ORDER/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /AUTO MARKET/ })).toBeDisabled();

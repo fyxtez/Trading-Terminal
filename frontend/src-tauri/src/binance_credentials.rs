@@ -6,6 +6,7 @@ use std::fmt::Write;
 use std::time::Duration;
 
 const BINANCE_MAINNET_API: &str = "https://api.binance.com";
+const BINANCE_TESTNET_FUTURES_API: &str = "https://demo-fapi.binance.com";
 const RECV_WINDOW_MS: &str = "10000";
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +21,12 @@ struct BinanceApiPermissions {
     enable_reading: bool,
     enable_futures: bool,
     enable_withdrawals: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BinanceFuturesAccount {
+    can_trade: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,7 +70,21 @@ fn validate_permission_policy(permissions: &BinanceApiPermissions) -> Result<(),
     Ok(())
 }
 
-async fn rejection_message(status: StatusCode, response: reqwest::Response) -> String {
+fn validate_testnet_account(account: &BinanceFuturesAccount) -> Result<(), String> {
+    if !account.can_trade {
+        return Err(
+            "This Binance Testnet key cannot trade Futures. It was not saved. Enable Futures trading for the key or create a new Testnet key."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+async fn rejection_message(
+    status: StatusCode,
+    response: reqwest::Response,
+    network: &str,
+) -> String {
     let code = response
         .json::<BinanceErrorBody>()
         .await
@@ -71,7 +92,14 @@ async fn rejection_message(status: StatusCode, response: reqwest::Response) -> S
         .and_then(|body| body.code);
 
     match code {
-        Some(-2014 | -2015) => "Binance rejected the API key. Check the key, secret, IP restriction, and Mainnet selection; nothing was saved.".into(),
+        Some(-2014 | -2015) => format!(
+            "Binance rejected these keys. Check the key, secret, IP restriction, and {} selection; nothing was saved.",
+            if network == "mainnet" {
+                "Live"
+            } else {
+                "Practice"
+            }
+        ),
         Some(code) => format!(
             "Binance could not verify the API-key permissions (code {code}, HTTP {}). Nothing was saved.",
             status.as_u16()
@@ -83,18 +111,16 @@ async fn rejection_message(status: StatusCode, response: reqwest::Response) -> S
     }
 }
 
-/// Testnet credentials cannot authorize real withdrawals. Mainnet credentials
-/// are checked against Binance's signed API-key-permission endpoint before any
-/// value is written to the platform credential store.
+/// Mainnet credentials are checked against Binance's signed API-key-permission
+/// endpoint before any value is written to the platform credential store.
+/// Testnet has no real withdrawals, but its credentials are still verified by
+/// calling the signed Futures account endpoint and requiring trading access.
 pub async fn validate_binance_credentials(
     api_key: &str,
     api_secret: &str,
     network: &str,
 ) -> Result<(), String> {
-    if network == "testnet" {
-        return Ok(());
-    }
-    if network != "mainnet" {
+    if !matches!(network, "mainnet" | "testnet") {
         return Err("Binance network must be mainnet or testnet".into());
     }
 
@@ -105,8 +131,13 @@ pub async fn validate_binance_credentials(
         .build()
         .map_err(|_| "Could not initialize Binance credential validation".to_string())?;
 
+    let (api_base, time_path) = if network == "testnet" {
+        (BINANCE_TESTNET_FUTURES_API, "/fapi/v1/time")
+    } else {
+        (BINANCE_MAINNET_API, "/api/v3/time")
+    };
     let time_response = client
-        .get(format!("{BINANCE_MAINNET_API}/api/v3/time"))
+        .get(format!("{api_base}{time_path}"))
         .send()
         .await
         .map_err(|_| {
@@ -114,7 +145,7 @@ pub async fn validate_binance_credentials(
         })?;
     let time_status = time_response.status();
     if !time_status.is_success() {
-        return Err(rejection_message(time_status, time_response).await);
+        return Err(rejection_message(time_status, time_response, network).await);
     }
     let server_time = time_response
         .json::<BinanceServerTime>()
@@ -124,6 +155,33 @@ pub async fn validate_binance_credentials(
 
     let query = format!("recvWindow={RECV_WINDOW_MS}&timestamp={server_time}");
     let signature = sign_query(&query, api_secret)?;
+
+    if network == "testnet" {
+        let account_response = client
+            .get(format!(
+                "{BINANCE_TESTNET_FUTURES_API}/fapi/v3/account?{query}&signature={signature}"
+            ))
+            .header("X-MBX-APIKEY", api_key)
+            .send()
+            .await
+            .map_err(|_| {
+                "Could not reach Binance Testnet to verify these keys. Nothing was saved."
+                    .to_string()
+            })?;
+        let account_status = account_response.status();
+        if !account_status.is_success() {
+            return Err(rejection_message(account_status, account_response, network).await);
+        }
+        let account = account_response
+            .json::<BinanceFuturesAccount>()
+            .await
+            .map_err(|_| {
+                "Binance Testnet returned an invalid account response. Nothing was saved."
+                    .to_string()
+            })?;
+        return validate_testnet_account(&account);
+    }
+
     let permission_response = client
         .get(format!(
             "{BINANCE_MAINNET_API}/sapi/v1/account/apiRestrictions?{query}&signature={signature}"
@@ -136,7 +194,7 @@ pub async fn validate_binance_credentials(
         })?;
     let permission_status = permission_response.status();
     if !permission_status.is_success() {
-        return Err(rejection_message(permission_status, permission_response).await);
+        return Err(rejection_message(permission_status, permission_response, network).await);
     }
 
     let permissions = permission_response
@@ -151,7 +209,10 @@ pub async fn validate_binance_credentials(
 
 #[cfg(test)]
 mod tests {
-    use super::{BinanceApiPermissions, sign_query, validate_permission_policy};
+    use super::{
+        BinanceApiPermissions, BinanceFuturesAccount, sign_query, validate_permission_policy,
+        validate_testnet_account,
+    };
 
     fn permissions() -> BinanceApiPermissions {
         BinanceApiPermissions {
@@ -166,13 +227,10 @@ mod tests {
         assert!(validate_permission_policy(&permissions()).is_ok());
     }
 
-    #[tokio::test]
-    async fn testnet_credentials_skip_real_funds_permission_validation() {
-        assert!(
-            super::validate_binance_credentials("testnet-key", "testnet-secret", "testnet")
-                .await
-                .is_ok()
-        );
+    #[test]
+    fn testnet_requires_futures_trading_access() {
+        assert!(validate_testnet_account(&BinanceFuturesAccount { can_trade: true }).is_ok());
+        assert!(validate_testnet_account(&BinanceFuturesAccount { can_trade: false }).is_err());
     }
 
     #[test]

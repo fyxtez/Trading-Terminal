@@ -16,9 +16,9 @@ describe("AppErrorBoundary", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "The terminal could not render safely." }),
+      screen.getByRole("heading", { name: "Something went wrong on this screen." }),
     ).toBeVisible();
-    expect(screen.getByText("render exploded")).toBeVisible();
-    expect(screen.getByRole("button", { name: "RELOAD TERMINAL" })).toBeVisible();
+    expect(screen.queryByText("render exploded")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "RELOAD FYXTEZ" })).toBeVisible();
   });
 });

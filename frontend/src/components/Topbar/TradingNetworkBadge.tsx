@@ -8,10 +8,10 @@ export default function TradingNetworkBadge({ network }: TradingNetworkBadgeProp
       <div
         className="topbar-network-badge unavailable"
         aria-label="Binance not connected"
-        title="NO BINANCE · private trading is disabled"
+        title="NOT CONNECTED · trading is disabled"
       >
         <span aria-hidden="true" />
-        NO BINANCE
+        NOT CONNECTED
       </div>
     );
   }
@@ -20,15 +20,11 @@ export default function TradingNetworkBadge({ network }: TradingNetworkBadgeProp
   return (
     <div
       className={`topbar-network-badge ${live ? "live" : "demo"}`}
-      aria-label={`Binance ${live ? "Live Mainnet" : "Demo Testnet"}`}
-      title={
-        live
-          ? "LIVE · Binance Mainnet · real funds and real orders"
-          : "DEMO · Binance Testnet · test funds and test orders"
-      }
+      aria-label={`Binance ${live ? "live trading" : "practice trading"}`}
+      title={live ? "LIVE · real funds and real orders" : "PRACTICE · test funds and test orders"}
     >
       <span aria-hidden="true" />
-      {live ? "LIVE" : "DEMO"}
+      {live ? "LIVE" : "PRACTICE"}
     </div>
   );
 }

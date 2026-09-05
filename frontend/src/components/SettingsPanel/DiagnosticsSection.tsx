@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
+import { userFacingError } from "../../utils/userFacingError";
 
 type DiagnosticsSectionProps = {
   diagnostics: OperationalDiagnostics;
@@ -27,6 +28,15 @@ function statusClass(status: string): "healthy" | "warning" | "error" | "idle" {
   return "idle";
 }
 
+function statusLabel(status: string): string {
+  if (["connected", "healthy", "browser-mode"].includes(status)) return "READY";
+  if (status === "connecting") return "CONNECTING";
+  if (status === "disabled") return "NOT IN USE";
+  if (["attention", "drift-repaired"].includes(status)) return "CHECK";
+  if (["degraded", "disconnected", "unavailable"].includes(status)) return "NOT READY";
+  return "WAITING";
+}
+
 export default function DiagnosticsSection({
   diagnostics,
   isExpanded,
@@ -37,7 +47,7 @@ export default function DiagnosticsSection({
   const backend = diagnostics.backend;
   const operationSafety = diagnostics.operationSafety;
   const expanded = forceExpanded || isExpanded;
-  const sidecarStatus = diagnostics.isDesktop ? diagnostics.backendConnection : "browser-mode";
+  const appStatus = diagnostics.isDesktop ? diagnostics.backendConnection : "browser-mode";
   const userStreamStatus =
     diagnostics.frontendStreamConnection === "disabled"
       ? "disabled"
@@ -45,48 +55,52 @@ export default function DiagnosticsSection({
 
   const rows = [
     {
-      label: diagnostics.isDesktop ? "Sidecar / backend" : "Backend",
-      status: sidecarStatus,
-      detail: diagnostics.error ?? `REST health ${diagnostics.backendConnection}`,
+      label: "Fyxtez",
+      status: appStatus,
+      detail: diagnostics.error
+        ? userFacingError(diagnostics.error, "Fyxtez needs attention.")
+        : diagnostics.backendConnection === "connected"
+          ? "The app is ready"
+          : "The app is trying to reconnect",
     },
     {
-      label: "Exchange connectivity",
+      label: "Binance trading",
       status: backend?.exchange.status ?? "unavailable",
-      detail:
-        backend?.exchange.lastError ??
-        `Last success ${relativeTime(backend?.exchange.lastSuccessAtMs ?? null)}`,
+      detail: backend?.exchange.lastError
+        ? userFacingError(backend.exchange.lastError, "Could not reach Binance.")
+        : `Last checked ${relativeTime(backend?.exchange.lastSuccessAtMs ?? null)}`,
     },
     {
-      label: "Market data",
+      label: "Live prices",
       status: diagnostics.marketConnection,
       detail:
         diagnostics.marketConnection === "connected"
-          ? "Live candle polling is current"
-          : "Chart may be showing the last known candle",
+          ? "The chart is receiving current prices"
+          : "The chart may be showing the last known price",
     },
     {
-      label: "User stream",
+      label: "Account updates",
       status: userStreamStatus,
-      detail:
-        backend?.userStream.lastError ??
-        `Last backend stream event ${relativeTime(backend?.userStream.lastEventAtMs ?? null)}`,
+      detail: backend?.userStream.lastError
+        ? userFacingError(backend.userStream.lastError, "Account updates are delayed.")
+        : `Last update ${relativeTime(backend?.userStream.lastEventAtMs ?? null)}`,
     },
     {
-      label: "Reconciliation",
+      label: "Binance account check",
       status: backend?.reconciliation.status ?? "unavailable",
-      detail:
-        backend?.reconciliation.lastError ??
-        `${backend?.reconciliation.driftCount ?? 0} cache drift repair(s) · last check ${relativeTime(backend?.reconciliation.lastSuccessAtMs ?? null)}`,
+      detail: backend?.reconciliation.lastError
+        ? userFacingError(backend.reconciliation.lastError, "Could not check your Binance account.")
+        : `${backend?.reconciliation.driftCount ?? 0} automatic correction(s) · last checked ${relativeTime(backend?.reconciliation.lastSuccessAtMs ?? null)}`,
     },
     {
-      label: "Rejected requests",
+      label: "Blocked actions",
       status: (backend?.requests.rejectedCount ?? 0) > 0 ? "attention" : "healthy",
-      detail: `${backend?.requests.rejectedCount ?? 0} since backend start${backend?.requests.lastRejection ? ` · ${backend.requests.lastRejection}` : ""}`,
+      detail: `${backend?.requests.rejectedCount ?? 0} blocked since Fyxtez started${backend?.requests.lastRejection ? ` · ${userFacingError(backend.requests.lastRejection, "See Binance for details.")}` : ""}`,
     },
     {
-      label: "Duplicate requests",
+      label: "Repeated actions",
       status: (backend?.requests.duplicateCount ?? 0) > 0 ? "degraded" : "healthy",
-      detail: `${backend?.requests.duplicateCount ?? 0} detected since backend start`,
+      detail: `${backend?.requests.duplicateCount ?? 0} safely prevented since Fyxtez started`,
     },
     ...(EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
       ? [
@@ -94,8 +108,8 @@ export default function DiagnosticsSection({
             label: "Notification delivery",
             status: (backend?.notifications.failureCount ?? 0) > 0 ? "attention" : "healthy",
             detail: backend?.notifications.lastFailure
-              ? `${backend.notifications.failureCount} failure(s) · ${backend.notifications.lastFailure}`
-              : "No delivery failures since backend start",
+              ? `${backend.notifications.failureCount} problem(s) · ${userFacingError(backend.notifications.lastFailure, "Notification could not be delivered.")}`
+              : "No delivery problems since Fyxtez started",
           },
         ]
       : []),
@@ -105,8 +119,8 @@ export default function DiagnosticsSection({
     <section className="settings-section settings-diagnostics">
       <div className="settings-section-heading settings-section-heading-with-action">
         <div>
-          <h3>Diagnostics</h3>
-          {expanded && <p>Runtime health and safe operational counters.</p>}
+          <h3>App status</h3>
+          {expanded && <p>Check whether prices, trading and account updates are working.</p>}
         </div>
         <button
           type="button"
@@ -124,14 +138,15 @@ export default function DiagnosticsSection({
             <div className="settings-intent-recovery" role="status">
               <div className="settings-intent-recovery-heading">
                 <div>
-                  <strong>UNCERTAIN OPERATION</strong>
-                  <span>New entries and ADD are blocked</span>
+                  <strong>CHECK A PREVIOUS ACTION</strong>
+                  <span>Opening or adding to positions is paused</span>
                 </div>
                 <b>{operationSafety.unresolved.length}</b>
               </div>
               <p>
-                A previous backend run stopped before it could save the final result. Cancel,
-                Reduce, Stop Loss, Close Position and Close Everything remain available.
+                Fyxtez lost the connection before it could confirm whether Binance completed a
+                previous action. You can still cancel orders, reduce risk, use a stop loss or close
+                positions.
               </p>
               {operationSafety.unresolved.map((intent) => {
                 const confirmation = confirmations[intent.intentId] ?? "";
@@ -139,16 +154,10 @@ export default function DiagnosticsSection({
                 return (
                   <div className="settings-intent-recovery-item" key={intent.intentId}>
                     <div>
-                      <code>
-                        {intent.method} {intent.path}
-                      </code>
-                      <small>
-                        Recorded {relativeTime(intent.createdAtMs)} · ID{" "}
-                        {intent.intentId.slice(0, 8)}
-                      </small>
+                      <strong>Action started {relativeTime(intent.createdAtMs)}</strong>
                     </div>
                     <ol>
-                      <li>Check Binance Positions, Open Orders and Order History.</li>
+                      <li>Check Positions, Open Orders and Order History in Binance.</li>
                       <li>
                         Type <kbd>{operationSafety.confirmationPhrase}</kbd> below.
                       </li>
@@ -158,7 +167,7 @@ export default function DiagnosticsSection({
                       value={confirmation}
                       autoComplete="off"
                       spellCheck={false}
-                      aria-label={`Confirmation for uncertain operation ${intent.intentId}`}
+                      aria-label={`Confirmation for the action started ${relativeTime(intent.createdAtMs)}`}
                       placeholder={operationSafety.confirmationPhrase}
                       onChange={(event) =>
                         setConfirmations((current) => ({
@@ -185,7 +194,7 @@ export default function DiagnosticsSection({
                           .catch(() => undefined);
                       }}
                     >
-                      {resolving ? "REFRESHING BINANCE…" : "RECONCILE & RESOLVE"}
+                      {resolving ? "CHECKING BINANCE…" : "I CHECKED BINANCE — CONTINUE"}
                     </button>
                   </div>
                 );
@@ -200,7 +209,7 @@ export default function DiagnosticsSection({
           <div className="settings-diagnostics-toolbar">
             <small>
               {diagnostics.isLoading && !backend ? (
-                <LoadingIndicator variant="inline" label="Loading diagnostics" />
+                <LoadingIndicator variant="inline" label="Checking app status" />
               ) : (
                 `Updated ${relativeTime(diagnostics.refreshedAt)}`
               )}
@@ -214,15 +223,15 @@ export default function DiagnosticsSection({
               <div key={row.label}>
                 <span>{row.label}</span>
                 <div>
-                  <b className={statusClass(row.status)}>{row.status.toUpperCase()}</b>
+                  <b className={statusClass(row.status)}>{statusLabel(row.status)}</b>
                   <small title={row.detail}>{row.detail}</small>
                 </div>
               </div>
             ))}
           </div>
           <p className="settings-diagnostics-note">
-            Counters reset with the backend. Secrets, request bodies and private URLs are never
-            included.
+            These counts restart when Fyxtez closes. Your Binance keys and private information are
+            never shown here.
           </p>
         </>
       )}

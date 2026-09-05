@@ -3,11 +3,11 @@ import { useState } from "react";
 import {
   cancelLocalBackupRestore,
   chooseLocalBackup,
-  errorMessage,
   exportLocalBackup,
   restoreLocalBackup,
   type BackupInspection,
 } from "../../desktop/localBackup";
+import { userFacingError } from "../../utils/userFacingError";
 
 type Props = {
   forceExpanded: boolean;
@@ -37,7 +37,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
           : "Backup export cancelled.",
       );
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(userFacingError(reason, "Fyxtez could not create the backup."));
     } finally {
       setBusy(null);
     }
@@ -54,7 +54,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
       if (result) setCandidate(result);
       else setMessage("Restore cancelled.");
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(userFacingError(reason, "Fyxtez could not open this backup."));
     } finally {
       setBusy(null);
     }
@@ -64,7 +64,9 @@ export default function DataBackupSection({ forceExpanded }: Props) {
     setCandidate(null);
     setConfirmation("");
     setError(null);
-    await cancelLocalBackupRestore().catch((reason) => setError(errorMessage(reason)));
+    await cancelLocalBackupRestore().catch((reason) =>
+      setError(userFacingError(reason, "Fyxtez could not cancel the restore.")),
+    );
   };
 
   const confirmRestore = async () => {
@@ -81,7 +83,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
         `Restore completed. Safety copy kept as ${result.safetyBackupName}. Close and reopen Fyxtez to load every restored setting.`,
       );
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(userFacingError(reason, "Fyxtez could not restore this backup."));
     } finally {
       setBusy(null);
     }
@@ -93,7 +95,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
     try {
       await invoke("exit_app");
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(userFacingError(reason, "Fyxtez could not close. Please close it normally."));
       setBusy(null);
     }
   };
@@ -102,8 +104,8 @@ export default function DataBackupSection({ forceExpanded }: Props) {
     <section className="settings-section data-backup-section">
       <div className="settings-section-heading settings-section-heading-with-action">
         <div>
-          <h3>Local data backup</h3>
-          {isExpanded && <p>Move drawings, layouts and local app data between installations.</p>}
+          <h3>Backup and restore</h3>
+          {isExpanded && <p>Save your drawings, layouts and settings, or restore them later.</p>}
         </div>
         <button
           type="button"
@@ -120,8 +122,8 @@ export default function DataBackupSection({ forceExpanded }: Props) {
           <div className="data-backup-notice">
             <strong>Keys stay on this device</strong>
             <span>
-              Binance credentials, signing keys, logs and replaceable caches are never included. The
-              backup itself is not encrypted, so store it privately.
+              Binance keys, signing keys and activity logs are never included. The backup file is
+              readable by anyone who has it, so keep it private.
             </span>
           </div>
 
@@ -137,17 +139,16 @@ export default function DataBackupSection({ forceExpanded }: Props) {
           {candidate && (
             <div className="data-backup-confirmation">
               <div className="data-backup-summary">
-                <strong>Verified backup</strong>
+                <strong>Backup ready to restore</strong>
                 <span>Created {formatDate(candidate.createdAtUnixMs)}</span>
                 <span>
                   App {candidate.appVersion} · {formatBytes(candidate.sizeBytes)} ·{" "}
-                  {candidate.frontendKeyCount} local settings · {candidate.backendFiles.length}{" "}
-                  backend files
+                  {candidate.frontendKeyCount} settings · {candidate.backendFiles.length} saved data
+                  files
                 </span>
-                <code title={candidate.sha256}>SHA-256 {candidate.sha256.slice(0, 16)}…</code>
               </div>
               <label>
-                <span>Type RESTORE to replace local data</span>
+                <span>Type RESTORE to replace your saved drawings and settings</span>
                 <input
                   type="text"
                   value={confirmation}

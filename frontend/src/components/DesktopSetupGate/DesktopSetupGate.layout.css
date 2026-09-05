@@ -87,12 +87,26 @@
   padding: 14px 16px;
 }
 
-.desktop-mainnet-confirmation input {
+.desktop-mainnet-confirmation input[type="checkbox"] {
+  appearance: auto;
   accent-color: #e4485d;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 0 0 16px;
   height: 16px;
+  min-height: 16px;
+  min-width: 16px;
   margin: 0;
+  outline: 0;
   padding: 0;
   width: 16px;
+}
+
+.desktop-mainnet-confirmation input[type="checkbox"]:focus {
+  border: 0;
+  box-shadow: none;
 }
 
 .desktop-mainnet-confirmation span {

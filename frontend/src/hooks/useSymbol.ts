@@ -9,6 +9,7 @@ import {
 } from "../config/constants";
 import { getSymbolInfo, refreshSymbolMetadata } from "../config/symbols";
 import { listSymbols, type BackendSymbol } from "../trading/api/symbols";
+import { userFacingError } from "../utils/userFacingError";
 
 const SYMBOL_STORAGE_KEY = "fyxtez:current-symbol";
 
@@ -156,7 +157,7 @@ export function useSymbol() {
       // answer comes back (this effect re-runs on remount/retry).
       setRegistryReady(true);
     } catch (error) {
-      setSymbolRegistryError(error instanceof Error ? error.message : "Failed to load symbols");
+      setSymbolRegistryError(userFacingError(error, "Fyxtez could not load the symbol list."));
     }
   }, []);
 

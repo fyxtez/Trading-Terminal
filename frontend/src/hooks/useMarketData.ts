@@ -23,6 +23,7 @@ import { getSymbolFilters } from "../trading/api/exchangeInfo";
 import type { ChartRefs } from "./useChartRefs";
 import type { ConnectionState } from "./useTradingStream";
 import { formatSymbolPair } from "../config/symbols";
+import { userFacingError } from "../utils/userFacingError";
 import {
   loadSavedInterval,
   loadSavedViewport,
@@ -723,11 +724,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
             console.warn("[market-poll] failed", error);
             setMarketConnection("disconnected");
-            setMarketDataError(
-              error instanceof Error
-                ? `Live market data unavailable: ${error.message}`
-                : "Live market data unavailable",
-            );
+            setMarketDataError(userFacingError(error, "Live prices are temporarily unavailable."));
           }
         };
 
@@ -737,11 +734,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         refs.chartReadyRef.current = false;
         setIsChartLoading(false);
         setMarketConnection("disconnected");
-        setMarketDataError(
-          error instanceof Error
-            ? `Could not load market data: ${error.message}`
-            : "Could not load market data",
-        );
+        setMarketDataError(userFacingError(error, "Fyxtez could not load this chart."));
         console.error("Failed to load chart", error);
       }
     }

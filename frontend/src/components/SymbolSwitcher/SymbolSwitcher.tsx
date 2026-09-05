@@ -6,6 +6,7 @@ import { addSymbol, deleteSymbol } from "../../trading/api/symbols";
 import { clearSymbolLocalMetadata } from "../../utils/symbolMetadata";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
+import { userFacingError } from "../../utils/userFacingError";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   defaultSymbolCategory,
@@ -245,7 +246,7 @@ export default function SymbolSwitcher({
       setNewSymbol("");
       onChangeSymbol(`${result.symbol.symbol}USDT`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add symbol");
+      setError(userFacingError(err, "Fyxtez could not add this symbol."));
     } finally {
       setPending(null);
     }
@@ -279,7 +280,7 @@ export default function SymbolSwitcher({
       // here is the one case that really does mean the tab should go.
       onSymbolDeleted(candidate);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not delete symbol");
+      setError(userFacingError(err, "Fyxtez could not delete this symbol."));
     } finally {
       setPending(null);
     }

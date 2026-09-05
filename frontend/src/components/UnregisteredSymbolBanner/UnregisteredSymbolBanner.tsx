@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getSymbolInfo } from "../../config/symbols";
 import { addSymbol } from "../../trading/api/symbols";
+import { userFacingError } from "../../utils/userFacingError";
 import "./UnregisteredSymbolBanner.css";
 
 type UnregisteredSymbolBannerProps = {
@@ -40,22 +41,22 @@ export default function UnregisteredSymbolBanner({
       setStatus("idle");
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Could not register symbol");
+      setError(userFacingError(err, "Fyxtez could not add this symbol."));
     }
   };
 
   return (
     <div className="unregistered-symbol-banner" role="status">
       <span className="unregistered-symbol-banner-text">
-        <strong>{info.label}</strong> isn't registered on the currently connected backend
-        {error ? ` — ${error}` : " — price/precision shown may be inaccurate."}
+        <strong>{info.label}</strong> needs a quick setup before its chart can be shown accurately
+        {error ? ` — ${error}` : "."}
       </span>
       <button
         className="unregistered-symbol-banner-action"
         onClick={() => void handleRegister()}
         disabled={status === "pending"}
       >
-        {status === "pending" ? "Registering…" : status === "error" ? "Retry" : "Register here"}
+        {status === "pending" ? "Adding…" : status === "error" ? "Try again" : "Add symbol"}
       </button>
     </div>
   );

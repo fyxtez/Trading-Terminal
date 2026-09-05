@@ -699,6 +699,7 @@ export default function ChartPanel({
       onPointerDownCapture={handlePointerDown}
       onPointerMoveCapture={handlePointerMove}
       onPointerUpCapture={handlePointerUp}
+      onPointerCancelCapture={handlePointerUp}
       onPointerLeave={handlePointerLeave}
       onContextMenuCapture={onContextMenuCapture}
       onDoubleClick={onDoubleClick}
@@ -956,7 +957,7 @@ export default function ChartPanel({
       {!isChartLoading && marketDataError && (
         <div className="chart-market-degraded" role="alert">
           <div>
-            <strong>MARKET DATA DEGRADED</strong>
+            <strong>LIVE PRICES DELAYED</strong>
             <span>{marketDataError}</span>
           </div>
           <button type="button" onClick={onRetryMarketData}>

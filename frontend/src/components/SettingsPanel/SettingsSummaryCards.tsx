@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
+import { userFacingError } from "../../utils/userFacingError";
 
 type DesktopConnectionsSectionProps = {
   credentials: DesktopCredentialsContextValue;
@@ -44,7 +45,7 @@ export function DesktopConnectionsSection({
       .disconnectBinance()
       .then(() => setDisconnectConfirmationOpen(false))
       .catch((reason: unknown) => {
-        setDisconnectError(reason instanceof Error ? reason.message : String(reason));
+        setDisconnectError(userFacingError(reason, "Fyxtez could not disconnect Binance."));
       })
       .finally(() => setDisconnecting(false));
   };
@@ -52,7 +53,7 @@ export function DesktopConnectionsSection({
   return (
     <section className="settings-section settings-desktop-connections">
       <div className="settings-section-heading settings-section-heading-with-action">
-        <h3>Third-Party Connections</h3>
+        <h3>Exchange Connections</h3>
         <button
           type="button"
           className="settings-section-visibility-button"
@@ -99,8 +100,8 @@ export function DesktopConnectionsSection({
               <div>
                 <strong>Disconnect Binance?</strong>
                 <span>
-                  Trading will be disabled immediately. Charts, drawings and local settings will
-                  stay available.
+                  Trading will be disabled immediately. Your charts, drawings and settings will stay
+                  available.
                 </span>
               </div>
               {disconnectError && (

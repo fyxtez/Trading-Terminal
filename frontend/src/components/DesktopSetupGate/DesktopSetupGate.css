@@ -28,6 +28,9 @@
   overflow: hidden;
   width: 100%;
 }
+.desktop-setup-card.single-step {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
 .desktop-setup-header > div,
 .desktop-setup-body > *,
 .desktop-setup-fields,
@@ -318,17 +321,16 @@
     height: 100dvh;
   }
   .desktop-setup-header {
-    padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
   }
   .desktop-setup-header img {
     display: none;
   }
   .desktop-setup-header h1 {
-    font-size: 27px;
+    font-size: 24px;
   }
   .desktop-setup-header p {
-    font-size: 13px;
-    line-height: 1.35;
+    display: none;
   }
   .desktop-setup-steps {
     padding: 0 14px;
@@ -345,15 +347,28 @@
     width: 22px;
   }
   .desktop-setup-body {
-    gap: 18px;
-    padding: 18px 16px 24px;
+    align-content: start;
+    gap: 12px;
+    padding: 14px 16px 28px;
     scrollbar-gutter: auto;
   }
   .desktop-setup-step-copy h2 {
-    font-size: 28px;
+    font-size: 24px;
+    margin: 4px 0 6px;
   }
   .desktop-setup-step-copy p {
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .desktop-setup-fields {
+    gap: 12px;
+  }
+  .desktop-setup-fields aside {
+    gap: 4px;
+    padding: 10px 12px;
+  }
+  .desktop-setup-fields aside span {
+    line-height: 1.35;
   }
   .desktop-network-picker > div {
     gap: 8px;
@@ -363,7 +378,7 @@
     padding: 12px;
   }
   .desktop-mainnet-confirmation {
-    padding: 12px;
+    padding: 10px 12px;
   }
   .desktop-setup-actions {
     display: flex;

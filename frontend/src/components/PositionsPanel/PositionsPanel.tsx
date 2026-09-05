@@ -26,6 +26,7 @@ import {
   isSyntheticStopOrder,
 } from "./PositionRows";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import { userFacingError } from "../../utils/userFacingError";
 import "./PositionsPanel.css";
 import "./PositionRows.css";
 
@@ -254,7 +255,7 @@ export default function PositionsPanel({
       });
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
-      setStopCancelError(error instanceof Error ? error.message : "Unable to cancel stop loss");
+      setStopCancelError(userFacingError(error, "Fyxtez could not cancel this stop loss."));
     } finally {
       setCancellingStopSymbol(null);
     }
@@ -301,7 +302,12 @@ export default function PositionsPanel({
       }
 
       if (!result.completed) {
-        const message = result.errors.map((item) => `${item.symbol}: ${item.error}`).join(" · ");
+        const message = result.errors
+          .map(
+            (item) =>
+              `${item.symbol}: ${userFacingError(item.error, "Fyxtez could not complete this action.")}`,
+          )
+          .join(" · ");
         setCloseEverythingError(message || "Close Everything completed with errors");
       }
 
@@ -320,7 +326,7 @@ export default function PositionsPanel({
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
       setCloseEverythingError(
-        error instanceof Error ? error.message : "Unable to close all positions and orders",
+        userFacingError(error, "Fyxtez could not close all positions and orders."),
       );
     } finally {
       setIsClosingEverything(false);

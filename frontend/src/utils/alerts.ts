@@ -2,6 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { formatSymbolPair, getSymbolInfo } from "../config/symbols";
 import type { AlertPattern, PriceAlert } from "../types/alert";
 import { publishSystemNotice } from "../diagnostics/events";
+import { userFacingError } from "./userFacingError";
 
 const DEFAULT_PUBLIC_TERMINAL_URL = "https://demo.terminal.fyxtez.com";
 
@@ -114,7 +115,7 @@ export async function sendPriceAlertNotification(
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Notification request failed";
+    const message = userFacingError(error, "The notification could not be delivered");
     publishSystemNotice({
       kind: "warning",
       title: "Notification delivery failed",

@@ -199,7 +199,8 @@ export default function TradeMenu(props: TradeMenuProps) {
 
       {!isBackendConnected && (
         <div className="trade-backend-warning">
-          Backend disconnected — trading actions are disabled until it reconnects.
+          Trading is temporarily unavailable. Fyxtez will enable it again when the connection
+          returns.
         </div>
       )}
 

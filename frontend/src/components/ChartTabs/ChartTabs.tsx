@@ -4,6 +4,7 @@ import { getSymbolConfig, type TradingSymbol } from "../../config/constants";
 import { getSymbolInfo } from "../../config/symbols";
 import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
+import { userFacingError } from "../../utils/userFacingError";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import {
   loadSymbolCategories,
@@ -415,9 +416,7 @@ export default function ChartTabs({
                           })
                           .catch((error: unknown) => {
                             setDeleteError(
-                              error instanceof Error
-                                ? error.message
-                                : `Could not delete ${menuInfo.label}`,
+                              userFacingError(error, `Fyxtez could not delete ${menuInfo.label}.`),
                             );
                           })
                           .finally(() => setDeletingSymbol(null));

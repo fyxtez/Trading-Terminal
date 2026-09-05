@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { closePositionMarket, getPositions, type OpenPosition } from "../trading/api/positions";
 import type { TradeSide } from "../trading/types";
+import { userFacingError } from "../utils/userFacingError";
 
 const POST_CLOSE_REFRESH_DELAY_MS = 250;
 
@@ -74,7 +75,7 @@ export function usePositions(
         return;
       }
 
-      setError(caughtError instanceof Error ? caughtError.message : "Unable to load positions");
+      setError(userFacingError(caughtError, "Fyxtez could not load your positions."));
     } finally {
       if (mountedRef.current && requestId === refreshRequestIdRef.current) {
         setIsLoading(false);
@@ -190,7 +191,7 @@ export function usePositions(
           return;
         }
 
-        setError(caughtError instanceof Error ? caughtError.message : `Unable to close ${symbol}`);
+        setError(userFacingError(caughtError, `Fyxtez could not close ${symbol}.`));
 
         /*
          * Re-read the account because the exchange may have filled the order

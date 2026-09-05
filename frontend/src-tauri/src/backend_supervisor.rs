@@ -113,6 +113,16 @@ impl BackendSupervisor {
             .map_err(|_| "local backend restart timed out".to_string())?
     }
 
+    /// Queue a restart without making the setup screen wait for the complete
+    /// sidecar boot cycle. The API address and token remain stable across
+    /// restarts, while the frontend's normal health/retry path covers the brief
+    /// transition.
+    pub fn request_restart(&self) -> Result<(), String> {
+        self.commands
+            .send(SupervisorCommand::Restart)
+            .map_err(|_| "local backend supervisor is unavailable".to_string())
+    }
+
     pub async fn pause(&self) -> Result<(), String> {
         let (ack_tx, ack_rx) = oneshot::channel();
         self.commands

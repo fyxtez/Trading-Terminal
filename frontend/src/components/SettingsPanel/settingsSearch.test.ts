@@ -38,8 +38,8 @@ describe("buildSettingsSearchModel", () => {
     expect(telegram.hasAnySettingsSearchResult).toBe(false);
   });
 
-  it("finds uncertain operation recovery under diagnostics", () => {
-    const model = buildSettingsSearchModel("uncertain operation", true, sizingFields);
+  it("finds the previous-action check under app status", () => {
+    const model = buildSettingsSearchModel("previous action", true, sizingFields);
     expect(model.showDiagnostics).toBe(true);
     expect(model.hasAnySettingsSearchResult).toBe(true);
   });

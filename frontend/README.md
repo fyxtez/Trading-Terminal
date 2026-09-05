@@ -61,13 +61,12 @@ background execution is not yet guaranteed.
 `src-tauri/app-icon.svg` is the editable application-icon source. Regenerate
 platform assets after changing it with `npx tauri icon src-tauri/app-icon.svg`.
 
-The first-run wizard contains separate Binance, ntfy and Telegram steps. All can
-be skipped and managed later under Settings → Third-Party Connections. A Binance
-connection requires an explicit Mainnet or Testnet selection; Mainnet also
-requires confirmation that real funds are involved. Skipping Binance starts
-chart-only mode and suppresses private account/order requests.
-Notification destinations are read by native Rust from the OS credential store;
-they are never compiled into Vite or returned to React.
+The first-run wizard offers one optional Binance connection, which can be
+managed later under Settings → Exchange Connections. A Binance connection
+requires an explicit Live or Practice selection; Live also requires confirmation
+that real funds are involved. Skipping Binance starts chart-only mode and
+suppresses private account/order requests. The dormant ntfy/Telegram code is not
+exposed by the product UI.
 
 The drawing canvas implementation lives under
 [`src/hooks/useDrawingCanvas`](src/hooks/useDrawingCanvas/README.md). Its public

@@ -59,6 +59,16 @@ const intervalGroups: { label: string; values: readonly Interval[] }[] = [
   { label: "Other", values: ["1d", "1w", "1M"] },
 ];
 
+function connectionDescription(
+  label: "Fyxtez" | "Live prices" | "Account updates",
+  state: ConnectionState,
+): string {
+  if (state === "connected") return `${label} ready`;
+  if (state === "connecting") return `${label} connecting`;
+  if (state === "disabled") return `${label} not in use`;
+  return `${label} trying to reconnect`;
+}
+
 export default function Topbar({
   symbol,
   availableSymbols,
@@ -199,34 +209,34 @@ export default function Topbar({
           className={`topbar-connection-item ${backendConnection}`}
           title={
             backendConnection === "disconnected" && onRetryBackend
-              ? "Backend disconnected — click to retry"
-              : `Backend: ${backendConnection}`
+              ? "Fyxtez is not ready — click to try again"
+              : connectionDescription("Fyxtez", backendConnection)
           }
           disabled={backendConnection !== "disconnected" || !onRetryBackend}
           onClick={onRetryBackend}
         >
           <span className="topbar-connection-dot" />
-          <span>BACKEND</span>
+          <span>APP</span>
         </button>
 
         <div
           className={`topbar-connection-item ${marketConnection}`}
-          title={`Market data (klines): ${marketConnection}`}
+          title={connectionDescription("Live prices", marketConnection)}
         >
           <span className="topbar-connection-dot" />
-          <span>MARKET</span>
+          <span>PRICES</span>
         </div>
 
         <div
           className={`topbar-connection-item ${websocketConnection}`}
           title={
             websocketConnection === "disabled"
-              ? "Connect Binance in Settings to enable account streaming"
-              : `Trading WebSocket: ${websocketConnection}`
+              ? "Connect Binance in Settings to enable trading"
+              : connectionDescription("Account updates", websocketConnection)
           }
         >
           <span className="topbar-connection-dot" />
-          <span>{websocketConnection === "disabled" ? "CHART ONLY" : "STREAM"}</span>
+          <span>{websocketConnection === "disabled" ? "VIEW ONLY" : "ACCOUNT"}</span>
         </div>
       </div>
 

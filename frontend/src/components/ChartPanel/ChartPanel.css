@@ -30,7 +30,9 @@
 .chart-interaction-shield {
   position: absolute;
   inset: 0;
-  z-index: 1000;
+  /* Stay above the canvas, but below the drawing toolbar and chart buttons so
+   * an active mobile tool can always be cancelled. */
+  z-index: 190;
   cursor: ns-resize;
   pointer-events: auto;
   touch-action: none;

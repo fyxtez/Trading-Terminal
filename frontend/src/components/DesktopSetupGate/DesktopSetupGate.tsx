@@ -13,6 +13,7 @@ import "./DesktopSetupGate.css";
 import "./DesktopSetupGate.layout.css";
 import { useAndroidBackNavigation } from "../../hooks/useAndroidBackNavigation";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
+import { userFacingError } from "../../utils/userFacingError";
 
 const emptyStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
@@ -51,7 +52,7 @@ const allSteps = [
     short: "BINANCE",
     title: "Connect Binance",
     description:
-      "Connect a dedicated Binance API key to enable balances, positions and real order execution. Charting and drawing tools work without it.",
+      "Connect Binance to view your account and place orders. You can also skip this and use charts only.",
   },
   {
     key: "ntfy",
@@ -164,7 +165,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       .catch((reason: unknown) => {
         setStatus(emptyStatus);
         setDesktopCredentialStatus(emptyStatus);
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(userFacingError(reason, "Fyxtez could not check your saved connections."));
         setCredentialStatusFailed(true);
         // A locked, unavailable or incomplete credential store is not the same
         // as an unconfigured account. Keep trading disabled and open the styled
@@ -203,18 +204,21 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     setValues((current) => ({ ...current, [name]: value }));
   }
 
-  const finish = () => {
+  const finish = (skipCurrentStep = false) => {
     setSaving(true);
     setError(null);
+    const skipBinance = skipCurrentStep && activeStep?.key === "binance";
+    const skipNtfy = skipCurrentStep && activeStep?.key === "ntfy";
+    const skipTelegram = skipCurrentStep && activeStep?.key === "telegram";
     void invoke<DesktopCredentialStatus>("save_credentials", {
       input: {
-        binanceApiKey: values.binanceApiKey.trim() || null,
-        binanceApiSecret: values.binanceApiSecret.trim() || null,
-        binanceNetwork: values.binanceNetwork || null,
-        confirmMainnet: values.confirmMainnet,
-        ntfyUrl: values.ntfyUrl.trim() || null,
-        telegramBotToken: values.telegramBotToken.trim() || null,
-        telegramChatId: values.telegramChatId.trim() || null,
+        binanceApiKey: skipBinance ? null : values.binanceApiKey.trim() || null,
+        binanceApiSecret: skipBinance ? null : values.binanceApiSecret.trim() || null,
+        binanceNetwork: skipBinance ? null : values.binanceNetwork || null,
+        confirmMainnet: skipBinance ? false : values.confirmMainnet,
+        ntfyUrl: skipNtfy ? null : values.ntfyUrl.trim() || null,
+        telegramBotToken: skipTelegram ? null : values.telegramBotToken.trim() || null,
+        telegramChatId: skipTelegram ? null : values.telegramChatId.trim() || null,
       },
     })
       .then((next) => {
@@ -225,7 +229,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
         setShowSetup(false);
       })
       .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
+        setError(userFacingError(reason, "Fyxtez could not save this connection.")),
       )
       .finally(() => setSaving(false));
   };
@@ -246,22 +250,25 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       .catch((reason: unknown) => {
         setStatus(emptyStatus);
         setDesktopCredentialStatus(emptyStatus);
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(userFacingError(reason, "Fyxtez could not check your saved connections."));
         setCredentialStatusFailed(true);
       })
       .finally(() => setSaving(false));
   };
 
   const next = () => {
-    if (
-      activeStep?.key === "binance" &&
-      Boolean(values.binanceApiKey) !== Boolean(values.binanceApiSecret)
-    ) {
+    const binanceApiKey = values.binanceApiKey.trim();
+    const binanceApiSecret = values.binanceApiSecret.trim();
+    if (activeStep?.key === "binance" && !binanceApiKey && !binanceApiSecret) {
+      setError("Enter both Binance fields, or choose Skip.");
+      return;
+    }
+    if (activeStep?.key === "binance" && Boolean(binanceApiKey) !== Boolean(binanceApiSecret)) {
       setError("Enter both Binance fields, or skip this step.");
       return;
     }
-    if (activeStep?.key === "binance" && values.binanceApiKey && !values.binanceNetwork) {
-      setError("Choose Binance Mainnet or Testnet.");
+    if (activeStep?.key === "binance" && binanceApiKey && !values.binanceNetwork) {
+      setError("Choose real or practice trading.");
       return;
     }
     if (
@@ -269,7 +276,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       values.binanceNetwork === "mainnet" &&
       !values.confirmMainnet
     ) {
-      setError("Confirm that Mainnet orders use real funds.");
+      setError("Confirm that real trading uses real funds.");
       return;
     }
     if (
@@ -293,7 +300,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const skip = () => {
     setError(null);
     if (!isLastStep) setStep((current) => current + 1);
-    else finish();
+    else finish(true);
   };
 
   const closeSetup = () => {
@@ -337,11 +344,11 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
 
   const wizard = showSetup && activeStep && (
     <main className="desktop-setup">
-      <section className="desktop-setup-card">
+      <section className={`desktop-setup-card ${activeSteps.length === 1 ? "single-step" : ""}`}>
         <header className="desktop-setup-header">
           <img src="/fyxtez-f-mark-alpha.png" alt="" />
           <div>
-            <small>LOCAL APP SETUP</small>
+            <small>ACCOUNT SETUP</small>
             <h1>
               {editingSingleConnection
                 ? `${configured ? "Edit" : "Connect"} ${activeStep.short.toLowerCase()}`
@@ -351,29 +358,33 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           </div>
         </header>
 
-        <nav
-          className="desktop-setup-steps"
-          aria-label="Setup progress"
-          style={{
-            gridTemplateColumns: `repeat(${activeSteps.length}, minmax(0, 1fr))`,
-          }}
-        >
-          {activeSteps.map((item, index) => (
-            <div
-              className={`${index === step ? "active" : ""} ${index < step ? "done" : ""}`}
-              key={item.short}
-            >
-              <b>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</b>
-              <span>{item.short}</span>
-            </div>
-          ))}
-        </nav>
+        {activeSteps.length > 1 && (
+          <nav
+            className="desktop-setup-steps"
+            aria-label="Setup progress"
+            style={{
+              gridTemplateColumns: `repeat(${activeSteps.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {activeSteps.map((item, index) => (
+              <div
+                className={`${index === step ? "active" : ""} ${index < step ? "done" : ""}`}
+                key={item.short}
+              >
+                <b>{index < step ? "✓" : String(index + 1).padStart(2, "0")}</b>
+                <span>{item.short}</span>
+              </div>
+            ))}
+          </nav>
+        )}
 
         <div className="desktop-setup-body">
           <div className="desktop-setup-step-copy">
-            <span>
-              STEP {stepNumber} OF {stepCount}
-            </span>
+            {activeSteps.length > 1 && (
+              <span>
+                STEP {stepNumber} OF {stepCount}
+              </span>
+            )}
             <h2>{activeStep.title}</h2>
             <p>{activeStep.description}</p>
             {configured && <em>Already configured. Saving new values replaces this connection.</em>}
@@ -382,15 +393,14 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           {activeStep.key === "binance" && (
             <div className="desktop-setup-fields">
               <aside>
-                <strong>Use a dedicated API key</strong>
+                <strong>Use separate keys for Fyxtez</strong>
                 <span>
-                  Enable Futures trading only if needed. Never enable withdrawals. Prefer an IP
-                  restriction when practical.
+                  Allow Futures trading, never withdrawals. Add an IP restriction if you can.
                 </span>
               </aside>
               <fieldset className="desktop-network-picker">
-                <legend>Binance environment</legend>
-                <div role="radiogroup" aria-label="Binance environment">
+                <legend>Choose how to trade</legend>
+                <div role="radiogroup" aria-label="Choose how to trade">
                   <button
                     type="button"
                     className={values.binanceNetwork === "mainnet" ? "selected danger" : ""}
@@ -400,8 +410,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                       setValue("confirmMainnet", false);
                     }}
                   >
-                    <strong>MAINNET</strong>
-                    <span>Real funds and real orders</span>
+                    <strong>LIVE</strong>
+                    <span>Binance Mainnet · real funds</span>
                   </button>
                   <button
                     type="button"
@@ -412,8 +422,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                       setValue("confirmMainnet", false);
                     }}
                   >
-                    <strong>TESTNET</strong>
-                    <span>Test funds and test orders</span>
+                    <strong>PRACTICE</strong>
+                    <span>Binance Testnet · test funds</span>
                   </button>
                 </div>
               </fieldset>
@@ -428,7 +438,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 </label>
               )}
               <label>
-                Binance API key
+                API key from Binance
                 <input
                   value={values.binanceApiKey}
                   onChange={(event) => setValue("binanceApiKey", event.target.value)}
@@ -436,7 +446,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 />
               </label>
               <label>
-                Binance API secret
+                Secret key from Binance
                 <input
                   value={values.binanceApiSecret}
                   onChange={(event) => setValue("binanceApiSecret", event.target.value)}
@@ -521,7 +531,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           ) : (
             <i />
           )}
-          <span>Secrets stay in your device credential manager.</span>
+          <span>Your Binance keys stay protected on this device.</span>
           <div>
             {credentialStatusFailed && (
               <button
@@ -530,12 +540,12 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                 disabled={saving}
                 onClick={retryCredentialStatus}
               >
-                RETRY CREDENTIAL STORE
+                TRY SAVED CONNECTIONS AGAIN
               </button>
             )}
             {!editingSingleConnection && (
               <button className="skip" type="button" disabled={saving} onClick={skip}>
-                {isLastStep ? "SKIP & FINISH" : "SKIP STEP"}
+                {isLastStep ? "SKIP" : "SKIP STEP"}
               </button>
             )}
             <button
@@ -546,10 +556,10 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
             >
               {credentialStatusFailed
                 ? saving
-                  ? "SAVING…"
-                  : "SAVE REPLACEMENT"
+                  ? "CHECKING…"
+                  : "SAVE NEW KEYS"
                 : saving
-                  ? "SAVING…"
+                  ? "CHECKING…"
                   : editingSingleConnection
                     ? "SAVE"
                     : isLastStep
@@ -569,8 +579,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           <div className="desktop-setup-loading">
             <LoadingIndicator
               variant="panel"
-              label="Opening credential store"
-              detail="Reading connection status securely from this device."
+              label="Checking saved connections"
+              detail="Looking for Binance accounts already connected on this device."
             />
           </div>
         </main>

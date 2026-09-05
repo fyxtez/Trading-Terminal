@@ -196,6 +196,7 @@ async fn save_credentials(
     input: CredentialInput,
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
+    let mut restart_required = false;
     if !EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
         && (input.ntfy_url.is_some()
             || input.telegram_bot_token.is_some()
@@ -254,6 +255,7 @@ async fn save_credentials(
                     (BINANCE_NETWORK, Some(network)),
                 ],
             )?;
+            restart_required = true;
         }
         (None, None) => {}
         _ => return Err("Enter both the Binance API key and secret".into()),
@@ -267,8 +269,11 @@ async fn save_credentials(
     if input.telegram_chat_id.is_some() {
         store_optional("telegram-chat-id", normalized_telegram_chat_id.as_deref())?;
     }
-    supervisor.restart().await?;
-    credential_status()
+    let status = credential_status()?;
+    if restart_required {
+        supervisor.request_restart()?;
+    }
+    Ok(status)
 }
 
 fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {

@@ -15,6 +15,7 @@ import { priceAlertsStorageKey } from "../../config/constants";
 import { PRICE_ALERTS_ENABLED } from "../../config/features";
 import { formatSymbolPair } from "../../config/symbols";
 import { loadStoredAlerts } from "../../utils/alerts";
+import { userFacingError } from "../../utils/userFacingError";
 import { listAllPersistentPriceAlerts, type ListedPriceAlert } from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
@@ -323,7 +324,7 @@ export default function SettingsPanel({
       setListedPriceAlerts(localAlerts());
       setAlertsListError(
         persistentAlertsEnabled && backendConnection !== "connected"
-          ? "Backend unavailable — showing locally cached alerts."
+          ? "Live alert updates are unavailable. Showing the last saved alerts."
           : null,
       );
       setIsLoadingAlerts(false);
@@ -362,7 +363,7 @@ export default function SettingsPanel({
       .catch((error: unknown) => {
         if (cancelled) return;
         setListedPriceAlerts(localAlerts());
-        setAlertsListError(error instanceof Error ? error.message : "Unable to load active alerts");
+        setAlertsListError(userFacingError(error, "Fyxtez could not load your saved alerts."));
       })
       .finally(() => {
         if (!cancelled) setIsLoadingAlerts(false);
@@ -592,7 +593,7 @@ export default function SettingsPanel({
         }
 
         setAvailableBalance(null);
-        setBalanceError(error instanceof Error ? error.message : "Unable to load balance");
+        setBalanceError(userFacingError(error, "Fyxtez could not load your available balance."));
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -610,7 +611,7 @@ export default function SettingsPanel({
           return;
         }
 
-        setSizingError(error instanceof Error ? error.message : "Unable to load sizing");
+        setSizingError(userFacingError(error, "Fyxtez could not load your trade sizing."));
       });
 
     return () => controller.abort();
@@ -691,7 +692,7 @@ export default function SettingsPanel({
         return;
       }
 
-      setSizingError(error instanceof Error ? error.message : "Failed to update sizing");
+      setSizingError(userFacingError(error, "Fyxtez could not update your trade sizing."));
 
       setDraftSizing(sizing);
     } finally {
@@ -984,7 +985,7 @@ export default function SettingsPanel({
             <section className="settings-section">
               <div className="settings-section-heading settings-section-heading-with-action">
                 <div>
-                  <h3>Margin configuration</h3>
+                  <h3>Trade sizing</h3>
                   {isMarginSectionVisible && (
                     <p>Select a value to edit it. Changes save automatically.</p>
                   )}
@@ -1003,7 +1004,8 @@ export default function SettingsPanel({
                 <>
                   {!isBackendConnected && (
                     <div className="settings-error settings-backend-warning">
-                      Backend disconnected — margin settings are read-only until it reconnects.
+                      Trade sizing cannot be changed right now. Fyxtez will enable it when the
+                      connection returns.
                     </div>
                   )}
 
@@ -1070,7 +1072,7 @@ export default function SettingsPanel({
                               {isSaving
                                 ? "Saving…"
                                 : !isBackendConnected
-                                  ? "Disconnected"
+                                  ? "Unavailable"
                                   : isActive
                                     ? "Editing"
                                     : "Edit"}

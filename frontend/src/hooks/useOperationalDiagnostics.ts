@@ -9,6 +9,7 @@ import {
 } from "../trading/api/diagnostics";
 import { forgetFinancialIntent } from "../trading/api/financialMutation";
 import { SYSTEM_NOTICE_EVENT, publishSystemNotice, type SystemNotice } from "../diagnostics/events";
+import { userFacingError } from "../utils/userFacingError";
 
 const DIAGNOSTICS_REFRESH_MS = 5_000;
 
@@ -55,7 +56,7 @@ export function useOperationalDiagnostics({
 
   const refresh = useCallback(async () => {
     if (backendConnection !== "connected") {
-      setError("Backend diagnostics unavailable");
+      setError("App status is temporarily unavailable.");
       return;
     }
 
@@ -86,7 +87,7 @@ export function useOperationalDiagnostics({
       setError(null);
       setRefreshedAt(Date.now());
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : "Diagnostics unavailable");
+      setError(userFacingError(refreshError, "App status is temporarily unavailable."));
     } finally {
       setIsLoading(false);
     }
@@ -101,13 +102,13 @@ export function useOperationalDiagnostics({
         forgetFinancialIntent(intentId);
         publishSystemNotice({
           kind: "success",
-          title: "Uncertain operation resolved",
-          message: "Binance state was refreshed. No order was replayed.",
+          title: "Previous action checked",
+          message: "Your Binance account is up to date. Fyxtez did not place another order.",
         });
         await refresh();
       } catch (resolveError) {
         setResolutionError(
-          resolveError instanceof Error ? resolveError.message : "Unable to resolve operation",
+          userFacingError(resolveError, "Fyxtez could not complete this check. Please try again."),
         );
         throw resolveError;
       } finally {

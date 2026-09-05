@@ -4,12 +4,12 @@
    * Chart overlays top out around z-index 240, while topbar popovers use
    * z-index 400+, so 260 puts this layer in the correct middle ground. */
   z-index: 260;
-  height: 34px;
+  height: 41px;
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
   gap: 4px;
-  padding: 4px 8px 0;
+  padding: 4px 8px 1px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
@@ -20,10 +20,11 @@
   max-width: calc(100% - 36px);
   flex: 0 1 auto;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 3px;
   overflow-x: auto;
   overflow-y: hidden;
+  height: 36px;
   scrollbar-width: thin;
   scrollbar-color: rgba(245, 166, 35, 0.5) rgba(255, 255, 255, 0.035);
 }
@@ -171,6 +172,7 @@
 .chart-tab-add-wrap {
   position: relative;
   flex-shrink: 0;
+  height: 29px;
 }
 
 .chart-tab-add {

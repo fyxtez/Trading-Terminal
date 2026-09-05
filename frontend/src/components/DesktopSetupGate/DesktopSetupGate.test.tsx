@@ -80,11 +80,11 @@ describe("DesktopSetupGate", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit Binance" }));
 
-    expect(screen.getByRole("button", { name: /TESTNET/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /MAINNET/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /PRACTICE/ })).toHaveAttribute(
       "aria-pressed",
-      "false",
+      "true",
     );
+    expect(screen.getByRole("button", { name: /LIVE/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("blocks trading immediately while native Binance disconnect is pending", async () => {
@@ -194,18 +194,18 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    fireEvent.change(screen.getByLabelText("Binance API key"), {
+    fireEvent.change(screen.getByLabelText("API key from Binance"), {
       target: { value: "api-key" },
     });
-    fireEvent.change(screen.getByLabelText("Binance API secret"), {
+    fireEvent.change(screen.getByLabelText("Secret key from Binance"), {
       target: { value: "api-secret" },
     });
     fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
-    expect(screen.getByText("Choose Binance Mainnet or Testnet.")).toBeVisible();
+    expect(screen.getByText("Choose real or practice trading.")).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
+    fireEvent.click(screen.getByRole("button", { name: /LIVE/ }));
     fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
-    expect(screen.getByText("Confirm that Mainnet orders use real funds.")).toBeVisible();
+    expect(screen.getByText("Confirm that real trading uses real funds.")).toBeVisible();
 
     fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
     fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
@@ -234,13 +234,13 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    fireEvent.change(screen.getByLabelText("Binance API key"), {
+    fireEvent.change(screen.getByLabelText("API key from Binance"), {
       target: { value: "withdrawal-enabled-key" },
     });
-    fireEvent.change(screen.getByLabelText("Binance API secret"), {
+    fireEvent.change(screen.getByLabelText("Secret key from Binance"), {
       target: { value: "api-secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /MAINNET/ }));
+    fireEvent.click(screen.getByRole("button", { name: /LIVE/ }));
     fireEvent.click(screen.getByLabelText("I understand that this connection can use real funds."));
     fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
 
@@ -279,16 +279,16 @@ describe("DesktopSetupGate", () => {
       </DesktopSetupGate>,
     );
 
-    const error = await screen.findByText(/credentials are incomplete\. Trading is blocked/);
+    const error = await screen.findByText(/could not open your saved connections/);
     expect(error).toHaveClass("desktop-setup-error");
     expect(screen.getByRole("heading", { name: "Connect binance" })).toBeVisible();
     expect(screen.getByText("Terminal")).toBeVisible();
     expect(canUseTradingAccount()).toBe(false);
-    expect(screen.getByRole("button", { name: "SAVE REPLACEMENT" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "SAVE NEW KEYS" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "RETRY CREDENTIAL STORE" }));
+    fireEvent.click(screen.getByRole("button", { name: "TRY SAVED CONNECTIONS AGAIN" }));
     await waitFor(() =>
-      expect(screen.queryByText(/credentials are incomplete/)).not.toBeInTheDocument(),
+      expect(screen.queryByText(/could not open your saved connections/)).not.toBeInTheDocument(),
     );
     expect(statusAttempts).toBe(2);
     expect(screen.queryByRole("heading", { name: "Connect binance" })).not.toBeInTheDocument();
@@ -316,16 +316,16 @@ describe("DesktopSetupGate", () => {
       </DesktopSetupGate>,
     );
 
-    await screen.findByText("Stored Binance credentials are incomplete");
-    fireEvent.click(screen.getByRole("button", { name: /TESTNET/ }));
-    fireEvent.change(screen.getByLabelText("Binance API key"), {
+    await screen.findByText(/could not open your saved connections/);
+    fireEvent.click(screen.getByRole("button", { name: /PRACTICE/ }));
+    fireEvent.change(screen.getByLabelText("API key from Binance"), {
       target: { value: "replacement-key" },
     });
-    fireEvent.change(screen.getByLabelText("Binance API secret"), {
+    fireEvent.change(screen.getByLabelText("Secret key from Binance"), {
       target: { value: "replacement-secret" },
     });
 
-    const save = screen.getByRole("button", { name: "SAVE REPLACEMENT" });
+    const save = screen.getByRole("button", { name: "SAVE NEW KEYS" });
     expect(save).toBeEnabled();
     fireEvent.click(save);
 
@@ -352,7 +352,7 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    fireEvent.click(screen.getByRole("button", { name: "SKIP & FINISH" }));
+    fireEvent.click(screen.getByRole("button", { name: "SKIP" }));
 
     await waitFor(() => expect(screen.getByText("Terminal")).toBeVisible());
     expect(invokeMock).toHaveBeenCalledWith("save_credentials", {
@@ -376,8 +376,29 @@ describe("DesktopSetupGate", () => {
     );
 
     await screen.findByRole("heading", { name: "Connect Binance" });
-    expect(screen.getByText("STEP 01 OF 01")).toBeVisible();
+    expect(screen.queryByText("STEP 01 OF 01")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Setup progress" })).not.toBeInTheDocument();
     expect(screen.queryByText(/ntfy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/telegram/i)).not.toBeInTheDocument();
+  });
+
+  it("does not treat empty or whitespace-only Binance fields as a saved connection", async () => {
+    render(
+      <DesktopSetupGate>
+        <div>Terminal</div>
+      </DesktopSetupGate>,
+    );
+
+    await screen.findByRole("heading", { name: "Connect Binance" });
+    fireEvent.change(screen.getByLabelText("API key from Binance"), {
+      target: { value: "   " },
+    });
+    fireEvent.change(screen.getByLabelText("Secret key from Binance"), {
+      target: { value: "\t" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "FINISH" }));
+
+    expect(screen.getByText("Enter both Binance fields, or choose Skip.")).toBeVisible();
+    expect(invokeMock.mock.calls.some(([command]) => command === "save_credentials")).toBe(false);
   });
 });

@@ -23,7 +23,7 @@ export function buildSettingsSearchModel(
     !isSearchingSettings || parts.filter(Boolean).join(" ").toLowerCase().includes(normalizedQuery);
 
   const marginSectionTitleMatches = matches(
-    "Margin configuration",
+    "Trade sizing",
     "margin leverage sizing position order risk",
   );
   const matchingSizingFieldNames = sizingFields
@@ -100,17 +100,17 @@ export function buildSettingsSearchModel(
   const showDesktopConnections =
     isDesktop &&
     matches(
-      "Third-Party Connections Binance credentials API key",
+      "Exchange Connections Binance account API key",
       EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
     );
   const showDiagnostics = matches(
-    "Diagnostics sidecar backend exchange connectivity market data user stream freshness reconciliation drift rejected duplicate requests health uncertain operation intent recovery blocked exposure Binance order history",
+    "App status connection Binance trading live prices account updates previous action blocked repeated actions order history",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
   );
   const showDataBackup =
     isDesktop &&
     matches(
-      "Local data backup",
+      "Backup and restore",
       "export restore migrate drawings layouts settings safety copy archive",
     );
   const hasAnySettingsSearchResult =

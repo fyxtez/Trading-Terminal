@@ -13,7 +13,8 @@ impact of a local credential compromise.
 Testnet keys cannot withdraw real funds. Mainnet keys expose their current
 permissions through Binance's signed
 [`GET /sapi/v1/account/apiRestrictions`](https://developers.binance.com/en/docs/catalog/core-trading-wallet/api/rest-api/account#get-api-key-permission)
-endpoint.
+endpoint. Testnet still needs credential and Futures-access validation, which is
+available through its signed Futures account endpoint.
 
 ## Decision
 
@@ -29,10 +30,14 @@ passes the secret to the WebView, backend URL, logs, or local files. Failure to
 reach Binance, authenticate, or parse the permission response fails closed:
 nothing from the candidate Binance pair is written to the credential store.
 The UI asks for a new restricted Futures key when withdrawals are enabled.
+For Testnet, the native layer signs `GET /fapi/v3/account` against the selected
+Testnet host and requires `canTrade=true` before storing the keys.
 
 ## Consequences
 
 - Withdrawal-enabled Mainnet credentials cannot be newly connected.
+- Invalid Testnet credentials or Testnet accounts without Futures trading access
+  cannot be newly connected.
 - Invalid, wrong-network, IP-blocked, or insufficiently privileged keys fail at
   setup time instead of leaving a misleading connected state.
 - Mainnet credential setup requires temporary access to both

@@ -41,12 +41,14 @@ describe("DiagnosticsSection uncertain operation recovery", () => {
     const value = diagnostics();
     render(<DiagnosticsSection diagnostics={value} isExpanded onToggle={vi.fn()} />);
 
-    expect(screen.getByText("New entries and ADD are blocked")).toBeVisible();
-    expect(screen.getByText(/Cancel, Reduce, Stop Loss, Close Position/)).toBeVisible();
-    const resolveButton = screen.getByRole("button", { name: "RECONCILE & RESOLVE" });
+    expect(screen.getByText("Opening or adding to positions is paused")).toBeVisible();
+    expect(screen.getByText(/cancel orders, reduce risk, use a stop loss/)).toBeVisible();
+    const resolveButton = screen.getByRole("button", {
+      name: "I CHECKED BINANCE — CONTINUE",
+    });
     expect(resolveButton).toBeDisabled();
 
-    fireEvent.change(screen.getByRole("textbox", { name: /Confirmation for uncertain/ }), {
+    fireEvent.change(screen.getByRole("textbox", { name: /Confirmation for the action/ }), {
       target: { value: "I VERIFIED BINANCE" },
     });
     expect(resolveButton).toBeEnabled();

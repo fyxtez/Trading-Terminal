@@ -8,6 +8,7 @@ import {
 } from "../trading/api/orders";
 import type { MarketOrderFill } from "../trading/types";
 import { isStaleOrderError } from "../trading/errors";
+import { userFacingError } from "../utils/userFacingError";
 
 /*
  * same resilience gap as usePositions.ts (see the comment there for
@@ -69,7 +70,7 @@ export function useOpenOrders(
           return;
         }
 
-        setError(caughtError instanceof Error ? caughtError.message : "Unable to load open orders");
+        setError(userFacingError(caughtError, "Fyxtez could not load your open orders."));
       } finally {
         if (mountedRef.current && requestId === requestIdRef.current) {
           setIsLoading(false);
@@ -137,7 +138,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to cancel order ${order.orderId}`;
 
-        setError(message);
+        setError(userFacingError(caughtError, "Fyxtez could not cancel this order."));
 
         /*
          * this used to only call
@@ -193,7 +194,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to update reduce order ${order.orderId}`;
 
-        setError(message);
+        setError(userFacingError(caughtError, "Fyxtez could not update this order."));
 
         // Same reasoning as cancelOrder's own catch above - don't wait
         // on refresh() (which can itself keep failing) to notice a
@@ -261,7 +262,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to chase order ${order.orderId}`;
 
-        setError(message);
+        setError(userFacingError(caughtError, "Fyxtez could not complete this order."));
 
         // Same reasoning as cancelOrder/updateReduceOrder's own catches.
         if (isStaleOrderError(message)) {

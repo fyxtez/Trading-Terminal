@@ -20,15 +20,14 @@ export default class AppErrorBoundary extends Component<{ children: ReactNode },
     return (
       <main className="app-error-boundary" role="alert">
         <div>
-          <span>FRONTEND RECOVERY</span>
-          <h1>The terminal could not render safely.</h1>
+          <span>FYXTEZ RECOVERY</span>
+          <h1>Something went wrong on this screen.</h1>
           <p>
-            Trading controls are unavailable until the interface is reloaded. The local backend and
-            any already-completed exchange action are not rolled back by this display error.
+            Trading is paused until the screen reloads. Any action Binance already completed stays
+            completed.
           </p>
-          <code>{this.state.error.message || "Unknown frontend error"}</code>
           <button type="button" onClick={() => window.location.reload()}>
-            RELOAD TERMINAL
+            RELOAD FYXTEZ
           </button>
         </div>
       </main>

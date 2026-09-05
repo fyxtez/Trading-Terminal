@@ -9,6 +9,7 @@ import type { UTCTimestamp } from "lightweight-charts";
 import { DEFAULT_BOX_COLOR, DEFAULT_LINE_COLOR } from "../../config/constants";
 import { cloneDrawing, getTextFontSize } from "../../utils/drawings";
 import { startPacedLoop } from "../../utils/pacedLoop";
+import { userFacingError } from "../../utils/userFacingError";
 import type {
   ContextMenuState,
   DragState,
@@ -409,7 +410,7 @@ export function useDrawingCanvas(
         window.dispatchEvent(new Event("orders-state-changed"));
         tradeMenuApi.setTradeToast({
           kind: "error",
-          message: error instanceof Error ? error.message : "Failed to update take-profit size",
+          message: userFacingError(error, "Fyxtez could not update the take-profit size."),
         });
       });
   };
@@ -719,7 +720,8 @@ export function useDrawingCanvas(
       if (drawing.orderId === undefined || !drawing.orderSymbol || !drawing.orderSide) {
         tradeMenuApi.setTradeToast({
           kind: "error",
-          message: "This order line has incomplete Binance metadata.",
+          message:
+            "This order is missing information needed to manage it. Remove it and place the order again.",
         });
         return;
       }
@@ -753,7 +755,7 @@ export function useDrawingCanvas(
 
           tradeMenuApi.setTradeToast({
             kind: "error",
-            message: error instanceof Error ? error.message : "Failed to chase limit order",
+            message: userFacingError(error, "Fyxtez could not complete this order."),
           });
         });
 
@@ -848,7 +850,7 @@ export function useDrawingCanvas(
             kind: "error",
             message: staleOrder
               ? "This order no longer exists. Open Orders was refreshed."
-              : message,
+              : userFacingError(error, "Fyxtez could not cancel this order."),
           });
         });
 
@@ -1571,6 +1573,7 @@ export function useDrawingCanvas(
     isPlacingOrderLine: armedOrderLineId !== null,
     isDrawingInteractionActive:
       drawingsApi.tool !== "cursor" ||
+      drawingsApi.selectedId !== null ||
       isDirectManipulationActive ||
       isGroupMarqueeActive ||
       armedGroupMove !== null ||

@@ -59,6 +59,8 @@ The complete install procedure and signing policy are in [RELEASING.md](RELEASIN
       snapshots during the final 60-second soak.
 - [x] Native onboarding verifies Mainnet key permissions before storage and
       rejects withdrawal-enabled, non-readable, and non-Futures keys.
+- [x] Native onboarding authenticates Testnet keys against the signed Futures
+      account endpoint and rejects keys without Futures trading access.
 - [ ] Configure the actual Mainnet key with an IP restriction where practical
       and use the smallest acceptable notional for the first live trade.
 

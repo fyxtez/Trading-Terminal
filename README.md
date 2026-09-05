@@ -212,7 +212,9 @@ the embedded backend. Neither path uses Vite, argv, a URL, or a file.
 Before a newly entered Mainnet Binance pair is stored, the native layer checks
 Binance's signed API-key permission response. Reading and Futures access are
 required, and any key with withdrawals enabled is rejected with a request to
-create a new restricted key. Testnet keys cannot authorize real withdrawals.
+create a new restricted key. Testnet keys cannot authorize real withdrawals,
+but they are still authenticated against the signed Futures account endpoint
+and must report that trading is allowed.
 Key, secret and network updates are rollback-safe: an unavailable, incomplete
 or corrupt credential store blocks trading and opens a retryable native setup
 error without revealing or automatically deleting stored values.

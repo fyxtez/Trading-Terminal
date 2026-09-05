@@ -26,6 +26,7 @@ import {
   TP_SL_CONTROLS_VISIBILITY_EVENT,
 } from "../../trading/tpSlControlsVisibility";
 import { startPacedLoop } from "../../utils/pacedLoop";
+import { userFacingError } from "../../utils/userFacingError";
 import {
   BREAK_EVEN_SNAP_THRESHOLD_PX,
   DEFAULT_ZONE_RIGHT_PAD_PX,
@@ -1225,7 +1226,7 @@ export default function PositionBracketOverlay({
         kind: "error",
         message: reduceOnlyBlocked
           ? "Can't rest this order there - other pending orders on the same side would need to fill first, which could exceed your position size before this price is reached. Move it closer, or cancel/reduce those orders."
-          : rawMessage,
+          : userFacingError(error, "Fyxtez could not create this protection order."),
       });
     } finally {
       setIsSubmitting(false);
@@ -1447,7 +1448,7 @@ export default function PositionBracketOverlay({
     } catch (error) {
       onToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Unable to close position",
+        message: userFacingError(error, "Fyxtez could not close this position."),
       });
     } finally {
       setIsClosingPosition(false);
@@ -1607,7 +1608,7 @@ export default function PositionBracketOverlay({
       setMessage(null);
       onToast({
         kind: "error",
-        message: error instanceof Error ? error.message : "Unable to cancel stop loss",
+        message: userFacingError(error, "Fyxtez could not cancel this stop loss."),
       });
     } finally {
       setIsSubmitting(false);

@@ -32,7 +32,7 @@ describe("DesktopConnectionsSection", () => {
 
     render(<ConnectionsHarness credentials={credentials} />);
 
-    expect(screen.getByRole("heading", { name: "Third-Party Connections" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Exchange Connections" })).toBeVisible();
     expect(
       screen.queryByText("Credentials stored securely on this computer."),
     ).not.toBeInTheDocument();
@@ -116,7 +116,9 @@ describe("DesktopConnectionsSection", () => {
 
     const error = await screen.findByRole("alert");
     expect(error).toHaveClass("settings-disconnect-error");
-    expect(error).toHaveTextContent("credential store locked");
+    expect(error).toHaveTextContent(
+      "Fyxtez could not open your saved connections. Unlock your device and try again.",
+    );
     expect(screen.getByRole("group", { name: "Confirm Binance disconnect" })).toBeVisible();
   });
 });

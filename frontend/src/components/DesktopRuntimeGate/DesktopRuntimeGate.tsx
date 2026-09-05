@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { initializeTradingApiBaseUrl, restartDesktopBackend } from "../../config/constants";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import { userFacingError } from "../../utils/userFacingError";
 import "./DesktopRuntimeGate.css";
 
 type RuntimeState = { kind: "starting" } | { kind: "ready" } | { kind: "failed"; message: string };
 
 function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : String(reason);
+  return userFacingError(reason, "Fyxtez could not start. Please try again.");
 }
 
 export default function DesktopRuntimeGate({ children }: { children: ReactNode }) {
@@ -38,16 +39,14 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       <section>
         <img src="/fyxtez-f-mark-alpha.png" alt="" />
         <small>FYXTEZ TERMINAL</small>
-        <h1>
-          {state.kind === "starting" ? "Starting local backend" : "Local backend unavailable"}
-        </h1>
+        <h1>{state.kind === "starting" ? "Getting Fyxtez ready" : "Fyxtez could not start"}</h1>
         {state.kind === "starting" ? (
           <>
-            <p>Preparing the private services bundled with this desktop app.</p>
+            <p>Loading everything you need to use the terminal.</p>
             <LoadingIndicator
               variant="panel"
-              label="Loading backend data"
-              detail="Preparing local storage, market definitions and connection state. First launch can take a few seconds."
+              label="Preparing your workspace"
+              detail="Loading your saved setup and the latest market information. The first start may take a little longer."
             />
           </>
         ) : (
@@ -55,7 +54,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
         )}
         {state.kind === "failed" && (
           <button type="button" onClick={retry}>
-            RETRY BACKEND
+            TRY AGAIN
           </button>
         )}
       </section>
