@@ -25,12 +25,14 @@ and recorded rather than silently ignored.
 ## Update cadence
 
 - Dependabot checks npm, both Rust workspaces, and GitHub Actions quarterly
-  (January, April, July, and October). Non-major version updates are grouped by
-  workspace; major updates remain separate so breaking changes are visible.
+  (January, April, July, and October). Minor and patch version updates are
+  grouped by workspace. Dependabot does not open routine major-version PRs;
+  breaking upgrades are selected and reviewed manually.
 - Dependabot pull requests are never merged automatically. Review their release
   notes and require the complete CI pipeline before merging.
 - Apply security updates immediately rather than waiting for the quarterly
-  version-update window, then repeat frontend tests, Rust tests, Clippy,
+  version-update window. Security updates are not restricted by the routine
+  minor/patch version policy. Then repeat frontend tests, Rust tests, Clippy,
   dependency audits, bundle builds, and the relevant smoke tests.
 - Do not merge automated lockfile changes without reviewing release notes and
   trading/runtime behavior.
