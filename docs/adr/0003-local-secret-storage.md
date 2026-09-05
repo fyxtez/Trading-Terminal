@@ -11,7 +11,12 @@ Binance API secrets, Telegram bot tokens and private ntfy topics must not be com
 
 Tauri Rust commands store credentials under service `com.fyxtez.terminal` using the cross-platform `keyring` crate. Binance uses one coherent set of `binance-api-key`, `binance-api-secret` and `binance-network`; retained dormant notification entries use `ntfy-url`, `telegram-bot-token` and `telegram-chat-id`.
 
-The WebView can request boolean configuration status, save replacement values, or clear credentials. It cannot read secret values. Sensitive Rust strings used during saving are zeroized on drop. Binance onboarding requires a dedicated API key with withdrawals disabled.
+The WebView can request boolean configuration status, save replacement values,
+or invoke an explicitly confirmed Binance disconnect. Disconnect removes only
+the Binance key, secret and network set; dormant notification entries are not
+touched. The WebView cannot read secret values. Sensitive Rust strings used
+during saving are zeroized on drop. Binance onboarding requires a dedicated API
+key with withdrawals disabled.
 
 The ntfy step accepts a short public-service topic and expands it to
 `https://ntfy.sh/<topic>` in native Rust before storage. Complete HTTP(S)
@@ -34,6 +39,11 @@ order polling, execution controls and the private trading stream fail closed.
   target first and restore the previous set if an individual keyring mutation
   fails. Incomplete or invalid sets block trading instead of being interpreted
   as chart-only mode.
+- Confirmed disconnect blocks WebView trading permission before native work,
+  restarts the backend into chart-only mode and reports the returned status. If
+  restart fails after deletion, native code restores the previous complete set
+  and attempts one recovery restart; the UI re-reads status rather than guessing
+  whether rollback succeeded.
 - A transient read failure clears the WebView's boolean trading permission and
   opens a styled recovery panel. `RETRY CREDENTIAL STORE` re-reads status only;
   it never returns secret values or requires replacing intact credentials.

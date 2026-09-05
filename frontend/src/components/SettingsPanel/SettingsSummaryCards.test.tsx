@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
@@ -27,6 +27,7 @@ describe("DesktopConnectionsSection", () => {
         telegramConfigured: false,
       },
       openSetup: vi.fn(),
+      disconnectBinance: vi.fn(),
     };
 
     render(<ConnectionsHarness credentials={credentials} />);
@@ -57,11 +58,65 @@ describe("DesktopConnectionsSection", () => {
         telegramConfigured: true,
       },
       openSetup,
+      disconnectBinance: vi.fn(),
     };
 
     render(<ConnectionsHarness credentials={credentials} />);
     fireEvent.click(screen.getAllByRole("button", { name: "EDIT" })[0]);
 
     expect(openSetup).toHaveBeenCalledWith("binance");
+  });
+
+  it("requires styled confirmation before disconnecting Binance", async () => {
+    const disconnectBinance = vi.fn().mockResolvedValue(undefined);
+    const credentials: DesktopCredentialsContextValue = {
+      isDesktop: true,
+      status: {
+        binanceConfigured: true,
+        binanceNetwork: "mainnet",
+        ntfyConfigured: false,
+        telegramConfigured: false,
+      },
+      openSetup: vi.fn(),
+      disconnectBinance,
+    };
+
+    render(<ConnectionsHarness credentials={credentials} />);
+    fireEvent.click(screen.getByRole("button", { name: "DISCONNECT" }));
+
+    expect(screen.getByRole("group", { name: "Confirm Binance disconnect" })).toBeVisible();
+    expect(screen.getByText(/Trading will be disabled immediately/)).toBeVisible();
+    expect(disconnectBinance).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "CONFIRM DISCONNECT" }));
+    await waitFor(() => expect(disconnectBinance).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Confirm Binance disconnect" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the confirmation open and shows a styled native error on failure", async () => {
+    const credentials: DesktopCredentialsContextValue = {
+      isDesktop: true,
+      status: {
+        binanceConfigured: true,
+        binanceNetwork: "testnet",
+        ntfyConfigured: false,
+        telegramConfigured: false,
+      },
+      openSetup: vi.fn(),
+      disconnectBinance: vi.fn().mockRejectedValue(new Error("credential store locked")),
+    };
+
+    render(<ConnectionsHarness credentials={credentials} />);
+    fireEvent.click(screen.getByRole("button", { name: "DISCONNECT" }));
+    fireEvent.click(screen.getByRole("button", { name: "CONFIRM DISCONNECT" }));
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveClass("settings-disconnect-error");
+    expect(error).toHaveTextContent("credential store locked");
+    expect(screen.getByRole("group", { name: "Confirm Binance disconnect" })).toBeVisible();
   });
 });

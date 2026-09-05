@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canUseTradingAccount,
@@ -25,6 +26,26 @@ const emptyStatus = {
 function BinanceEditorLauncher() {
   const credentials = useDesktopCredentials();
   return <button onClick={() => credentials.openSetup("binance")}>Edit Binance</button>;
+}
+
+function BinanceDisconnectHarness() {
+  const credentials = useDesktopCredentials();
+  const [disconnectError, setDisconnectError] = useState("");
+  return (
+    <>
+      <span>{credentials.status.binanceConfigured ? "ACCOUNT CONNECTED" : "ACCOUNT BLOCKED"}</span>
+      <button
+        onClick={() => {
+          void credentials.disconnectBinance().catch((reason: unknown) => {
+            setDisconnectError(reason instanceof Error ? reason.message : String(reason));
+          });
+        }}
+      >
+        Disconnect through context
+      </button>
+      {disconnectError && <span>{disconnectError}</span>}
+    </>
+  );
 }
 
 describe("DesktopSetupGate", () => {
@@ -64,6 +85,105 @@ describe("DesktopSetupGate", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("blocks trading immediately while native Binance disconnect is pending", async () => {
+    localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
+    const configuredStatus = {
+      ...emptyStatus,
+      binanceConfigured: true,
+      binanceNetwork: "testnet" as const,
+    };
+    let resolveDisconnect!: (status: typeof emptyStatus) => void;
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "credential_status") return Promise.resolve(configuredStatus);
+      if (command === "disconnect_binance") {
+        return new Promise((resolve) => {
+          resolveDisconnect = resolve;
+        });
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    render(
+      <DesktopSetupGate>
+        <BinanceDisconnectHarness />
+      </DesktopSetupGate>,
+    );
+
+    expect(await screen.findByText("ACCOUNT CONNECTED")).toBeVisible();
+    expect(canUseTradingAccount()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect through context" }));
+
+    expect(screen.getByText("ACCOUNT BLOCKED")).toBeVisible();
+    expect(canUseTradingAccount()).toBe(false);
+    resolveDisconnect(emptyStatus);
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("disconnect_binance"));
+    expect(canUseTradingAccount()).toBe(false);
+  });
+
+  it("re-reads credential status after a failed native disconnect", async () => {
+    localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
+    const configuredStatus = {
+      ...emptyStatus,
+      binanceConfigured: true,
+      binanceNetwork: "testnet" as const,
+    };
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "credential_status") return Promise.resolve(configuredStatus);
+      if (command === "disconnect_binance") {
+        return Promise.reject(new Error("previous connection was restored"));
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    render(
+      <DesktopSetupGate>
+        <BinanceDisconnectHarness />
+      </DesktopSetupGate>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect through context" }));
+    expect(await screen.findByText("previous connection was restored")).toBeVisible();
+    expect(screen.getByText("ACCOUNT CONNECTED")).toBeVisible();
+    expect(canUseTradingAccount()).toBe(true);
+    expect(
+      invokeMock.mock.calls.filter(([command]) => command === "credential_status"),
+    ).toHaveLength(2);
+  });
+
+  it("keeps trading blocked when failed disconnect status cannot be recovered", async () => {
+    localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
+    const configuredStatus = {
+      ...emptyStatus,
+      binanceConfigured: true,
+      binanceNetwork: "testnet" as const,
+    };
+    let statusAttempts = 0;
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "credential_status") {
+        statusAttempts += 1;
+        return statusAttempts === 1
+          ? Promise.resolve(configuredStatus)
+          : Promise.reject(new Error("credential store unavailable"));
+      }
+      if (command === "disconnect_binance") {
+        return Promise.reject(new Error("CRITICAL: rollback failed"));
+      }
+      return Promise.reject(new Error(`Unexpected command: ${command}`));
+    });
+
+    render(
+      <DesktopSetupGate>
+        <BinanceDisconnectHarness />
+      </DesktopSetupGate>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect through context" }));
+    expect(await screen.findByText("CRITICAL: rollback failed")).toBeVisible();
+    expect(screen.getByText("ACCOUNT BLOCKED")).toBeVisible();
+    expect(canUseTradingAccount()).toBe(false);
+    expect(statusAttempts).toBe(2);
   });
 
   it("requires an explicit Binance network and Mainnet confirmation", async () => {

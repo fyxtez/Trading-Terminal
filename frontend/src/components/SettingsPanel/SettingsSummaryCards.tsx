@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
@@ -15,6 +16,9 @@ export function DesktopConnectionsSection({
   forceExpanded = false,
   onToggle,
 }: DesktopConnectionsSectionProps) {
+  const [disconnectConfirmationOpen, setDisconnectConfirmationOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const connections = [
     [
       "Binance",
@@ -32,6 +36,18 @@ export function DesktopConnectionsSection({
     readonly [string, "binance" | "ntfy" | "telegram", boolean, string | undefined]
   >;
   const hasMissingConnection = connections.some(([, , configured]) => !configured);
+
+  const confirmDisconnect = () => {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    void credentials
+      .disconnectBinance()
+      .then(() => setDisconnectConfirmationOpen(false))
+      .catch((reason: unknown) => {
+        setDisconnectError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => setDisconnecting(false));
+  };
 
   return (
     <section className="settings-section settings-desktop-connections">
@@ -52,15 +68,68 @@ export function DesktopConnectionsSection({
             {connections.map(([label, connection, configured, detail]) => (
               <div className={configured ? "connected" : ""} key={connection}>
                 <span>{label}</span>
-                <div>
+                <div className="settings-connection-actions">
                   <b>{configured ? `CONNECTED${detail ? ` · ${detail}` : ""}` : "NOT SET"}</b>
                   <button type="button" onClick={() => credentials.openSetup(connection)}>
                     {configured ? "EDIT" : "CONNECT"}
                   </button>
+                  {connection === "binance" && configured && (
+                    <button
+                      className="danger"
+                      type="button"
+                      disabled={disconnecting}
+                      onClick={() => {
+                        setDisconnectError(null);
+                        setDisconnectConfirmationOpen(true);
+                      }}
+                    >
+                      DISCONNECT
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+          {disconnectConfirmationOpen && (
+            <div
+              className="settings-disconnect-confirmation"
+              role="group"
+              aria-label="Confirm Binance disconnect"
+            >
+              <div>
+                <strong>Disconnect Binance?</strong>
+                <span>
+                  Trading will be disabled immediately. Charts, drawings and local settings will
+                  stay available.
+                </span>
+              </div>
+              {disconnectError && (
+                <div className="settings-disconnect-error" role="alert">
+                  {disconnectError}
+                </div>
+              )}
+              <div className="settings-disconnect-actions">
+                <button
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={() => {
+                    setDisconnectError(null);
+                    setDisconnectConfirmationOpen(false);
+                  }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  className="danger"
+                  type="button"
+                  disabled={disconnecting}
+                  onClick={confirmDisconnect}
+                >
+                  {disconnecting ? "DISCONNECTING…" : "CONFIRM DISCONNECT"}
+                </button>
+              </div>
+            </div>
+          )}
           {hasMissingConnection && (
             <button
               type="button"

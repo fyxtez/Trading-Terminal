@@ -124,6 +124,35 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     [status.binanceNetwork],
   );
 
+  const disconnectBinance = useCallback(async () => {
+    const disconnectedStatus: DesktopCredentialStatus = {
+      ...status,
+      binanceConfigured: false,
+      binanceNetwork: null,
+    };
+    // Block account actions as soon as the confirmed disconnect starts. If the
+    // native transaction fails, re-read the keyring instead of guessing whether
+    // its rollback restored the previous connection.
+    setStatus(disconnectedStatus);
+    setDesktopCredentialStatus(disconnectedStatus);
+
+    try {
+      const next = await invoke<DesktopCredentialStatus>("disconnect_binance");
+      setStatus(next);
+      setDesktopCredentialStatus(next);
+    } catch (reason) {
+      try {
+        const recovered = await invoke<DesktopCredentialStatus>("credential_status");
+        setStatus(recovered);
+        setDesktopCredentialStatus(recovered);
+      } catch {
+        setStatus(emptyStatus);
+        setDesktopCredentialStatus(emptyStatus);
+      }
+      throw reason;
+    }
+  }, [status]);
+
   useEffect(() => {
     if (!desktop) return;
     void invoke<DesktopCredentialStatus>("credential_status")
@@ -163,8 +192,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   }, [activeSteps.length, desktop, loaded, showSetup, targetConnection]);
 
   const context = useMemo(
-    () => ({ isDesktop: desktop, status, openSetup }),
-    [desktop, openSetup, status],
+    () => ({ isDesktop: desktop, status, openSetup, disconnectBinance }),
+    [desktop, disconnectBinance, openSetup, status],
   );
 
   function setValue<K extends keyof ReturnType<typeof emptyValues>>(

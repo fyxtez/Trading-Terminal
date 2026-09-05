@@ -210,6 +210,10 @@ create a new restricted key. Testnet keys cannot authorize real withdrawals.
 Key, secret and network updates are rollback-safe: an unavailable, incomplete
 or corrupt credential store blocks trading and opens a retryable native setup
 error without revealing or automatically deleting stored values.
+Settings also provides an explicit, confirmed Binance disconnect. It blocks
+account actions immediately, removes only the Binance key/secret/network set,
+restarts into chart-only mode and restores the previous set if backend restart
+fails.
 
 Installed desktop runtime data uses the platform application-data directory.
 Standalone backend development defaults to `backend/data/`:

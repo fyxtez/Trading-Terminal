@@ -14,6 +14,8 @@ pub(crate) trait CredentialStore {
 
 pub(crate) struct PlatformCredentialStore;
 
+pub(crate) type CredentialSnapshot = Vec<(String, Option<Zeroizing<String>>)>;
+
 impl PlatformCredentialStore {
     fn entry(name: &str) -> Result<Entry, String> {
         Entry::new(SERVICE, name)
@@ -56,10 +58,8 @@ pub(crate) fn replace_values<S: CredentialStore>(
     store: &S,
     updates: &[(&str, Option<&str>)],
 ) -> Result<(), String> {
-    let snapshot = updates
-        .iter()
-        .map(|(name, _)| store.read(name).map(|value| ((*name).to_owned(), value)))
-        .collect::<Result<Vec<_>, _>>()?;
+    let names = updates.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+    let snapshot = snapshot_values(store, &names)?;
 
     for (name, value) in updates {
         let result = match value {
@@ -81,9 +81,19 @@ pub(crate) fn replace_values<S: CredentialStore>(
     Ok(())
 }
 
-fn restore_values<S: CredentialStore>(
+pub(crate) fn snapshot_values<S: CredentialStore>(
     store: &S,
-    snapshot: &[(String, Option<Zeroizing<String>>)],
+    names: &[&str],
+) -> Result<CredentialSnapshot, String> {
+    names
+        .iter()
+        .map(|name| store.read(name).map(|value| ((*name).to_owned(), value)))
+        .collect()
+}
+
+pub(crate) fn restore_values<S: CredentialStore>(
+    store: &S,
+    snapshot: &CredentialSnapshot,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     for (name, value) in snapshot {

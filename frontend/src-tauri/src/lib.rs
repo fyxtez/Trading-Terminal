@@ -10,13 +10,18 @@ use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
 #[cfg(mobile)]
 use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use tauri::{Manager, State};
 use zeroize::Zeroizing;
 
 use binance_credentials::validate_binance_credentials;
-use credential_store::{CredentialStore, PlatformCredentialStore, replace_values};
+use credential_store::{
+    CredentialStore, PlatformCredentialStore, replace_values, restore_values, snapshot_values,
+};
 
 const BINANCE_NETWORK: &str = "binance-network";
+const BINANCE_CREDENTIAL_NAMES: [&str; 3] =
+    ["binance-api-key", "binance-api-secret", BINANCE_NETWORK];
 const NTFY_PUBLIC_BASE_URL: &str = "https://ntfy.sh";
 const MAX_URL_LENGTH: usize = 2_048;
 const MAX_CREDENTIAL_LENGTH: usize = 256;
@@ -269,22 +274,51 @@ fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn clear_credentials(
+async fn disconnect_binance(
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
+    disconnect_binance_from(&PlatformCredentialStore, || async {
+        supervisor.restart().await.map(|_| ())
+    })
+    .await
+}
+
+async fn disconnect_binance_from<S, Restart, RestartFuture>(
+    store: &S,
+    mut restart: Restart,
+) -> Result<CredentialStatus, String>
+where
+    S: CredentialStore,
+    Restart: FnMut() -> RestartFuture,
+    RestartFuture: Future<Output = Result<(), String>>,
+{
+    let snapshot = snapshot_values(store, &BINANCE_CREDENTIAL_NAMES)?;
     replace_values(
-        &PlatformCredentialStore,
+        store,
         &[
             ("binance-api-key", None),
             ("binance-api-secret", None),
             (BINANCE_NETWORK, None),
-            ("ntfy-url", None),
-            ("telegram-bot-token", None),
-            ("telegram-chat-id", None),
         ],
     )?;
-    supervisor.restart().await?;
-    credential_status()
+
+    if let Err(restart_error) = restart().await {
+        return match restore_values(store, &snapshot) {
+            Ok(()) => match restart().await {
+                Ok(()) => Err(format!(
+                    "Binance disconnect failed because the backend could not restart; the previous connection was restored: {restart_error}"
+                )),
+                Err(recovery_error) => Err(format!(
+                    "CRITICAL: Binance disconnect failed ({restart_error}); the previous credentials were restored, but the backend recovery restart also failed ({recovery_error}). Keep trading closed and retry the backend"
+                )),
+            },
+            Err(rollback_error) => Err(format!(
+                "CRITICAL: Binance disconnect failed ({restart_error}) and the previous credential set could not be fully restored ({rollback_error}). Trading remains blocked; reopen Settings and replace or clear the complete Binance connection"
+            )),
+        };
+    }
+
+    credential_status_from(store)
 }
 
 #[tauri::command]
@@ -441,7 +475,7 @@ pub fn run() {
             exit_app,
             credential_status,
             save_credentials,
-            clear_credentials
+            disconnect_binance
         ])
         .build(tauri::generate_context!())
         .expect("error while building Fyxtez Terminal desktop");
@@ -459,10 +493,15 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        BINANCE_NETWORK, credential_status_from, normalize_ntfy_destination, validate_http_url,
-        validate_secret, validate_telegram_chat_id, validate_telegram_token,
+        BINANCE_NETWORK, credential_status_from, disconnect_binance_from,
+        normalize_ntfy_destination, validate_http_url, validate_secret, validate_telegram_chat_id,
+        validate_telegram_token,
     };
     use crate::credential_store::tests::MemoryCredentialStore;
+    use std::{
+        future::ready,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     #[test]
     fn complete_credential_set_reports_configured_without_returning_secrets() {
@@ -517,6 +556,88 @@ mod tests {
             store.value("binance-api-key").as_deref(),
             Some("a-private-key-value")
         );
+    }
+
+    #[tokio::test]
+    async fn disconnect_clears_only_binance_and_returns_chart_only_status() {
+        let store = MemoryCredentialStore::with_values(&[
+            ("binance-api-key", "a-private-key-value"),
+            ("binance-api-secret", "a-private-secret-value"),
+            (BINANCE_NETWORK, "testnet"),
+            ("ntfy-url", "https://ntfy.sh/retained-dormant-topic"),
+        ]);
+
+        let status = disconnect_binance_from(&store, || ready(Ok(())))
+            .await
+            .expect("disconnect succeeds");
+
+        assert!(!status.binance_configured);
+        assert_eq!(status.binance_network, None);
+        assert_eq!(store.value("binance-api-key"), None);
+        assert_eq!(store.value("binance-api-secret"), None);
+        assert_eq!(store.value(BINANCE_NETWORK), None);
+        assert_eq!(
+            store.value("ntfy-url").as_deref(),
+            Some("https://ntfy.sh/retained-dormant-topic")
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_disconnect_restart_restores_credentials_and_backend() {
+        let store = MemoryCredentialStore::with_values(&[
+            ("binance-api-key", "a-private-key-value"),
+            ("binance-api-secret", "a-private-secret-value"),
+            (BINANCE_NETWORK, "testnet"),
+        ]);
+        let attempts = AtomicUsize::new(0);
+
+        let error = disconnect_binance_from(&store, || {
+            let attempt = attempts.fetch_add(1, Ordering::AcqRel);
+            ready(if attempt == 0 {
+                Err("injected restart failure".into())
+            } else {
+                Ok(())
+            })
+        })
+        .await
+        .expect_err("first restart fails");
+
+        assert!(error.contains("previous connection was restored"));
+        assert_eq!(attempts.load(Ordering::Acquire), 2);
+        assert_eq!(
+            store.value("binance-api-key").as_deref(),
+            Some("a-private-key-value")
+        );
+        assert_eq!(
+            store.value("binance-api-secret").as_deref(),
+            Some("a-private-secret-value")
+        );
+        assert_eq!(store.value(BINANCE_NETWORK).as_deref(), Some("testnet"));
+        assert!(!error.contains("private"));
+    }
+
+    #[tokio::test]
+    async fn failed_disconnect_rollback_is_critical_and_does_not_restart_again() {
+        let store = MemoryCredentialStore::with_values(&[
+            ("binance-api-key", "a-private-key-value"),
+            ("binance-api-secret", "a-private-secret-value"),
+            (BINANCE_NETWORK, "testnet"),
+        ]);
+        store.fail_next_write("binance-api-key");
+        let attempts = AtomicUsize::new(0);
+
+        let error = disconnect_binance_from(&store, || {
+            attempts.fetch_add(1, Ordering::AcqRel);
+            ready(Err("injected restart failure".into()))
+        })
+        .await
+        .expect_err("restart and rollback must fail");
+
+        assert!(error.starts_with("CRITICAL:"));
+        assert!(error.contains("Trading remains blocked"));
+        assert_eq!(attempts.load(Ordering::Acquire), 1);
+        assert!(credential_status_from(&store).is_err());
+        assert!(!error.contains("private"));
     }
 
     #[test]

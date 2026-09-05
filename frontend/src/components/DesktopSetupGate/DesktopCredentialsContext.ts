@@ -5,6 +5,7 @@ export type DesktopCredentialsContextValue = {
   isDesktop: boolean;
   status: DesktopCredentialStatus;
   openSetup: (connection?: DesktopConnection) => void;
+  disconnectBinance: () => Promise<void>;
 };
 
 export const DesktopCredentialsContext = createContext<DesktopCredentialsContextValue>({
@@ -16,6 +17,7 @@ export const DesktopCredentialsContext = createContext<DesktopCredentialsContext
     telegramConfigured: false,
   },
   openSetup: () => {},
+  disconnectBinance: () => Promise.resolve(),
 });
 
 export const useDesktopCredentials = () => useContext(DesktopCredentialsContext);

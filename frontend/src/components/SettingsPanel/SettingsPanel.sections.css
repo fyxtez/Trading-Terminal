@@ -415,6 +415,111 @@
   color: var(--amber);
 }
 
+.settings-connection-statuses button.danger {
+  border-color: rgba(255, 82, 104, 0.38);
+  color: var(--red);
+}
+
+.settings-connection-statuses button.danger:hover {
+  border-color: rgba(255, 82, 104, 0.68);
+  background: rgba(255, 82, 104, 0.08);
+}
+
+.settings-connection-statuses button:disabled,
+.settings-disconnect-confirmation button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.settings-disconnect-confirmation {
+  display: grid;
+  gap: 11px;
+  margin-top: 10px;
+  padding: 12px 13px;
+  border: 1px solid rgba(255, 82, 104, 0.38);
+  border-radius: var(--radius-s);
+  background: rgba(255, 82, 104, 0.055);
+}
+
+.settings-disconnect-confirmation > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-disconnect-confirmation strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.settings-disconnect-confirmation span {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-disconnect-error {
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 82, 104, 0.3);
+  border-radius: var(--radius-s);
+  background: rgba(255, 82, 104, 0.08);
+  color: var(--red);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.settings-disconnect-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-disconnect-actions button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg-surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.settings-disconnect-actions button.danger {
+  border-color: rgba(255, 82, 104, 0.5);
+  background: rgba(255, 82, 104, 0.1);
+  color: var(--red);
+}
+
+.settings-disconnect-actions button.danger:hover {
+  border-color: rgba(255, 82, 104, 0.75);
+  background: rgba(255, 82, 104, 0.16);
+}
+
+@media (max-width: 520px) {
+  .settings-connection-statuses > div {
+    align-items: flex-start;
+  }
+
+  .settings-connection-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .settings-connection-actions b {
+    flex-basis: 100%;
+    padding-top: 2px;
+    text-align: right;
+  }
+
+  .settings-disconnect-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+  }
+}
+
 .settings-manage-connections {
   min-height: 40px;
   width: 100%;

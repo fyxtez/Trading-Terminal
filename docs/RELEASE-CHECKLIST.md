@@ -1,6 +1,6 @@
 # Desktop release and live-trading checklist
 
-Last reviewed: 2026-09-04
+Last reviewed: 2026-09-05
 
 The supported product boundary is a self-hosted, single-user Tauri application.
 Browser mode is for chart-only development. A successful desktop package does
@@ -77,6 +77,9 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 - [x] Credential-store fault injection covers unavailable/locked reads,
       incomplete or corrupt Binance sets, rollback after partial write/delete,
       secret-free errors and retry recovery without replacing intact values.
+- [x] Settings exposes a styled, explicitly confirmed Binance disconnect that
+      blocks trading immediately, clears only the coherent Binance credential
+      set, restarts chart-only and restores the old set if restart fails.
 - [ ] Exercise backup and restore on a clean supported system.
 - [ ] Manually test locked/unavailable credential-store behavior on every newly
       supported desktop/mobile OS; automated platform-independent behavior is covered.
