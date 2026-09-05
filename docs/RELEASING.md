@@ -32,15 +32,30 @@ release must record artifact SHA-256 hashes.
 
 ## Create a draft GitHub release
 
-1. Make the version in `frontend/src-tauri/tauri.conf.json` match the intended
-   tag.
-2. Push a tag such as `v0.1.0`, or manually run **Linux desktop release** from
-   GitHub Actions.
-3. Download the draft assets and perform the clean-machine test below.
-4. Verify the attached SHA-256 manifests and GitHub build attestations.
-5. Publish the draft only after all acceptance checks pass.
+1. Use the normal `git add`, `git commit`, and `git push` flow. Do not edit or
+   bump package versions manually.
+2. CI derives the build version from `.release-version.json` and the number of
+   first-parent commits after its baseline commit. The baseline is `1.0.0`, so
+   one new commit/push becomes `1.0.1`, then `1.0.2`, and so on. After all CI
+   jobs pass, CI creates the matching immutable `vX.Y.Z` tag on that commit.
+3. Manually run **Signed Linux and Android release** from GitHub Actions when
+   release artifacts are wanted. The workflow independently derives the same
+   version and synchronizes npm, Tauri, backend and both Cargo lockfiles inside
+   its disposable runner. Tauri derives Android `versionName` and `versionCode`
+   from it while packaging.
+4. Download the draft assets and perform the clean-machine test below.
+5. Verify the attached SHA-256 manifests and GitHub build attestations.
+6. Publish the draft only after all acceptance checks pass.
 
 No automatic updater is included in the first release.
+
+The checked-in package metadata remains at the `1.0.0` baseline and CI rejects
+manual drift. Release builds update their disposable checkout to the derived
+version before packaging. The release workflow will not replace assets in an
+existing draft by default. If rerunning the exact version is deliberate, use the
+manual workflow and explicitly enable **Replace assets in the existing draft for
+this exact version**. A published release is never replaceable; corrections
+always use the next automatically derived patch version.
 
 ## Ownership, signing, and rollback
 
@@ -55,7 +70,7 @@ manifest using the workflow's short-lived OIDC identity; there is no Linux
 private key to store or leak. Verify a freshly downloaded asset with:
 
 ```bash
-gh attestation verify ./Fyxtez.Terminal_0.1.0_amd64.deb \
+gh attestation verify ./Fyxtez.Terminal_1.0.0_amd64.deb \
   --repo fyxtez/Trading-Terminal
 sha256sum --check SHA256SUMS-linux-x86_64.txt
 ```
@@ -122,7 +137,7 @@ Every release build also runs a package-level smoke test in a clean Ubuntu
 downloaded or locally built package:
 
 ```bash
-frontend/scripts/smoke-test-deb-docker.sh ./Fyxtez.Terminal_0.1.0_amd64.deb
+frontend/scripts/smoke-test-deb-docker.sh ./Fyxtez.Terminal_1.0.0_amd64.deb
 ```
 
 The container begins without Node.js, npm, Cargo, Rust or the repository. It

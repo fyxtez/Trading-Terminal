@@ -1,6 +1,6 @@
 [package]
 name = "fyxtez-terminal-desktop"
-version = "0.1.0"
+version = "1.0.0"
 description = "Desktop shell for Fyxtez Terminal"
 authors = ["Fyxtez"]
 edition = "2024"

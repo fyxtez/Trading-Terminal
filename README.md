@@ -194,6 +194,12 @@ apply the repository's TS/TSX/CSS style. GitHub Actions repeats these checks plu
 backend/Tauri formatting, Clippy and tests on every push and pull request. A green
 build is necessary but not sufficient validation for real-money trading flows.
 
+Product versions are automatic. The repository starts at `1.0.0`; each new
+first-parent commit on `master` advances the patch number, CI prepares that
+version for every build, and a successful push receives the matching Git tag.
+The normal developer flow remains only `git add`, `git commit`, and `git push`.
+See [the release guide](docs/RELEASING.md).
+
 ## Configuration
 
 Binance keys and the selected Binance network belong only in the platform

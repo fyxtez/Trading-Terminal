@@ -17,6 +17,8 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22.12.0
@@ -25,6 +27,8 @@ jobs:
       - name: Use pinned npm version
         run: npm install --global npm@11.19.1
       - run: npm ci
+      - name: Prepare automatic product version
+        run: npm run version:prepare
       - run: npm run lint
       - run: npm run format:check
       - run: npm run test:ci
@@ -89,3 +93,37 @@ jobs:
           tool: cargo-audit
       - run: cargo audit --file backend/Cargo.lock
       - run: cargo audit --file frontend/src-tauri/Cargo.lock
+
+  version-tag:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [frontend, rust, security]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
+      - name: Create the automatic version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node frontend/scripts/version.mjs derive)"
+          tag="v$version"
+
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            tagged_commit="$(git rev-list -n 1 "$tag")"
+            if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
+              echo "::error::Tag $tag already points to a different commit."
+              exit 1
+            fi
+            echo "$tag already points to $GITHUB_SHA."
+            exit 0
+          fi
+
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+          echo "Created $tag for $GITHUB_SHA."
