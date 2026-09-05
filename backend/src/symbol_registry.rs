@@ -165,7 +165,7 @@ impl SymbolRegistry {
             }
         } else {
             return Err(AppError::NotFound(format!(
-                "{base}/USDT was not found on Binance Futures or MEXC Futures; OANDA fallback is not implemented yet"
+                "{base}/USDT was not found on Binance Futures or MEXC Futures"
             )));
         };
 

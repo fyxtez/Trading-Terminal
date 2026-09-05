@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import {
   PENDING_LIMIT_LONG_COLOR,
@@ -42,11 +42,8 @@ import Topbar from "../Topbar/Topbar";
 import ChartTabs from "../ChartTabs/ChartTabs";
 import DrawingToolbar from "../DrawingToolbar/DrawingToolbar";
 import ChartPanel from "../ChartPanel/ChartPanel";
-import SettingsPanel from "../SettingsPanel/SettingsPanel";
-import HotkeysPopup from "../HotkeysPopup/HotkeysPopup";
 import ContextMenu from "../ContextMenu/ContextMenu";
 import TradeMenu from "../TradeMenu/TradeMenu";
-import PositionsPanel from "../PositionsPanel/PositionsPanel";
 import UnregisteredSymbolBanner from "../UnregisteredSymbolBanner/UnregisteredSymbolBanner";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
 import SystemNotice from "../SystemNotice/SystemNotice";
@@ -64,6 +61,14 @@ import { LIMIT_REDUCE_COLOR, classifyLimitOrder, loadFullStopPrice } from "./ord
 import { useAppPreferences } from "./useAppPreferences";
 
 import "./App.css";
+
+// Keep the chart, market-data path, and order-entry UI in the initial bundle.
+// These secondary panels are only fetched when the user first opens them. Once
+// Settings or Positions has mounted, App keeps it mounted while closed so its
+// existing local UI state behaves exactly as it did before code splitting.
+const SettingsPanel = lazy(() => import("../SettingsPanel/SettingsPanel"));
+const PositionsPanel = lazy(() => import("../PositionsPanel/PositionsPanel"));
+const HotkeysPopup = lazy(() => import("../HotkeysPopup/HotkeysPopup"));
 
 function App() {
   const desktopCredentials = useDesktopCredentials();
@@ -651,9 +656,19 @@ function App() {
 
   const [isHotkeysOpen, setIsHotkeysOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasMountedSettingsPanel, setHasMountedSettingsPanel] = useState(false);
   const [settingsPanelWidth, setSettingsPanelWidth] = useState(readStoredSettingsPanelWidth);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  const [hasMountedPositionsPanel, setHasMountedPositionsPanel] = useState(false);
   const [positionsPanelHeight, setPositionsPanelHeight] = useState(readStoredPositionsPanelHeight);
+
+  useEffect(() => {
+    if (isSettingsOpen) setHasMountedSettingsPanel(true);
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (isOrdersOpen) setHasMountedPositionsPanel(true);
+  }, [isOrdersOpen]);
 
   const handleSettingsPanelWidthChange = (nextWidth: number) => {
     const viewportMax = Math.max(MIN_SETTINGS_PANEL_WIDTH, window.innerWidth - 480);
@@ -1132,78 +1147,108 @@ function App() {
           />
         </div>
 
-        <SettingsPanel
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          width={settingsPanelWidth}
-          onWidthChange={handleSettingsPanelWidthChange}
-          backendConnection={backendConnection}
-          diagnostics={diagnostics}
-          currentSymbol={currentSymbol}
-          availableSymbols={availableSymbols}
-          activePriceAlerts={priceAlertsApi.alerts}
-          regularDrawingsCount={drawingsApi.regularDrawingsCount}
-          drawingSets={drawingsApi.drawingSets}
-          activeDrawingSetId={drawingsApi.activeDrawingSetId}
-          onSaveCurrentDrawingSet={drawingsApi.saveCurrentDrawingSet}
-          onLoadDrawingSet={drawingsApi.loadDrawingSet}
-          onRenameDrawingSet={drawingsApi.renameDrawingSet}
-          onDeleteDrawingSet={drawingsApi.deleteDrawingSet}
-          onClearCurrentDrawings={drawingsApi.deleteAllDrawings}
-          showDrawings={showDrawings}
-          onShowDrawingsChange={setShowDrawings}
-          showAsiaSession={showAsiaSession}
-          onShowAsiaSessionChange={setShowAsiaSession}
-          showLondonSession={showLondonSession}
-          onShowLondonSessionChange={setShowLondonSession}
-          showNewYorkSession={showNewYorkSession}
-          onShowNewYorkSessionChange={setShowNewYorkSession}
-          showNewYorkKillZone={showNewYorkKillZone}
-          onShowNewYorkKillZoneChange={setShowNewYorkKillZone}
-          showPositionPnl={showPositionPnl}
-          onShowPositionPnlChange={setShowPositionPnl}
-          showTotalPnl={showTotalPnl}
-          onShowTotalPnlChange={setShowTotalPnl}
-          showCandleCountdown={showCandleCountdown}
-          onShowCandleCountdownChange={setShowCandleCountdown}
-          showWatermark={showWatermark}
-          onShowWatermarkChange={setShowWatermark}
-          showDrawingSetBadge={showDrawingSetBadge}
-          onShowDrawingSetBadgeChange={setShowDrawingSetBadge}
-          showStartOfDay={showStartOfDay}
-          onShowStartOfDayChange={setShowStartOfDay}
-          startOfDayLookbackDays={startOfDayLookbackDays}
-          onStartOfDayLookbackDaysChange={setStartOfDayLookbackDays}
-          showPriceAlerts={showPriceAlerts}
-          onShowPriceAlertsChange={setShowPriceAlerts}
-          persistentAlertsEnabled={persistentAlertsEnabled}
-          onPersistentAlertsEnabledChange={setPersistentAlertsEnabled}
-        />
+        {(isSettingsOpen || hasMountedSettingsPanel) && (
+          <Suspense
+            fallback={
+              <aside className="lazy-panel-loading settings-panel-loading" role="status">
+                Loading settings…
+              </aside>
+            }
+          >
+            <SettingsPanel
+              isOpen={isSettingsOpen}
+              onClose={() => setIsSettingsOpen(false)}
+              width={settingsPanelWidth}
+              onWidthChange={handleSettingsPanelWidthChange}
+              backendConnection={backendConnection}
+              diagnostics={diagnostics}
+              currentSymbol={currentSymbol}
+              availableSymbols={availableSymbols}
+              activePriceAlerts={priceAlertsApi.alerts}
+              regularDrawingsCount={drawingsApi.regularDrawingsCount}
+              drawingSets={drawingsApi.drawingSets}
+              activeDrawingSetId={drawingsApi.activeDrawingSetId}
+              onSaveCurrentDrawingSet={drawingsApi.saveCurrentDrawingSet}
+              onLoadDrawingSet={drawingsApi.loadDrawingSet}
+              onRenameDrawingSet={drawingsApi.renameDrawingSet}
+              onDeleteDrawingSet={drawingsApi.deleteDrawingSet}
+              onClearCurrentDrawings={drawingsApi.deleteAllDrawings}
+              showDrawings={showDrawings}
+              onShowDrawingsChange={setShowDrawings}
+              showAsiaSession={showAsiaSession}
+              onShowAsiaSessionChange={setShowAsiaSession}
+              showLondonSession={showLondonSession}
+              onShowLondonSessionChange={setShowLondonSession}
+              showNewYorkSession={showNewYorkSession}
+              onShowNewYorkSessionChange={setShowNewYorkSession}
+              showNewYorkKillZone={showNewYorkKillZone}
+              onShowNewYorkKillZoneChange={setShowNewYorkKillZone}
+              showPositionPnl={showPositionPnl}
+              onShowPositionPnlChange={setShowPositionPnl}
+              showTotalPnl={showTotalPnl}
+              onShowTotalPnlChange={setShowTotalPnl}
+              showCandleCountdown={showCandleCountdown}
+              onShowCandleCountdownChange={setShowCandleCountdown}
+              showWatermark={showWatermark}
+              onShowWatermarkChange={setShowWatermark}
+              showDrawingSetBadge={showDrawingSetBadge}
+              onShowDrawingSetBadgeChange={setShowDrawingSetBadge}
+              showStartOfDay={showStartOfDay}
+              onShowStartOfDayChange={setShowStartOfDay}
+              startOfDayLookbackDays={startOfDayLookbackDays}
+              onStartOfDayLookbackDaysChange={setStartOfDayLookbackDays}
+              showPriceAlerts={showPriceAlerts}
+              onShowPriceAlertsChange={setShowPriceAlerts}
+              persistentAlertsEnabled={persistentAlertsEnabled}
+              onPersistentAlertsEnabledChange={setPersistentAlertsEnabled}
+            />
+          </Suspense>
+        )}
 
         <div className={`bottom-dock ${isOrdersOpen ? "open" : ""}`}>
-          <PositionsPanel
-            isOpen={isOrdersOpen}
-            onClose={() => setIsOrdersOpen(false)}
-            height={positionsPanelHeight}
-            onHeightChange={handlePositionsPanelHeightChange}
-            activeSymbol={currentSymbol}
-            onPositionClosed={handlePositionClosed}
-            openOrdersApi={allOpenOrdersApi}
-            focusedOrderId={focusedOrderId}
-            onFocusOrder={focusOrderLine}
-            focusedPositionKey={focusedPositionKey}
-            onFocusPosition={focusPosition}
-            onSwitchSymbol={switchToPositionSymbol}
-            protection={{
-              symbol: currentSymbol,
-              fullTakeProfitPrice,
-              stopLossPrice,
-            }}
-          />
+          {(isOrdersOpen || hasMountedPositionsPanel) && (
+            <Suspense
+              fallback={
+                <div className="lazy-panel-loading positions-panel-loading" role="status">
+                  Loading positions…
+                </div>
+              }
+            >
+              <PositionsPanel
+                isOpen={isOrdersOpen}
+                onClose={() => setIsOrdersOpen(false)}
+                height={positionsPanelHeight}
+                onHeightChange={handlePositionsPanelHeightChange}
+                activeSymbol={currentSymbol}
+                onPositionClosed={handlePositionClosed}
+                openOrdersApi={allOpenOrdersApi}
+                focusedOrderId={focusedOrderId}
+                onFocusOrder={focusOrderLine}
+                focusedPositionKey={focusedPositionKey}
+                onFocusPosition={focusPosition}
+                onSwitchSymbol={switchToPositionSymbol}
+                protection={{
+                  symbol: currentSymbol,
+                  fullTakeProfitPrice,
+                  stopLossPrice,
+                }}
+              />
+            </Suspense>
+          )}
         </div>
       </div>
 
-      {isHotkeysOpen && <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />}
+      {isHotkeysOpen && (
+        <Suspense
+          fallback={
+            <div className="floating-panel lazy-hotkeys-loading" role="status">
+              Loading shortcuts…
+            </div>
+          }
+        >
+          <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />
+        </Suspense>
+      )}
 
       {tradeMenuApi.tradeMenu && (
         <TradeMenu

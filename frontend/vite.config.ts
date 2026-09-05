@@ -22,5 +22,32 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: process.env.TAURI_ENV_DEBUG ? false : "oxc",
     sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
+    rolldownOptions: {
+      output: {
+        // The chart stays in the initial request path, but a dedicated chunk
+        // lets the browser cache its stable third-party code independently
+        // from frequently changing application logic. Remaining dependencies
+        // are likewise separated from the app and from the chart runtime.
+        codeSplitting: {
+          groups: [
+            {
+              name: "chart-vendor",
+              test: /node_modules[\\/]lightweight-charts[\\/]/,
+              priority: 30,
+            },
+            {
+              name: "react-vendor",
+              test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 20,
+            },
+            {
+              name: "vendor",
+              test: /node_modules[\\/]/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
 });
