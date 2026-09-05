@@ -55,12 +55,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets/linux
-          mapfile -t bundles < <(
+          mapfile -t debs < <(
             find frontend/src-tauri/target/release/bundle -type f \
-              \( -name '*.deb' -o -name '*.AppImage' \) -print | sort
+              -name '*.deb' -print | sort
           )
-          test "${#bundles[@]}" -eq 2
-          cp -- "${bundles[@]}" release-assets/linux/
+          mapfile -t appimages < <(
+            find frontend/src-tauri/target/release/bundle -type f \
+              -name '*.AppImage' -print | sort
+          )
+          test "${#debs[@]}" -eq 1
+          test "${#appimages[@]}" -eq 1
+
+          version="${{ steps.tauri.outputs.appVersion }}"
+          [[ "$version" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]
+          asset_base="Fyxtez.Terminal_${version}_amd64"
+          cp -- "${debs[0]}" "release-assets/linux/${asset_base}.deb"
+          cp -- "${appimages[0]}" "release-assets/linux/${asset_base}.AppImage"
           (
             cd release-assets/linux
             sha256sum -- *.deb *.AppImage | sort -k2 > SHA256SUMS-linux-x86_64.txt

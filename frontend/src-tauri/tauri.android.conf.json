@@ -1,7 +1,7 @@
 {
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "bash scripts/build-native-frontend.sh"
   },
   "bundle": {
     "externalBin": [],

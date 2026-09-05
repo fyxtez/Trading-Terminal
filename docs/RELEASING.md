@@ -78,6 +78,12 @@ successful publish, CI retains the newest `releases` deployment record and
 removes superseded records; Actions run history and release assets are not
 affected.
 
+Linux files are renamed to their final GitHub-safe names before the SHA-256
+manifest is generated. Always download the complete draft payload into one
+directory and run both manifest checks there; a manifest whose filenames do not
+exactly match the downloaded assets is a release blocker even when its hash
+values are otherwise correct.
+
 Rollback is manual in v1: withdraw the affected GitHub release, leave the tag
 for auditability, publish the last known-good signed artifact and checksums, and
 issue a higher patch version with the fix. Application data and OS credential

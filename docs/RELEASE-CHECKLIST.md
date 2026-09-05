@@ -18,6 +18,11 @@ not by itself make Mainnet trading release-ready.
 - [x] CI checks frontend, backend, Tauri, dependencies and committed secrets.
 - [ ] Repeat installation acceptance on a clean Linux machine or VM.
 - [x] Linux release artifacts receive SHA-256 manifests and keyless GitHub build attestations.
+- [ ] Regenerate Linux checksums from the final GitHub-safe asset names and
+      verify both manifests after a fresh draft download. The 2026-09-05 audit
+      found correct hashes but a space-to-dot filename mismatch in the current
+      private draft. The workflow now stages final names and a local simulation
+      passes; close this after verifying the replacement GitHub draft.
 - [x] Android upload identity is provisioned outside the repository, the protected
       `releases` environment is configured, and the signed APK/AAB workflow passed.
 - [x] Removing and reinstalling the downloaded `.deb` on the development Linux
@@ -87,8 +92,17 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 - [ ] Exercise backup and restore on a clean supported system.
 - [ ] Manually test locked/unavailable credential-store behavior on every newly
       supported desktop/mobile OS; automated platform-independent behavior is covered.
-- [ ] Audit repository history and old archives, then rotate any credential whose
+- [x] Audit repository history and old archives, then rotate any credential whose
       confidentiality is uncertain.
+      The [2026-09-05 sanitized audit](test-results/security-audit-2026-09-05.md)
+      found no secret in reachable history or signed release artifacts. The
+      local development token was rotated, the old ntfy topic permanently
+      retired, generated/cache copies removed, and repeat scans are clean.
+- [x] Restrict ignored secret-bearing `.env` files and retained private archives
+      to owner-only permissions on development/release machines.
+- [x] Make the Android release build explicitly clear development `VITE_*`
+      service values, matching the existing desktop release boundary. The
+      shared native build and a complete sanitized arm64 debug APK build pass.
 
 ## Deferred product work
 
