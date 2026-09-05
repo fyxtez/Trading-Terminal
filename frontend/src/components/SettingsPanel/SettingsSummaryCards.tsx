@@ -68,9 +68,11 @@ export function DesktopConnectionsSection({
           <div className="settings-connection-statuses">
             {connections.map(([label, connection, configured, detail]) => (
               <div className={configured ? "connected" : ""} key={connection}>
-                <span>{label}</span>
-                <div className="settings-connection-actions">
+                <div className="settings-connection-heading">
+                  <span>{label}</span>
                   <b>{configured ? `CONNECTED${detail ? ` · ${detail}` : ""}` : "NOT SET"}</b>
+                </div>
+                <div className="settings-connection-actions">
                   <button type="button" onClick={() => credentials.openSetup(connection)}>
                     {configured ? "EDIT" : "CONNECT"}
                   </button>

@@ -4,8 +4,11 @@ import { userFacingError } from "./userFacingError";
 describe("userFacingError", () => {
   it("replaces connection implementation details with a useful next step", () => {
     expect(
-      userFacingError(new Error("embedded backend stopped: HTTP connection failed at 127.0.0.1")),
-    ).toBe("Fyxtez could not connect. Check your internet connection and try again.");
+      userFacingError(
+        new Error("embedded backend stopped: HTTP connection failed at 127.0.0.1"),
+        "Fyxtez could not start. Please try again.",
+      ),
+    ).toBe("Fyxtez could not start. Please try again.");
   });
 
   it("explains protected-storage failures without naming the storage technology", () => {

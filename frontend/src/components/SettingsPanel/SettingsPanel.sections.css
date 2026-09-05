@@ -499,14 +499,21 @@
   gap: 12px;
 }
 
-.settings-connection-statuses > div > span {
+.settings-connection-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-connection-heading > span {
   font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 650;
   letter-spacing: -0.1px;
 }
 
-.settings-connection-statuses > div > div {
+.settings-connection-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -629,18 +636,24 @@
 
 @media (max-width: 520px) {
   .settings-connection-statuses > div {
-    align-items: flex-start;
+    align-items: stretch;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+    padding: 11px 12px;
+  }
+
+  .settings-connection-heading {
+    justify-content: space-between;
   }
 
   .settings-connection-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   }
 
-  .settings-connection-actions b {
-    flex-basis: 100%;
-    padding-top: 2px;
-    text-align: right;
+  .settings-connection-actions button {
+    width: 100%;
   }
 
   .settings-disconnect-actions {

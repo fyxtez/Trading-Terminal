@@ -156,6 +156,7 @@ export default function ContextMenu({
    */
   const [isTimeframeMenuOpen, setIsTimeframeMenuOpen] = useState(false);
   const [confirmingTimeframe, setConfirmingTimeframe] = useState<Interval | null>(null);
+  const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
 
   return (
     <div
@@ -322,16 +323,36 @@ export default function ContextMenu({
             Delete all pen drawings
           </button>
 
-          <button
-            className="context-action context-danger"
-            disabled={!hasDrawings}
-            onClick={() => {
-              onDeleteAllDrawings();
-              onClose();
-            }}
-          >
-            Delete all drawings
-          </button>
+          {confirmingDeleteAll ? (
+            <div className="context-confirm" role="group" aria-label="Confirm delete all drawings">
+              <div className="context-confirm-label">Delete every drawing on this symbol?</div>
+              <div className="context-confirm-actions">
+                <button
+                  className="context-confirm-yes"
+                  onClick={() => {
+                    onDeleteAllDrawings();
+                    onClose();
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  className="context-confirm-no"
+                  onClick={() => setConfirmingDeleteAll(false)}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="context-action context-danger"
+              disabled={!hasDrawings}
+              onClick={() => setConfirmingDeleteAll(true)}
+            >
+              Delete all drawings
+            </button>
+          )}
 
           <div className="context-separator" />
 

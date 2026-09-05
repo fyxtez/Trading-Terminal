@@ -20,7 +20,7 @@ export function userFacingError(
     return "Fyxtez could not open your saved connections. Unlock your device and try again.";
   }
   if (TECHNICAL_ERROR_PATTERN.test(message)) {
-    return "Fyxtez could not connect. Check your internet connection and try again.";
+    return fallback;
   }
   return message;
 }

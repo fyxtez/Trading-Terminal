@@ -39,7 +39,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       <section>
         <img src="/fyxtez-f-mark-alpha.png" alt="" />
         <small>FYXTEZ TERMINAL</small>
-        <h1>{state.kind === "starting" ? "Getting Fyxtez ready" : "Fyxtez could not start"}</h1>
+        <h1>{state.kind === "starting" ? "Getting Terminal ready" : "Fyxtez could not start"}</h1>
         {state.kind === "starting" ? (
           <>
             <p>Loading everything you need to use the terminal.</p>

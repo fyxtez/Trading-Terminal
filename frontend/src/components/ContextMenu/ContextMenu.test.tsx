@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { UTCTimestamp } from "lightweight-charts";
 import ContextMenu from "./ContextMenu";
@@ -39,5 +39,47 @@ describe("ContextMenu dormant price alerts", () => {
     expect(screen.getByRole("button", { name: "Reset chart view" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Create crosshair marker" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Create alert" })).not.toBeInTheDocument();
+  });
+
+  it("requires an explicit yes before deleting every drawing", () => {
+    const onDeleteAllDrawings = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <ContextMenu
+        contextMenu={{ x: 10, y: 10, drawingId: null, price: null, time: null }}
+        hasPenDrawings={true}
+        hasDrawings={true}
+        hasTradeMarkers={false}
+        drawingCountsByTimeframe={{}}
+        targetDrawing={null}
+        onDeleteDrawing={vi.fn()}
+        onChangeColor={vi.fn()}
+        onChangeAlign={vi.fn()}
+        onStraightenOnXAxis={vi.fn()}
+        onStraightenSelectionOnXAxis={vi.fn()}
+        onResetView={vi.fn()}
+        onDeleteAllPen={vi.fn()}
+        onDeleteAllDrawings={onDeleteAllDrawings}
+        onDeleteDrawingsByTimeframe={vi.fn()}
+        onDeleteAllTradeMarkers={vi.fn()}
+        priceAlertsEnabled={false}
+        onCreateAlert={vi.fn()}
+        onCreateCoordinateMarker={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete all drawings" }));
+    expect(onDeleteAllDrawings).not.toHaveBeenCalled();
+
+    const confirmation = screen.getByRole("group", { name: "Confirm delete all drawings" });
+    fireEvent.click(screen.getByRole("button", { name: "No" }));
+    expect(confirmation).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete all drawings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    expect(onDeleteAllDrawings).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });
