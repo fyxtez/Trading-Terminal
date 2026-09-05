@@ -16,7 +16,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v7
@@ -46,8 +46,8 @@ jobs:
   rust:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.120.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
@@ -75,19 +75,19 @@ jobs:
   security:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Audit frontend dependencies with OSV
-        uses: google/osv-scanner-action/osv-scanner-action@baa4139e56d6312335d899e6ba045fa16d1d3d0b # v2.5.1
+        uses: google/osv-scanner-action/osv-scanner-action@8e5cf47b818121e8b405931c82126c2630b0b20d # v2.5.1
         with:
           scan-args: |-
             -L
             frontend/package-lock.json
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@1.120.0
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
@@ -101,7 +101,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v7
