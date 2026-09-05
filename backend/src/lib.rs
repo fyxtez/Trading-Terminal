@@ -9,6 +9,7 @@ mod error;
 mod icons;
 mod models;
 mod operation_safety;
+mod order_mutation_workflow;
 mod position_risk_state;
 mod runtime_config;
 mod secure_store;

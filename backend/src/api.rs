@@ -39,6 +39,11 @@ use crate::{
         SetLeverageRequest, SymbolFilters,
     },
     operation_safety::OperationSafety,
+    order_mutation_workflow::{
+        ChaseLimitRequest, ModifyLimitRequest, ReduceReplacementRequest,
+        chase_limit_order_and_reconcile, modify_limit_and_reconcile,
+        replace_reduce_order_and_reconcile,
+    },
     position_risk_state::PositionRiskState,
     sizing_store::SizingStore,
     symbol_registry::SymbolRegistry,
@@ -83,6 +88,27 @@ pub struct AppState {
     pub websocket_tickets: Arc<Mutex<HashMap<String, tokio::time::Instant>>>,
     pub diagnostics: DiagnosticsState,
     pub operation_safety: OperationSafety,
+}
+
+fn request_authoritative_refresh(state: &AppState, reason: impl Into<String>) {
+    request_authoritative_refresh_parts(
+        &state.account_state,
+        &state.position_risk_state,
+        &state.trading_events,
+        reason.into(),
+    );
+}
+
+fn request_authoritative_refresh_parts(
+    account_state: &AccountState,
+    position_risk_state: &PositionRiskState,
+    trading_events: &broadcast::Sender<TradingEvent>,
+    reason: String,
+) {
+    account_state.request_refresh();
+    position_risk_state.request_refresh();
+
+    let _ = trading_events.send(TradingEvent::SnapshotRequired { reason });
 }
 
 pub fn router(state: AppState) -> Router {
@@ -1323,14 +1349,24 @@ async fn reprice_reduce_order(
      * (and cancels when quantity <= executedQty), so pass origQty rather than
      * the remaining quantity calculated above.
      */
-    let replacement = state
-        .binance
-        .modify_limit_order(&symbol, actual_order_id, side, orig, price, time_in_force)
-        .await?;
-
-    let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
-        reason: format!("reduce order {actual_order_id} repriced"),
-    });
+    let replacement = modify_limit_and_reconcile(
+        &state.binance,
+        ModifyLimitRequest {
+            symbol: &symbol,
+            order_id: actual_order_id,
+            side,
+            quantity: orig,
+            price,
+            time_in_force,
+        },
+        || {
+            request_authoritative_refresh(
+                &state,
+                format!("reduce order {actual_order_id} reprice attempted"),
+            )
+        },
+    )
+    .await?;
 
     Ok(Json(json!({
         "old_order_id": actual_order_id,
@@ -1522,52 +1558,28 @@ async fn update_reduce_order(
     let pct_label = effective_reduce_pct.round().clamp(1.0, 100.0) as u32;
     let left_label = remaining_position_pct.round().clamp(0.0, 100.0) as u32;
     let replacement_client_id = new_client_order_id(&format!("fe-red-{pct_label}-l{left_label}"));
-
-    state.binance.cancel_order(&symbol, order_id).await?;
-
-    let replacement = match state
-        .binance
-        .limit_order(
-            &symbol,
-            reduce_side,
-            quantity,
+    let rollback_id = new_client_order_id("fe-red-rollback");
+    let replacement = replace_reduce_order_and_reconcile(
+        &state.binance,
+        ReduceReplacementRequest {
+            symbol: &symbol,
+            order_id,
+            side: reduce_side,
+            replacement_quantity: quantity,
+            rollback_quantity: original_open_quantity,
             price,
-            &time_in_force,
-            true,
-            Some(&replacement_client_id),
-        )
-        .await
-    {
-        Ok(order) => order,
-        Err(error) => {
-            let rollback_id = new_client_order_id("fe-red-rollback");
-            let rollback = state
-                .binance
-                .limit_order(
-                    &symbol,
-                    reduce_side,
-                    original_open_quantity,
-                    price,
-                    &time_in_force,
-                    true,
-                    Some(&rollback_id),
-                )
-                .await;
-
-            return Err(AppError::Invalid(format!(
-                "failed to replace reduce order: {error}; rollback {}",
-                if rollback.is_ok() {
-                    "submitted"
-                } else {
-                    "also failed"
-                }
-            )));
-        }
-    };
-
-    let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
-        reason: format!("reduce order {order_id} resized"),
-    });
+            time_in_force: &time_in_force,
+            replacement_client_order_id: &replacement_client_id,
+            rollback_client_order_id: &rollback_id,
+        },
+        || {
+            request_authoritative_refresh(
+                &state,
+                format!("reduce order {order_id} resize attempted"),
+            )
+        },
+    )
+    .await?;
 
     Ok(Json(json!({
         "old_order_id": order_id,
@@ -1939,34 +1951,23 @@ async fn chase_limit_order(
     };
     let chase_client_id = new_client_order_id(chase_prefix);
 
-    state.binance.cancel_order(&symbol, order_id).await?;
-
-    // chasing converts a resting entry into immediate market exposure.
-    // Check ISOLATED after cancelling the old order (Binance cannot change
-    // margin mode while it is open) and abort before the market replacement.
-    state.binance.ensure_isolated_margin(&symbol).await?;
-
-    let market_order = state
-        .binance
-        .market_order(
-            &symbol,
+    let market_order = chase_limit_order_and_reconcile(
+        &state.binance,
+        ChaseLimitRequest {
+            symbol: &symbol,
+            order_id,
             side,
             remaining_quantity,
-            false,
-            Some(&chase_client_id),
-        )
-        .await
-        .map_err(|error| {
-            AppError::Invalid(format!(
-                "limit order was cancelled, but market chase failed: {error}"
-            ))
-        })?;
-
-    state.account_state.request_refresh();
-
-    let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
-        reason: format!("limit order {order_id} chased to market"),
-    });
+            client_order_id: &chase_client_id,
+        },
+        || {
+            request_authoritative_refresh(
+                &state,
+                format!("limit order {order_id} market chase attempted"),
+            )
+        },
+    )
+    .await?;
 
     Ok(Json(json!({
         "chased_order_id": order_id,
@@ -2469,11 +2470,16 @@ mod financial_invariant_tests {
     use super::{
         close_everything_result, close_side_for_position, configured_margin_quantity,
         ensure_auto_market_starts_flat, executed_quantity_or, find_nonzero_position,
-        liquidation_price_for_position, unfilled_order_quantity,
-        validate_auto_stop_liquidation_room, validate_stop_trigger,
+        liquidation_price_for_position, request_authoritative_refresh_parts,
+        unfilled_order_quantity, validate_auto_stop_liquidation_room, validate_stop_trigger,
     };
-    use crate::models::{
-        BinanceOrderResponse, FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters,
+    use crate::{
+        account_state::AccountState,
+        models::{
+            BinanceOrderResponse, FuturesAccountInfo, FuturesPosition, OrderSide, SymbolFilters,
+        },
+        position_risk_state::PositionRiskState,
+        trading_events::TradingEvent,
     };
 
     fn account_with_positions(positions: Vec<FuturesPosition>) -> FuturesAccountInfo {
@@ -2647,5 +2653,31 @@ mod financial_invariant_tests {
         assert_eq!(result["completed"], false);
         assert_eq!(result["cancelled_symbols"][0], "BTCUSDT");
         assert_eq!(result["errors"][0]["stage"], "CLOSE_POSITION");
+    }
+
+    #[test]
+    fn authoritative_refresh_reaches_backend_and_frontend_consumers() {
+        let (account_state, mut account_refresh_rx) =
+            AccountState::new(account_with_positions(Vec::new()));
+        let (position_risk_state, mut position_refresh_rx) = PositionRiskState::new(Vec::new());
+        let (trading_events, mut event_rx) = tokio::sync::broadcast::channel(4);
+
+        request_authoritative_refresh_parts(
+            &account_state,
+            &position_risk_state,
+            &trading_events,
+            "partial workflow".into(),
+        );
+
+        account_refresh_rx
+            .try_recv()
+            .expect("account refresh must be requested");
+        position_refresh_rx
+            .try_recv()
+            .expect("position-risk refresh must be requested");
+        assert!(matches!(
+            event_rx.try_recv().expect("snapshot event must be emitted"),
+            TradingEvent::SnapshotRequired { reason } if reason == "partial workflow"
+        ));
     }
 }

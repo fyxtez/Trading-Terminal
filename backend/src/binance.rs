@@ -815,6 +815,22 @@ impl BinanceClient {
         .await
     }
 
+    pub async fn query_order_by_client_id(
+        &self,
+        symbol: &str,
+        client_order_id: &str,
+    ) -> AppResult<BinanceOrderResponse> {
+        self.signed(
+            Method::GET,
+            "/fapi/v1/order",
+            vec![
+                ("symbol".into(), normalize_symbol(symbol)?),
+                ("origClientOrderId".into(), validate_id(client_order_id)?),
+            ],
+        )
+        .await
+    }
+
     pub async fn cancel_order(&self, symbol: &str, order_id: i64) -> AppResult<Value> {
         self.signed(
             Method::DELETE,

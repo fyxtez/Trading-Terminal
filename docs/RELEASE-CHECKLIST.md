@@ -39,7 +39,7 @@ The complete install procedure and signing policy are in [RELEASING.md](RELEASIN
 - [x] Auto Market mock-exchange tests cover stop success, explicit stop rejection,
       lost stop response recovered by `clientAlgoId`, and failed rollback escalation.
 - [x] Reversal has been removed from the product UI and backend request contract.
-- [ ] Complete remaining mock-exchange scenarios for cancel/replace failures and
+- [x] Mock-exchange scenarios cover cancel/replace failures and
       authoritative refresh after partial workflows.
 - [ ] Exercise REST timeout, time drift, dropped user stream, sidecar restart and
       unresolved-intent recovery against Binance Futures Testnet.

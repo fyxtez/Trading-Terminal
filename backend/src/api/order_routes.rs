@@ -8,9 +8,13 @@ use crate::{
     binance::{floor_to_step, normalize_symbol, round_to_tick},
     error::{AppError, AppResult},
     models::{ModifyLimitOrderRequest, OptionalSymbolQuery, SymbolQuery},
+    order_mutation_workflow::{
+        ModifyLimitRequest, cancel_all_orders_and_reconcile, cancel_order_and_reconcile,
+        modify_limit_and_reconcile,
+    },
 };
 
-use super::AppState;
+use super::{AppState, request_authoritative_refresh};
 
 pub(super) async fn query_order(
     State(state): State<AppState>,
@@ -39,17 +43,24 @@ pub(super) async fn modify_limit_order(
         time_in_force = %req.time_in_force,
         "Received LIMIT order modification"
     );
-    let response = state
-        .binance
-        .modify_limit_order(
-            &symbol,
+    let response = modify_limit_and_reconcile(
+        &state.binance,
+        ModifyLimitRequest {
+            symbol: &symbol,
             order_id,
-            req.side,
+            side: req.side,
             quantity,
             price,
-            &req.time_in_force,
-        )
-        .await?;
+            time_in_force: &req.time_in_force,
+        },
+        || {
+            request_authoritative_refresh(
+                &state,
+                format!("limit order {order_id} modification attempted"),
+            )
+        },
+    )
+    .await?;
 
     Ok(Json(json!({
         "submitted_quantity": quantity,
@@ -88,7 +99,11 @@ pub(super) async fn cancel_order(
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
     let _guard = state.trade_lock.lock().await;
-    Ok(Json(state.binance.cancel_order(&symbol, order_id).await?))
+    let response = cancel_order_and_reconcile(&state.binance, &symbol, order_id, || {
+        request_authoritative_refresh(&state, format!("order {order_id} cancellation attempted"))
+    })
+    .await?;
+    Ok(Json(response))
 }
 
 pub(super) async fn open_orders(
@@ -110,7 +125,14 @@ pub(super) async fn cancel_all_orders(
 ) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&query.symbol)?;
     let _guard = state.trade_lock.lock().await;
-    Ok(Json(state.binance.cancel_all_orders(&symbol).await?))
+    let response = cancel_all_orders_and_reconcile(&state.binance, &symbol, || {
+        request_authoritative_refresh(
+            &state,
+            format!("all {symbol} order cancellations attempted"),
+        )
+    })
+    .await?;
+    Ok(Json(response))
 }
 
 #[cfg(test)]

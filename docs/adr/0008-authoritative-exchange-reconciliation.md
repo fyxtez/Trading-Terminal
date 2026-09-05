@@ -108,6 +108,16 @@ In particular:
 
 - If an old order is canceled but its replacement fails, the old order remains
   canceled unless a compensating order is independently accepted and verified.
+- Regular modify, cancel and cancel-all attempts always trigger fresh order,
+  account and position-risk snapshots, including when their HTTP result is lost.
+  Reduce-order resize assigns the replacement a client order ID and queries that
+  ID before rollback after an ambiguous response. A confirmed replacement is
+  kept, confirmed absence restores the original reduce quantity, and an
+  unresolved outcome fails closed without submitting a potentially duplicate
+  rollback.
+- Limit-to-market chase refreshes orders, account and position risk after every
+  post-cancellation outcome. Failure to establish isolated margin or submit the
+  market order explicitly reports that the resting limit was already canceled.
 - Auto Market submits its entry and full-position protective stop as one
   backend workflow under `TradeLock`. A lost stop response is queried by its
   preassigned `clientAlgoId`; if Binance cannot confirm the stop, the backend
