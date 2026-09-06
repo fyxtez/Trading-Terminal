@@ -33,10 +33,10 @@ function browserAccessMessage(reason: unknown, fallback: string): string {
   const raw = reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "";
   const normalized = raw.toLowerCase();
   if (normalized.includes("already in use") || normalized.includes("address is in use")) {
-    return "Another program is using browser access. Close it, then restart Fyxtez.";
+    return "Another program is using browser access. Close it, then restart Terminal.";
   }
   if (normalized.includes("browser files") || normalized.includes("reinstall")) {
-    return "Browser files are missing. Reinstall Fyxtez to restore browser access.";
+    return "Browser files are missing. Reinstall Terminal to restore browser access.";
   }
   if (normalized.includes("starting"))
     return "Browser access is still starting. Try again shortly.";
@@ -72,7 +72,7 @@ export default function BrowserAccessSection({
       (reason: unknown) => {
         if (current) {
           setStatus(unavailableStatus);
-          setError(browserAccessMessage(reason, "Fyxtez could not check browser access."));
+          setError(browserAccessMessage(reason, "Terminal could not check browser access."));
         }
       },
     );
@@ -85,7 +85,7 @@ export default function BrowserAccessSection({
     if (runtimeMode !== "native" || !expanded) return;
     const refreshAfterFocus = () => {
       void refresh().catch((reason: unknown) => {
-        setError(browserAccessMessage(reason, "Fyxtez could not check browser access."));
+        setError(browserAccessMessage(reason, "Terminal could not check browser access."));
       });
     };
     refreshAfterFocus();
@@ -102,7 +102,7 @@ export default function BrowserAccessSection({
     void invoke(command)
       .then(refresh)
       .catch((reason: unknown) => {
-        setError(browserAccessMessage(reason, "Fyxtez could not change browser access."));
+        setError(browserAccessMessage(reason, "Terminal could not change browser access."));
       })
       .finally(() => setBusy(false));
   };
@@ -133,7 +133,7 @@ export default function BrowserAccessSection({
                 <b>CONNECTED</b>
               </div>
               <p>
-                Fyxtez is running on this computer and securely handling trading for this browser.
+                Terminal is running on this computer and securely handling trading for this browser.
                 Manage Binance keys or turn browser access off in the installed app.
               </p>
               <small>Your Binance keys are not exposed to the browser interface.</small>
@@ -145,7 +145,7 @@ export default function BrowserAccessSection({
                 <b>INSTALLED APP REQUIRED</b>
               </div>
               <p>
-                Install and open Fyxtez on Linux, then enable Browser access there. This public
+                Install and open Terminal on Linux, then enable Browser access there. This public
                 browser remains chart-only.
               </p>
             </>
@@ -167,7 +167,7 @@ export default function BrowserAccessSection({
               </div>
               <p>
                 {status.enabled
-                  ? "Closing this window keeps Fyxtez available in the background. Quit the app to stop it completely."
+                  ? "Closing this window keeps Terminal available in the background. Quit the app to stop it completely."
                   : "Turn this on to open the full terminal in your normal browser. It works only on this computer."}
               </p>
               <small>Your Binance keys stay in the protected storage of this computer.</small>
@@ -230,14 +230,14 @@ export default function BrowserAccessSection({
               </div>
               <p>
                 {status.supported
-                  ? "Browser access could not start. Fyxtez itself remains available in this window."
+                  ? "Browser access could not start. Terminal itself remains available in this window."
                   : "Browser access is available in the Linux app. Keep using the installed Android app on this device."}
               </p>
               {status.unavailableReason && (
                 <small>
                   {browserAccessMessage(
                     status.unavailableReason,
-                    "Restart Fyxtez and try browser access again.",
+                    "Restart Terminal and try browser access again.",
                   )}
                 </small>
               )}

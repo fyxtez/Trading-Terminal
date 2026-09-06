@@ -246,7 +246,7 @@ export default function SymbolSwitcher({
       setNewSymbol("");
       onChangeSymbol(`${result.symbol.symbol}USDT`);
     } catch (err) {
-      setError(userFacingError(err, "Fyxtez could not add this symbol."));
+      setError(userFacingError(err, "Terminal could not add this symbol."));
     } finally {
       setPending(null);
     }
@@ -280,7 +280,7 @@ export default function SymbolSwitcher({
       // here is the one case that really does mean the tab should go.
       onSymbolDeleted(candidate);
     } catch (err) {
-      setError(userFacingError(err, "Fyxtez could not delete this symbol."));
+      setError(userFacingError(err, "Terminal could not delete this symbol."));
     } finally {
       setPending(null);
     }

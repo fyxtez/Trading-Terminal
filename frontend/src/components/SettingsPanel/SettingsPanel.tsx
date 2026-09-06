@@ -368,7 +368,7 @@ export default function SettingsPanel({
       .catch((error: unknown) => {
         if (cancelled) return;
         setListedPriceAlerts(localAlerts());
-        setAlertsListError(userFacingError(error, "Fyxtez could not load your saved alerts."));
+        setAlertsListError(userFacingError(error, "Terminal could not load your saved alerts."));
       })
       .finally(() => {
         if (!cancelled) setIsLoadingAlerts(false);
@@ -609,7 +609,7 @@ export default function SettingsPanel({
         }
 
         setAvailableBalance(null);
-        setBalanceError(userFacingError(error, "Fyxtez could not load your available balance."));
+        setBalanceError(userFacingError(error, "Terminal could not load your available balance."));
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -627,7 +627,7 @@ export default function SettingsPanel({
           return;
         }
 
-        setSizingError(userFacingError(error, "Fyxtez could not load your trade sizing."));
+        setSizingError(userFacingError(error, "Terminal could not load your trade sizing."));
       });
 
     return () => controller.abort();
@@ -702,7 +702,7 @@ export default function SettingsPanel({
         return;
       }
 
-      setSizingError(userFacingError(error, "Fyxtez could not update your trade sizing."));
+      setSizingError(userFacingError(error, "Terminal could not update your trade sizing."));
 
       setDraftSizing(sizing);
     } finally {
@@ -1027,7 +1027,7 @@ export default function SettingsPanel({
                 <>
                   {!isBackendConnected && (
                     <div className="settings-error settings-backend-warning">
-                      Trade sizing cannot be changed right now. Fyxtez will enable it when the
+                      Trade sizing cannot be changed right now. Terminal will enable it when the
                       connection returns.
                     </div>
                   )}
@@ -1733,7 +1733,7 @@ export default function SettingsPanel({
                     <label className="settings-toggle-field">
                       <div className="settings-field-copy">
                         <span>Show watermark</span>
-                        <small>Show the Fyxtez watermark on the chart</small>
+                        <small>Show the Terminal watermark on the chart</small>
                       </div>
 
                       <input

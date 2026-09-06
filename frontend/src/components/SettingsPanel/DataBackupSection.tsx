@@ -37,7 +37,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
           : "Backup export cancelled.",
       );
     } catch (reason) {
-      setError(userFacingError(reason, "Fyxtez could not create the backup."));
+      setError(userFacingError(reason, "Terminal could not create the backup."));
     } finally {
       setBusy(null);
     }
@@ -54,7 +54,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
       if (result) setCandidate(result);
       else setMessage("Restore cancelled.");
     } catch (reason) {
-      setError(userFacingError(reason, "Fyxtez could not open this backup."));
+      setError(userFacingError(reason, "Terminal could not open this backup."));
     } finally {
       setBusy(null);
     }
@@ -65,7 +65,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
     setConfirmation("");
     setError(null);
     await cancelLocalBackupRestore().catch((reason) =>
-      setError(userFacingError(reason, "Fyxtez could not cancel the restore.")),
+      setError(userFacingError(reason, "Terminal could not cancel the restore.")),
     );
   };
 
@@ -80,10 +80,10 @@ export default function DataBackupSection({ forceExpanded }: Props) {
       setConfirmation("");
       setRestartRequired(true);
       setMessage(
-        `Restore completed. Safety copy kept as ${result.safetyBackupName}. Close and reopen Fyxtez to load every restored setting.`,
+        `Restore completed. Safety copy kept as ${result.safetyBackupName}. Close and reopen Terminal to load every restored setting.`,
       );
     } catch (reason) {
-      setError(userFacingError(reason, "Fyxtez could not restore this backup."));
+      setError(userFacingError(reason, "Terminal could not restore this backup."));
     } finally {
       setBusy(null);
     }
@@ -95,7 +95,7 @@ export default function DataBackupSection({ forceExpanded }: Props) {
     try {
       await invoke("exit_app");
     } catch (reason) {
-      setError(userFacingError(reason, "Fyxtez could not close. Please close it normally."));
+      setError(userFacingError(reason, "Terminal could not close. Please close it normally."));
       setBusy(null);
     }
   };

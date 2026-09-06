@@ -72,11 +72,19 @@ const SESSION_DEFINITIONS: SessionDefinition[] = [
  * winter) has no +/- digits at all - the regex simply won't match it,
  * and the `0` fallback below is the correct value for that case anyway.
  */
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function getZoneOffsetMinutes(utcMs: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "shortOffset",
-  }).formatToParts(new Date(utcMs));
+  let formatter = offsetFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      timeZoneName: "shortOffset",
+    });
+    offsetFormatters.set(timeZone, formatter);
+  }
+  const parts = formatter.formatToParts(new Date(utcMs));
 
   const raw = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT+0";
   const match = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(raw);
@@ -94,12 +102,17 @@ function getLocalDateParts(
   now: Date,
   timeZone: string,
 ): { year: number; month: number; day: number } {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
+  let formatter = dateFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    dateFormatters.set(timeZone, formatter);
+  }
+  const parts = formatter.formatToParts(now);
 
   const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? NaN);
 

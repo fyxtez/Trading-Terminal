@@ -734,7 +734,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         refs.chartReadyRef.current = false;
         setIsChartLoading(false);
         setMarketConnection("disconnected");
-        setMarketDataError(userFacingError(error, "Fyxtez could not load this chart."));
+        setMarketDataError(userFacingError(error, "Terminal could not load this chart."));
         console.error("Failed to load chart", error);
       }
     }

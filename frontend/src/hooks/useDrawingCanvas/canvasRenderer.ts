@@ -117,8 +117,14 @@ export function drawCanvasFrame({
 
     const paneSize = chart.paneSize();
 
-    wrap.style.setProperty("--pane-inset-right", `${Math.max(0, width - paneSize.width)}px`);
-    wrap.style.setProperty("--pane-inset-bottom", `${Math.max(0, height - paneSize.height)}px`);
+    const rightInset = `${Math.max(0, width - paneSize.width)}px`;
+    const bottomInset = `${Math.max(0, height - paneSize.height)}px`;
+    if (wrap.style.getPropertyValue("--pane-inset-right") !== rightInset) {
+      wrap.style.setProperty("--pane-inset-right", rightInset);
+    }
+    if (wrap.style.getPropertyValue("--pane-inset-bottom") !== bottomInset) {
+      wrap.style.setProperty("--pane-inset-bottom", bottomInset);
+    }
 
     context.save();
     context.beginPath();

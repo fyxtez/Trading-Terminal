@@ -26,8 +26,8 @@ function errorMessage(reason: unknown, browserAccess = false): string {
   return userFacingError(
     reason,
     browserAccess
-      ? "Fyxtez could not check this browser connection. Please try again."
-      : "Fyxtez could not start. Please try again.",
+      ? "Terminal could not check this browser connection. Please try again."
+      : "Terminal could not start. Please try again.",
   );
 }
 
@@ -116,7 +116,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
     <main className="desktop-runtime-gate">
       <section>
         <img src="/fyxtez-f-mark-alpha.png" alt="" />
-        <small>FYXTEZ TERMINAL</small>
+        <small>TERMINAL</small>
         <h1>
           {state.kind === "starting"
             ? localBrowser
@@ -125,14 +125,14 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
             : localBrowser
               ? canRetry
                 ? "Browser access needs attention"
-                : "Open this page from Fyxtez again"
-              : "Fyxtez could not start"}
+                : "Open this page from Terminal again"
+              : "Terminal could not start"}
         </h1>
         {state.kind === "starting" ? (
           <>
             <p>
               {localBrowser
-                ? "Confirming the secure connection to Fyxtez on this computer."
+                ? "Confirming the secure connection to Terminal on this computer."
                 : "Loading everything you need to use the terminal."}
             </p>
             <LoadingIndicator
@@ -147,8 +147,8 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
             {localBrowser && (
               <p className="desktop-runtime-gate-guidance">
                 {canRetry
-                  ? "Make sure the installed Fyxtez app is still open, then check again. Your Binance keys remain protected on this computer."
-                  : "Return to the installed Fyxtez app and choose Open in browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
+                  ? "Make sure the installed Terminal app is still open, then check again. Your Binance keys remain protected on this computer."
+                  : "Return to the installed Terminal app and choose Open in browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
               </p>
             )}
           </>

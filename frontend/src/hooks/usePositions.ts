@@ -75,7 +75,7 @@ export function usePositions(
         return;
       }
 
-      setError(userFacingError(caughtError, "Fyxtez could not load your positions."));
+      setError(userFacingError(caughtError, "Terminal could not load your positions."));
     } finally {
       if (mountedRef.current && requestId === refreshRequestIdRef.current) {
         setIsLoading(false);
@@ -191,7 +191,7 @@ export function usePositions(
           return;
         }
 
-        setError(userFacingError(caughtError, `Fyxtez could not close ${symbol}.`));
+        setError(userFacingError(caughtError, `Terminal could not close ${symbol}.`));
 
         /*
          * Re-read the account because the exchange may have filled the order

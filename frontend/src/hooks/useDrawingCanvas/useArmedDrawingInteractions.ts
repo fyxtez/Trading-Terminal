@@ -288,7 +288,7 @@ export function useArmedDrawingInteractions(
             ? "The live take-profit order could not be resolved. Open Orders was refreshed."
             : reduceOnlyBlocked
               ? "Can't rest this order there - other pending orders on the same side would need to fill first, which could exceed your position size before this price is reached. Move it closer, or cancel/reduce those orders."
-              : userFacingError(error, "Fyxtez could not move this order."),
+              : userFacingError(error, "Terminal could not move this order."),
         });
       });
   };

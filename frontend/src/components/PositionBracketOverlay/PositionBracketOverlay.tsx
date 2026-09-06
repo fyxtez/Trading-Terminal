@@ -1226,7 +1226,7 @@ export default function PositionBracketOverlay({
         kind: "error",
         message: reduceOnlyBlocked
           ? "Can't rest this order there - other pending orders on the same side would need to fill first, which could exceed your position size before this price is reached. Move it closer, or cancel/reduce those orders."
-          : userFacingError(error, "Fyxtez could not create this protection order."),
+          : userFacingError(error, "Terminal could not create this protection order."),
       });
     } finally {
       setIsSubmitting(false);
@@ -1448,7 +1448,7 @@ export default function PositionBracketOverlay({
     } catch (error) {
       onToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not close this position."),
+        message: userFacingError(error, "Terminal could not close this position."),
       });
     } finally {
       setIsClosingPosition(false);
@@ -1608,7 +1608,7 @@ export default function PositionBracketOverlay({
       setMessage(null);
       onToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not cancel this stop loss."),
+        message: userFacingError(error, "Terminal could not cancel this stop loss."),
       });
     } finally {
       setIsSubmitting(false);

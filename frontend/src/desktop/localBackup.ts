@@ -59,9 +59,9 @@ export async function exportLocalBackup(): Promise<BackupExportInfo | null> {
   });
   try {
     const destination = await save({
-      title: "Export Fyxtez backup",
+      title: "Export Terminal backup",
       defaultPath: exportInfo.suggestedFileName,
-      filters: [{ name: "Fyxtez backup", extensions: ["fyxtez-backup"] }],
+      filters: [{ name: "Terminal backup", extensions: ["fyxtez-backup"] }],
     });
     if (!destination) return null;
     const bytes = await readFile(EXPORT_STAGE_NAME, { baseDir: BaseDirectory.AppCache });
@@ -74,10 +74,10 @@ export async function exportLocalBackup(): Promise<BackupExportInfo | null> {
 
 export async function chooseLocalBackup(): Promise<BackupInspection | null> {
   const source = await open({
-    title: "Choose a Fyxtez backup",
+    title: "Choose a Terminal backup",
     multiple: false,
     directory: false,
-    filters: [{ name: "Fyxtez backup", extensions: ["fyxtez-backup"] }],
+    filters: [{ name: "Terminal backup", extensions: ["fyxtez-backup"] }],
   });
   if (!source || Array.isArray(source)) return null;
   const bytes = await readFile(source);

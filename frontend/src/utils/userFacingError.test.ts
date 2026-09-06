@@ -6,14 +6,14 @@ describe("userFacingError", () => {
     expect(
       userFacingError(
         new Error("embedded backend stopped: HTTP connection failed at 127.0.0.1"),
-        "Fyxtez could not start. Please try again.",
+        "Terminal could not start. Please try again.",
       ),
-    ).toBe("Fyxtez could not start. Please try again.");
+    ).toBe("Terminal could not start. Please try again.");
   });
 
   it("explains protected-storage failures without naming the storage technology", () => {
     expect(userFacingError(new Error("credential store unavailable"))).toBe(
-      "Fyxtez could not open your saved connections. Unlock your device and try again.",
+      "Terminal could not open your saved connections. Unlock your device and try again.",
     );
   });
 

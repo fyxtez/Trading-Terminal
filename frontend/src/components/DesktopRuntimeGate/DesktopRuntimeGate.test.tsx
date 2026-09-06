@@ -38,8 +38,8 @@ describe("DesktopRuntimeGate", () => {
       </DesktopRuntimeGate>,
     );
 
-    expect(await screen.findByText("Open this page from Fyxtez again")).toBeVisible();
-    expect(screen.getByText(/Return to the installed Fyxtez app/i)).toBeVisible();
+    expect(await screen.findByText("Open this page from Terminal again")).toBeVisible();
+    expect(screen.getByText(/Return to the installed Terminal app/i)).toBeVisible();
     expect(screen.getByText(/cannot reconnect by itself/i)).toBeVisible();
     expect(screen.queryByRole("button", { name: "CHECK AGAIN" })).not.toBeInTheDocument();
     expect(screen.queryByText("terminal")).not.toBeInTheDocument();
@@ -60,9 +60,9 @@ describe("DesktopRuntimeGate", () => {
     const retry = await screen.findByRole("button", { name: "CHECK AGAIN" });
     expect(screen.getByText("Browser access needs attention")).toBeVisible();
     expect(
-      screen.getByText("Fyxtez could not check this browser connection. Please try again."),
+      screen.getByText("Terminal could not check this browser connection. Please try again."),
     ).toBeVisible();
-    expect(screen.getByText(/installed Fyxtez app is still open/i)).toBeVisible();
+    expect(screen.getByText(/installed Terminal app is still open/i)).toBeVisible();
 
     fireEvent.click(retry);
     expect(await screen.findByText("terminal")).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("DesktopRuntimeGate", () => {
     browserSession.proof = null;
     act(() => window.dispatchEvent(new Event(LOCAL_BROWSER_SESSION_ENDED_EVENT)));
 
-    expect(await screen.findByText("Open this page from Fyxtez again")).toBeVisible();
+    expect(await screen.findByText("Open this page from Terminal again")).toBeVisible();
     expect(screen.queryByRole("button", { name: "CHECK AGAIN" })).not.toBeInTheDocument();
     expect(restartMock).not.toHaveBeenCalled();
   });
@@ -120,7 +120,7 @@ describe("DesktopRuntimeGate", () => {
       </DesktopRuntimeGate>,
     );
     const retry = await screen.findByRole("button", { name: "TRY AGAIN" });
-    expect(screen.getByText("Fyxtez could not start. Please try again.")).toBeInTheDocument();
+    expect(screen.getByText("Terminal could not start. Please try again.")).toBeInTheDocument();
 
     fireEvent.click(retry);
     expect(await screen.findByText("terminal")).toBeInTheDocument();

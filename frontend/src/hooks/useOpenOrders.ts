@@ -70,7 +70,7 @@ export function useOpenOrders(
           return;
         }
 
-        setError(userFacingError(caughtError, "Fyxtez could not load your open orders."));
+        setError(userFacingError(caughtError, "Terminal could not load your open orders."));
       } finally {
         if (mountedRef.current && requestId === requestIdRef.current) {
           setIsLoading(false);
@@ -138,7 +138,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to cancel order ${order.orderId}`;
 
-        setError(userFacingError(caughtError, "Fyxtez could not cancel this order."));
+        setError(userFacingError(caughtError, "Terminal could not cancel this order."));
 
         /*
          * this used to only call
@@ -194,7 +194,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to update reduce order ${order.orderId}`;
 
-        setError(userFacingError(caughtError, "Fyxtez could not update this order."));
+        setError(userFacingError(caughtError, "Terminal could not update this order."));
 
         // Same reasoning as cancelOrder's own catch above - don't wait
         // on refresh() (which can itself keep failing) to notice a
@@ -262,7 +262,7 @@ export function useOpenOrders(
             ? caughtError.message
             : `Unable to chase order ${order.orderId}`;
 
-        setError(userFacingError(caughtError, "Fyxtez could not complete this order."));
+        setError(userFacingError(caughtError, "Terminal could not complete this order."));
 
         // Same reasoning as cancelOrder/updateReduceOrder's own catches.
         if (isStaleOrderError(message)) {

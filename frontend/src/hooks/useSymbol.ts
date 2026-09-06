@@ -157,7 +157,7 @@ export function useSymbol() {
       // answer comes back (this effect re-runs on remount/retry).
       setRegistryReady(true);
     } catch (error) {
-      setSymbolRegistryError(userFacingError(error, "Fyxtez could not load the symbol list."));
+      setSymbolRegistryError(userFacingError(error, "Terminal could not load the symbol list."));
     }
   }, []);
 

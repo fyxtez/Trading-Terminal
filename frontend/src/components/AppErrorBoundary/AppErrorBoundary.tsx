@@ -20,14 +20,14 @@ export default class AppErrorBoundary extends Component<{ children: ReactNode },
     return (
       <main className="app-error-boundary" role="alert">
         <div>
-          <span>FYXTEZ RECOVERY</span>
+          <span>TERMINAL RECOVERY</span>
           <h1>Something went wrong on this screen.</h1>
           <p>
             Trading is paused until the screen reloads. Any action Binance already completed stays
             completed.
           </p>
           <button type="button" onClick={() => window.location.reload()}>
-            RELOAD FYXTEZ
+            RELOAD TERMINAL
           </button>
         </div>
       </main>

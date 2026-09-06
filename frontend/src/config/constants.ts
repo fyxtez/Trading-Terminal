@@ -396,7 +396,7 @@ async function readBrowserSessionResponse(
     throw new LocalBrowserSessionError(
       response.status === 401 || response.status === 403
         ? "This browser connection has expired or was turned off."
-        : "Fyxtez could not confirm this browser connection.",
+        : "Terminal could not confirm this browser connection.",
     );
   }
 

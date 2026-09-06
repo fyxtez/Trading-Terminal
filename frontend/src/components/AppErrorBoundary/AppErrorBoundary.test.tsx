@@ -19,6 +19,6 @@ describe("AppErrorBoundary", () => {
       screen.getByRole("heading", { name: "Something went wrong on this screen." }),
     ).toBeVisible();
     expect(screen.queryByText("render exploded")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "RELOAD FYXTEZ" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "RELOAD TERMINAL" })).toBeVisible();
   });
 });

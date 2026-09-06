@@ -103,12 +103,15 @@ export function useOperationalDiagnostics({
         publishSystemNotice({
           kind: "success",
           title: "Previous action checked",
-          message: "Your Binance account is up to date. Fyxtez did not place another order.",
+          message: "Your Binance account is up to date. Terminal did not place another order.",
         });
         await refresh();
       } catch (resolveError) {
         setResolutionError(
-          userFacingError(resolveError, "Fyxtez could not complete this check. Please try again."),
+          userFacingError(
+            resolveError,
+            "Terminal could not complete this check. Please try again.",
+          ),
         );
         throw resolveError;
       } finally {

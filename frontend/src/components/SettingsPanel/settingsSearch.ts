@@ -87,7 +87,7 @@ export function buildSettingsSearchModel(
   );
   const chartDisplayOptionMatches = {
     timer: matches("Show candle timer", "countdown current candle close chart"),
-    watermark: matches("Show watermark", "Fyxtez watermark chart hide watermark"),
+    watermark: matches("Show watermark", "Terminal watermark chart hide watermark"),
     drawingSetBadge: matches(
       "Show active drawing set",
       "currently active drawing set name chart badge",

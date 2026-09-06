@@ -149,7 +149,7 @@ describe("ExchangeConnectionsSection", () => {
     const error = await screen.findByRole("alert");
     expect(error).toHaveClass("settings-disconnect-error");
     expect(error).toHaveTextContent(
-      "Fyxtez could not open your saved connections. Unlock your device and try again.",
+      "Terminal could not open your saved connections. Unlock your device and try again.",
     );
     expect(screen.getByRole("group", { name: "Confirm Binance disconnect" })).toBeVisible();
   });

@@ -398,7 +398,7 @@ export function useTradeMenu(
     } catch (error) {
       if (requestId !== leverageRequestIdRef.current) return;
 
-      setLeverageError(userFacingError(error, "Fyxtez could not update leverage."));
+      setLeverageError(userFacingError(error, "Terminal could not update leverage."));
     } finally {
       if (requestId === leverageRequestIdRef.current) {
         setIsUpdatingLeverage(false);
@@ -551,7 +551,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not place this order."),
+        message: userFacingError(error, "Terminal could not place this order."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -653,7 +653,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not place this order."),
+        message: userFacingError(error, "Terminal could not place this order."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -712,7 +712,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not add to this position."),
+        message: userFacingError(error, "Terminal could not add to this position."),
       });
     } finally {
       setPendingTradeAction(null);
@@ -777,7 +777,7 @@ export function useTradeMenu(
     } catch (error) {
       setTradeToast({
         kind: "error",
-        message: userFacingError(error, "Fyxtez could not reduce this position."),
+        message: userFacingError(error, "Terminal could not reduce this position."),
       });
     } finally {
       setPendingTradeAction(null);

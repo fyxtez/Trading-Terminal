@@ -55,10 +55,10 @@ export default function DiagnosticsSection({
 
   const rows = [
     {
-      label: "Fyxtez",
+      label: "Terminal",
       status: appStatus,
       detail: diagnostics.error
-        ? userFacingError(diagnostics.error, "Fyxtez needs attention.")
+        ? userFacingError(diagnostics.error, "Terminal needs attention.")
         : diagnostics.backendConnection === "connected"
           ? "The app is ready"
           : "The app is trying to reconnect",
@@ -95,12 +95,12 @@ export default function DiagnosticsSection({
     {
       label: "Blocked actions",
       status: (backend?.requests.rejectedCount ?? 0) > 0 ? "attention" : "healthy",
-      detail: `${backend?.requests.rejectedCount ?? 0} blocked since Fyxtez started${backend?.requests.lastRejection ? ` · ${userFacingError(backend.requests.lastRejection, "See Binance for details.")}` : ""}`,
+      detail: `${backend?.requests.rejectedCount ?? 0} blocked since Terminal started${backend?.requests.lastRejection ? ` · ${userFacingError(backend.requests.lastRejection, "See Binance for details.")}` : ""}`,
     },
     {
       label: "Repeated actions",
       status: (backend?.requests.duplicateCount ?? 0) > 0 ? "degraded" : "healthy",
-      detail: `${backend?.requests.duplicateCount ?? 0} safely prevented since Fyxtez started`,
+      detail: `${backend?.requests.duplicateCount ?? 0} safely prevented since Terminal started`,
     },
     ...(EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
       ? [
@@ -109,7 +109,7 @@ export default function DiagnosticsSection({
             status: (backend?.notifications.failureCount ?? 0) > 0 ? "attention" : "healthy",
             detail: backend?.notifications.lastFailure
               ? `${backend.notifications.failureCount} problem(s) · ${userFacingError(backend.notifications.lastFailure, "Notification could not be delivered.")}`
-              : "No delivery problems since Fyxtez started",
+              : "No delivery problems since Terminal started",
           },
         ]
       : []),
@@ -144,7 +144,7 @@ export default function DiagnosticsSection({
                 <b>{operationSafety.unresolved.length}</b>
               </div>
               <p>
-                Fyxtez lost the connection before it could confirm whether Binance completed a
+                Terminal lost the connection before it could confirm whether Binance completed a
                 previous action. You can still cancel orders, reduce risk, use a stop loss or close
                 positions.
               </p>
@@ -230,7 +230,7 @@ export default function DiagnosticsSection({
             ))}
           </div>
           <p className="settings-diagnostics-note">
-            These counts restart when Fyxtez closes. Your Binance keys and private information are
+            These counts restart when Terminal closes. Your Binance keys and private information are
             never shown here.
           </p>
         </>

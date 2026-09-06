@@ -416,7 +416,10 @@ export default function ChartTabs({
                           })
                           .catch((error: unknown) => {
                             setDeleteError(
-                              userFacingError(error, `Fyxtez could not delete ${menuInfo.label}.`),
+                              userFacingError(
+                                error,
+                                `Terminal could not delete ${menuInfo.label}.`,
+                              ),
                             );
                           })
                           .finally(() => setDeletingSymbol(null));

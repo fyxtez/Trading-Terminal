@@ -53,11 +53,13 @@ Operational references:
 ### Desktop development
 
 ```bash
-cd frontend
-npm install
-cd ..
 ./run.sh
 ```
+
+The launcher installs missing frontend dependencies automatically, using
+`npm ci --include=dev` when a lockfile exists and `npm install --include=dev`
+otherwise. Desktop, browser and Android modes share this check. The first
+installation requires network access; npm failures stop startup with an error.
 
 Tauri compiles and starts Axum as its managed sidecar, chooses a random private
 loopback port and per-launch capability, waits for readiness, starts Vite, and

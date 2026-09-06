@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { Logical, UTCTimestamp } from "lightweight-charts";
 import { alignTimeToInterval } from "../config/constants";
 import { distanceToSegment } from "../utils/geometry";
@@ -15,6 +16,28 @@ import type { ChartRefs } from "./useChartRefs";
  * exactly as it worked before the refactor - only the imports changed.
  */
 export function useCoordinateMapping(refs: ChartRefs) {
+  const { chartRef, candleRef, futureScaleRef, drawingsRef, intervalRef, loadedCandlesRef } = refs;
+  // Keep overlay subscriptions stable while reading live data through refs.
+  return useMemo(
+    () =>
+      createCoordinateMapping({
+        chartRef,
+        candleRef,
+        futureScaleRef,
+        drawingsRef,
+        intervalRef,
+        loadedCandlesRef,
+      }),
+    [chartRef, candleRef, futureScaleRef, drawingsRef, intervalRef, loadedCandlesRef],
+  );
+}
+
+function createCoordinateMapping(
+  refs: Pick<
+    ChartRefs,
+    "chartRef" | "candleRef" | "futureScaleRef" | "drawingsRef" | "intervalRef" | "loadedCandlesRef"
+  >,
+) {
   /**
    * Convert a timestamp to the chart's actual logical bar space.
    *
@@ -462,15 +485,13 @@ export function useCoordinateMapping(refs: ChartRefs) {
       }
 
       if (drawing.type === "pen") {
+        let previous = chartPointToScreen(drawing.points[0], false);
         for (let pointIndex = 1; pointIndex < drawing.points.length; pointIndex += 1) {
-          const previous = chartPointToScreen(drawing.points[pointIndex - 1], false);
           const current = chartPointToScreen(drawing.points[pointIndex], false);
-
-          if (!previous || !current) continue;
-
-          if (distanceToSegment({ x, y }, previous, current) <= threshold) {
+          if (previous && current && distanceToSegment({ x, y }, previous, current) <= threshold) {
             return drawing;
           }
+          previous = current;
         }
 
         continue;

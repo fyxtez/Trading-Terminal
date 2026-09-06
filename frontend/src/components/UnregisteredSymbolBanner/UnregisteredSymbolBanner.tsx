@@ -41,7 +41,7 @@ export default function UnregisteredSymbolBanner({
       setStatus("idle");
     } catch (err) {
       setStatus("error");
-      setError(userFacingError(err, "Fyxtez could not add this symbol."));
+      setError(userFacingError(err, "Terminal could not add this symbol."));
     }
   };
 

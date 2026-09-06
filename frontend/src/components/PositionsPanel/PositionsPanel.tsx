@@ -255,7 +255,7 @@ export default function PositionsPanel({
       });
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
-      setStopCancelError(userFacingError(error, "Fyxtez could not cancel this stop loss."));
+      setStopCancelError(userFacingError(error, "Terminal could not cancel this stop loss."));
     } finally {
       setCancellingStopSymbol(null);
     }
@@ -305,7 +305,7 @@ export default function PositionsPanel({
         const message = result.errors
           .map(
             (item) =>
-              `${item.symbol}: ${userFacingError(item.error, "Fyxtez could not complete this action.")}`,
+              `${item.symbol}: ${userFacingError(item.error, "Terminal could not complete this action.")}`,
           )
           .join(" · ");
         setCloseEverythingError(message || "Close Everything completed with errors");
@@ -326,7 +326,7 @@ export default function PositionsPanel({
       window.dispatchEvent(new Event("trading-state-changed"));
     } catch (error) {
       setCloseEverythingError(
-        userFacingError(error, "Fyxtez could not close all positions and orders."),
+        userFacingError(error, "Terminal could not close all positions and orders."),
       );
     } finally {
       setIsClosingEverything(false);

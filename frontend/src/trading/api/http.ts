@@ -35,7 +35,7 @@ export async function tradingApiFetch(
           : new URL(input.toString(), `${TRADING_API_BASE_URL}/`);
       requestOrigin = requestUrl.origin;
     } catch {
-      throw new Error("Fyxtez blocked an invalid browser request.");
+      throw new Error("Terminal blocked an invalid browser request.");
     }
 
     const selectedOrigin = new URL(TRADING_API_BASE_URL).origin;
@@ -43,7 +43,7 @@ export async function tradingApiFetch(
       // Never attach the page-session capability to Binance, a hosted UI, or
       // any other origin if a caller accidentally hands this wrapper an
       // external URL.
-      throw new Error("Fyxtez blocked a browser request outside this computer.");
+      throw new Error("Terminal blocked a browser request outside this computer.");
     }
 
     const proof = getLocalBrowserSessionProof();

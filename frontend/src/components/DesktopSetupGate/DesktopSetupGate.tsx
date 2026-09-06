@@ -183,7 +183,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       .catch((reason: unknown) => {
         setStatus(emptyStatus);
         setDesktopCredentialStatus(emptyStatus);
-        setError(userFacingError(reason, "Fyxtez could not check your saved connections."));
+        setError(userFacingError(reason, "Terminal could not check your saved connections."));
         setCredentialStatusFailed(true);
         // A locked, unavailable or incomplete credential store is not the same
         // as an unconfigured account. Keep trading disabled and open the styled
@@ -296,7 +296,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
         setShowSetup(false);
       })
       .catch((reason: unknown) =>
-        setError(userFacingError(reason, "Fyxtez could not save this connection.")),
+        setError(userFacingError(reason, "Terminal could not save this connection.")),
       )
       .finally(() => setSaving(false));
   };
@@ -317,7 +317,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       .catch((reason: unknown) => {
         setStatus(emptyStatus);
         setDesktopCredentialStatus(emptyStatus);
-        setError(userFacingError(reason, "Fyxtez could not check your saved connections."));
+        setError(userFacingError(reason, "Terminal could not check your saved connections."));
         setCredentialStatusFailed(true);
       })
       .finally(() => setSaving(false));
@@ -465,7 +465,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
           {activeStep.key === "binance" && (
             <div className="desktop-setup-fields">
               <aside>
-                <strong>Use separate keys for Fyxtez</strong>
+                <strong>Use separate keys for Terminal</strong>
                 <span>
                   Allow Futures trading, never withdrawals. Add an IP restriction if you can.
                 </span>

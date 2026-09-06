@@ -45,7 +45,7 @@ export function ExchangeConnectionsSection({
       .disconnectBinance()
       .then(() => setDisconnectConfirmationOpen(false))
       .catch((reason: unknown) => {
-        setDisconnectError(userFacingError(reason, "Fyxtez could not disconnect Binance."));
+        setDisconnectError(userFacingError(reason, "Terminal could not disconnect Binance."));
       })
       .finally(() => setDisconnecting(false));
   };
@@ -158,8 +158,8 @@ export function ExchangeConnectionsSection({
             </div>
             <p>
               {credentials.status.binanceConfigured
-                ? "Trading is handled securely by Fyxtez on this computer. Open the installed app to replace or remove your Binance keys."
-                : "Open the installed Fyxtez app and use Settings → Exchange Connections to connect Binance."}
+                ? "Trading is handled securely by Terminal on this computer. Open the installed app to replace or remove your Binance keys."
+                : "Open the installed Terminal app and use Settings → Exchange Connections to connect Binance."}
             </p>
             <small>Binance keys are not exposed to the browser interface.</small>
           </div>

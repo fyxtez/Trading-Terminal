@@ -308,10 +308,8 @@ export function useDrawingCanvas(
     });
 
   useEffect(() => {
-    // The drawing layer used to repaint at the monitor refresh rate even when
-    // absolutely nothing changed. A bounded 20 FPS cadence stays smooth for
-    // pointer interactions while avoiding a permanent 60/100/240 FPS canvas
-    // workload on high-refresh multi-monitor setups.
+    // Follow the paint loop so drawings stay aligned during chart gestures.
+    // startPacedLoop throttles background tabs; live inputs are read from refs.
     return startPacedLoop(drawCanvas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -410,7 +408,7 @@ export function useDrawingCanvas(
         window.dispatchEvent(new Event("orders-state-changed"));
         tradeMenuApi.setTradeToast({
           kind: "error",
-          message: userFacingError(error, "Fyxtez could not update the take-profit size."),
+          message: userFacingError(error, "Terminal could not update the take-profit size."),
         });
       });
   };
@@ -755,7 +753,7 @@ export function useDrawingCanvas(
 
           tradeMenuApi.setTradeToast({
             kind: "error",
-            message: userFacingError(error, "Fyxtez could not complete this order."),
+            message: userFacingError(error, "Terminal could not complete this order."),
           });
         });
 
@@ -850,7 +848,7 @@ export function useDrawingCanvas(
             kind: "error",
             message: staleOrder
               ? "This order no longer exists. Open Orders was refreshed."
-              : userFacingError(error, "Fyxtez could not cancel this order."),
+              : userFacingError(error, "Terminal could not cancel this order."),
           });
         });
 

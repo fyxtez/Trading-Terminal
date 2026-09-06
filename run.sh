@@ -40,10 +40,22 @@ require_command() {
   fi
 }
 
-require_frontend_dependencies() {
-  if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-    echo "[fyxtez] Frontend dependencies are not installed." >&2
-    echo "          Run: cd frontend && npm install" >&2
+ensure_frontend_dependencies() {
+  if [[ -x "$FRONTEND_DIR/node_modules/.bin/vite" &&
+        -x "$FRONTEND_DIR/node_modules/.bin/tauri" ]]; then
+    return
+  fi
+
+  echo "[fyxtez] Installing missing frontend dependencies..."
+  if ! (
+    cd "$FRONTEND_DIR"
+    if [[ -f package-lock.json ]]; then
+      npm ci --include=dev
+    else
+      npm install --include=dev
+    fi
+  ); then
+    echo "[fyxtez] Frontend dependency installation failed. Fix the npm error above and rerun ./run.sh." >&2
     exit 1
   fi
 }
@@ -61,7 +73,7 @@ require_browser_project_files() {
     exit 1
   fi
 
-  require_frontend_dependencies
+  ensure_frontend_dependencies
 }
 
 read_env_setting() {
@@ -130,7 +142,7 @@ run_desktop() {
   require_command cargo
   require_command npm
   require_command rustc
-  require_frontend_dependencies
+  ensure_frontend_dependencies
 
   echo "[fyxtez] Starting Tauri desktop application with its managed local backend..."
   cd "$FRONTEND_DIR"
@@ -223,7 +235,7 @@ run_android() {
   require_command cargo
   require_command npm
   require_command rustc
-  require_frontend_dependencies
+  ensure_frontend_dependencies
 
   local device_count
   local apk_path="$FRONTEND_DIR/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"

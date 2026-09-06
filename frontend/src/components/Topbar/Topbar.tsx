@@ -60,7 +60,7 @@ const intervalGroups: { label: string; values: readonly Interval[] }[] = [
 ];
 
 function connectionDescription(
-  label: "Fyxtez" | "Live prices" | "Account updates",
+  label: "Terminal" | "Live prices" | "Account updates",
   state: ConnectionState,
 ): string {
   if (state === "connected") return `${label} ready`;
@@ -209,8 +209,8 @@ export default function Topbar({
           className={`topbar-connection-item ${backendConnection}`}
           title={
             backendConnection === "disconnected" && onRetryBackend
-              ? "Fyxtez is not ready — click to try again"
-              : connectionDescription("Fyxtez", backendConnection)
+              ? "Terminal is not ready — click to try again"
+              : connectionDescription("Terminal", backendConnection)
           }
           disabled={backendConnection !== "disconnected" || !onRetryBackend}
           onClick={onRetryBackend}
@@ -254,14 +254,14 @@ export default function Topbar({
 
       <button
         className={`options-button ${isSettingsOpen ? "active" : ""}`}
-        title="Options"
+        title="Settings"
         onClick={(event) => {
           event.stopPropagation();
           onToggleSettings();
         }}
       >
         <span className="options-icon">⚙</span>
-        Options
+        Settings
       </button>
     </div>
   );

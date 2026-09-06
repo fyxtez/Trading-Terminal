@@ -2,7 +2,14 @@
 
 React 18 + TypeScript + Vite client for the Fyxtez trading terminal.
 
+User-facing application text uses **Terminal**, and the toolbar and settings
+panel both use **Settings**. Existing internal identifiers, storage keys and
+backup extensions retain their names for compatibility.
+
 Development requires Node.js 20.19+ or 22.12+.
+
+For desktop development, run `./run.sh` from the repository root. It installs
+missing frontend dependencies before launching the app.
 
 ## Standalone browser development
 
@@ -48,7 +55,7 @@ runtime connection data over IPC. `DesktopSetupGate` stores secrets through
 Rust commands in the OS credential manager. On Linux, Browser access serves a
 second copy of the packaged frontend at `127.0.0.1:8658`; a one-use launch
 ticket becomes a split browser session: an `HttpOnly` cookie and a second proof
-kept only in that tab's `sessionStorage`. Opening from Fyxtez again adds another
+kept only in that tab's `sessionStorage`. Opening from Terminal again adds another
 tab proof without disconnecting earlier tabs in that browser profile. The native
 capability and Binance keys remain outside browser JavaScript and storage. The
 two frontends share authoritative backend/trading state but keep separate
@@ -84,6 +91,12 @@ Other high-traffic modules follow the same boundary: market-data preferences
 live in `src/hooks/marketDataPersistence.ts`, transient chart editors live next
 to `ChartPanel`, and Settings summary cards are separate from settings state and
 search orchestration.
+
+Coordinate-mapping callbacks retain their identity across React renders and
+read current chart data through refs, avoiding overlay subscription restarts.
+Pen hit testing converts each point once per scan, and the canvas updates pane
+inset CSS only when it changes. Session calculations reuse timezone formatters
+while resolving offsets for each date, including daylight-saving changes.
 
 Linux x86_64 bundle creation is enabled. Distribution remains gated on signing
 and the clean-machine acceptance procedure in
