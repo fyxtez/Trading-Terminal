@@ -4,19 +4,19 @@ import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 import { userFacingError } from "../../utils/userFacingError";
 
-type DesktopConnectionsSectionProps = {
+type ExchangeConnectionsSectionProps = {
   credentials: DesktopCredentialsContextValue;
   isExpanded: boolean;
   forceExpanded?: boolean;
   onToggle: () => void;
 };
 
-export function DesktopConnectionsSection({
+export function ExchangeConnectionsSection({
   credentials,
   isExpanded,
   forceExpanded = false,
   onToggle,
-}: DesktopConnectionsSectionProps) {
+}: ExchangeConnectionsSectionProps) {
   const [disconnectConfirmationOpen, setDisconnectConfirmationOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
@@ -63,87 +63,99 @@ export function DesktopConnectionsSection({
           {forceExpanded ? "MATCH" : isExpanded ? "HIDE" : "SHOW"}
         </button>
       </div>
-      {(forceExpanded || isExpanded) && (
-        <>
-          <div className="settings-connection-statuses">
-            {connections.map(([label, connection, configured, detail]) => (
-              <div className={configured ? "connected" : ""} key={connection}>
-                <div className="settings-connection-heading">
-                  <span>{label}</span>
-                  <b>{configured ? `CONNECTED${detail ? ` · ${detail}` : ""}` : "NOT SET"}</b>
-                </div>
-                <div className="settings-connection-actions">
-                  <button type="button" onClick={() => credentials.openSetup(connection)}>
-                    {configured ? "EDIT" : "CONNECT"}
-                  </button>
-                  {connection === "binance" && configured && (
-                    <button
-                      className="danger"
-                      type="button"
-                      disabled={disconnecting}
-                      onClick={() => {
-                        setDisconnectError(null);
-                        setDisconnectConfirmationOpen(true);
-                      }}
-                    >
-                      DISCONNECT
+      {(forceExpanded || isExpanded) &&
+        (credentials.isDesktop ? (
+          <>
+            <div className="settings-connection-statuses">
+              {connections.map(([label, connection, configured, detail]) => (
+                <div className={configured ? "connected" : ""} key={connection}>
+                  <div className="settings-connection-heading">
+                    <span>{label}</span>
+                    <b>{configured ? `CONNECTED${detail ? ` · ${detail}` : ""}` : "NOT SET"}</b>
+                  </div>
+                  <div className="settings-connection-actions">
+                    <button type="button" onClick={() => credentials.openSetup(connection)}>
+                      {configured ? "EDIT" : "CONNECT"}
                     </button>
-                  )}
+                    {connection === "binance" && configured && (
+                      <button
+                        className="danger"
+                        type="button"
+                        disabled={disconnecting}
+                        onClick={() => {
+                          setDisconnectError(null);
+                          setDisconnectConfirmationOpen(true);
+                        }}
+                      >
+                        DISCONNECT
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          {disconnectConfirmationOpen && (
-            <div
-              className="settings-disconnect-confirmation"
-              role="group"
-              aria-label="Confirm Binance disconnect"
-            >
-              <div>
-                <strong>Disconnect Binance?</strong>
-                <span>
-                  Trading will be disabled immediately. Your charts, drawings and settings will stay
-                  available.
-                </span>
-              </div>
-              {disconnectError && (
-                <div className="settings-disconnect-error" role="alert">
-                  {disconnectError}
-                </div>
-              )}
-              <div className="settings-disconnect-actions">
-                <button
-                  type="button"
-                  disabled={disconnecting}
-                  onClick={() => {
-                    setDisconnectError(null);
-                    setDisconnectConfirmationOpen(false);
-                  }}
-                >
-                  CANCEL
-                </button>
-                <button
-                  className="danger"
-                  type="button"
-                  disabled={disconnecting}
-                  onClick={confirmDisconnect}
-                >
-                  {disconnecting ? "DISCONNECTING…" : "CONFIRM DISCONNECT"}
-                </button>
-              </div>
+              ))}
             </div>
-          )}
-          {hasMissingConnection && (
-            <button
-              type="button"
-              className="settings-manage-connections"
-              onClick={() => credentials.openSetup()}
-            >
-              SET UP MISSING CONNECTIONS
-            </button>
-          )}
-        </>
-      )}
+            {disconnectConfirmationOpen && (
+              <div
+                className="settings-disconnect-confirmation"
+                role="group"
+                aria-label="Confirm Binance disconnect"
+              >
+                <div>
+                  <strong>Disconnect Binance?</strong>
+                  <span>
+                    Trading will be disabled immediately. Your charts, drawings and settings will
+                    stay available.
+                  </span>
+                </div>
+                {disconnectError && (
+                  <div className="settings-disconnect-error" role="alert">
+                    {disconnectError}
+                  </div>
+                )}
+                <div className="settings-disconnect-actions">
+                  <button
+                    type="button"
+                    disabled={disconnecting}
+                    onClick={() => {
+                      setDisconnectError(null);
+                      setDisconnectConfirmationOpen(false);
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    className="danger"
+                    type="button"
+                    disabled={disconnecting}
+                    onClick={confirmDisconnect}
+                  >
+                    {disconnecting ? "DISCONNECTING…" : "CONFIRM DISCONNECT"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {hasMissingConnection && (
+              <button
+                type="button"
+                className="settings-manage-connections"
+                onClick={() => credentials.openSetup()}
+              >
+                SET UP MISSING CONNECTIONS
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="settings-browser-connection-note">
+            <div className="settings-connection-heading">
+              <span>Binance</span>
+              <b>INSTALLED APP ONLY</b>
+            </div>
+            <p>
+              This browser window is for charts only. Open the installed Linux or Android app, then
+              use Settings → Exchange Connections to connect Binance and trade.
+            </p>
+          </div>
+        ))}
     </section>
   );
 }

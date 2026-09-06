@@ -7,11 +7,11 @@ export default function TradingNetworkBadge({ network }: TradingNetworkBadgeProp
     return (
       <div
         className="topbar-network-badge unavailable"
-        aria-label="Binance not connected"
-        title="NOT CONNECTED · trading is disabled"
+        aria-label="Binance account not set"
+        title="Binance is not set up · Open Settings → Exchange Connections"
       >
         <span aria-hidden="true" />
-        NOT CONNECTED
+        BINANCE · NOT SET
       </div>
     );
   }
@@ -24,7 +24,7 @@ export default function TradingNetworkBadge({ network }: TradingNetworkBadgeProp
       title={live ? "LIVE · real funds and real orders" : "PRACTICE · test funds and test orders"}
     >
       <span aria-hidden="true" />
-      {live ? "LIVE" : "PRACTICE"}
+      BINANCE · {live ? "LIVE" : "PRACTICE"}
     </div>
   );
 }

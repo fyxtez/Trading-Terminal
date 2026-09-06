@@ -815,6 +815,78 @@
   }
 }
 
+/* Desktop Settings carries more operational detail than the compact chart
+ * chrome around it. Keep that copy comfortably readable without scaling the
+ * panel itself (which would reduce its usable width and cause clipping). */
+@media (min-width: 721px) {
+  .settings-panel {
+    font-size: 17px;
+  }
+
+  .settings-title {
+    font-size: 20px;
+  }
+
+  .settings-search-icon,
+  .settings-search-clear {
+    font-size: 17px;
+  }
+
+  .settings-search-box input,
+  .settings-search-empty {
+    font-size: 14px;
+  }
+
+  .settings-balance-label,
+  .settings-balance-value strong.error,
+  .settings-field-copy span {
+    font-size: 17.5px;
+  }
+
+  .settings-balance-copy small,
+  .settings-balance-unit,
+  .settings-field-copy small,
+  .settings-error {
+    font-size: 15.5px;
+  }
+
+  .settings-balance-value strong {
+    font-size: 22.5px;
+  }
+
+  .settings-section-heading h3 {
+    font-size: 19px;
+  }
+
+  .settings-section-heading p,
+  .settings-time-marker-input {
+    font-size: 16px;
+  }
+
+  .settings-field-value input,
+  .percent-field::after {
+    font-size: 19.5px;
+  }
+
+  .settings-field-status,
+  .settings-alert-list-message {
+    font-size: 13.5px;
+  }
+
+  .settings-alert-list-title {
+    font-size: 15px;
+  }
+
+  .settings-alert-list-title small,
+  .settings-alert-list-table {
+    font-size: 13px;
+  }
+
+  .settings-alert-side {
+    font-size: 11.5px;
+  }
+}
+
 @keyframes settings-backdrop-fade {
   from {
     opacity: 0;

@@ -2,13 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/DesktopCredentialsContext";
-import { DesktopConnectionsSection } from "./SettingsSummaryCards";
+import { ExchangeConnectionsSection } from "./SettingsSummaryCards";
 
 function ConnectionsHarness({ credentials }: { credentials: DesktopCredentialsContextValue }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <DesktopConnectionsSection
+    <ExchangeConnectionsSection
       credentials={credentials}
       isExpanded={isExpanded}
       onToggle={() => setIsExpanded((visible) => !visible)}
@@ -16,7 +16,7 @@ function ConnectionsHarness({ credentials }: { credentials: DesktopCredentialsCo
   );
 }
 
-describe("DesktopConnectionsSection", () => {
+describe("ExchangeConnectionsSection", () => {
   it("collapses connection details and exposes them again", () => {
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: true,
@@ -65,6 +65,28 @@ describe("DesktopConnectionsSection", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "EDIT" })[0]);
 
     expect(openSetup).toHaveBeenCalledWith("binance");
+  });
+
+  it("explains where Binance is connected when Settings is opened in a browser", () => {
+    const openSetup = vi.fn();
+    const credentials: DesktopCredentialsContextValue = {
+      isDesktop: false,
+      status: {
+        binanceConfigured: false,
+        binanceNetwork: null,
+        ntfyConfigured: false,
+        telegramConfigured: false,
+      },
+      openSetup,
+      disconnectBinance: vi.fn(),
+    };
+
+    render(<ConnectionsHarness credentials={credentials} />);
+
+    expect(screen.getByText("INSTALLED APP ONLY")).toBeVisible();
+    expect(screen.getByText(/browser window is for charts only/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "CONNECT" })).not.toBeInTheDocument();
+    expect(openSetup).not.toHaveBeenCalled();
   });
 
   it("requires styled confirmation before disconnecting Binance", async () => {

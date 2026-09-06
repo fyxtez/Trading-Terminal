@@ -19,7 +19,7 @@ import { userFacingError } from "../../utils/userFacingError";
 import { listAllPersistentPriceAlerts, type ListedPriceAlert } from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
-import { AvailableBalanceCard, DesktopConnectionsSection } from "./SettingsSummaryCards";
+import { AvailableBalanceCard, ExchangeConnectionsSection } from "./SettingsSummaryCards";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import DiagnosticsSection from "./DiagnosticsSection";
 import DataBackupSection from "./DataBackupSection";
@@ -857,7 +857,7 @@ export default function SettingsPanel({
     chartDisplayOptionMatches,
     showChartDisplaySection,
     showBalanceCard,
-    showDesktopConnections,
+    showExchangeConnections,
     showDiagnostics,
     showDataBackup,
     hasAnySettingsSearchResult,
@@ -933,15 +933,15 @@ export default function SettingsPanel({
         </div>
 
         <div className={`settings-body ${isFullyOpen ? "scrollable" : ""}`}>
-          {showDesktopConnections && (
-            <DesktopConnectionsSection
+          {showExchangeConnections && (
+            <ExchangeConnectionsSection
               credentials={desktopCredentials}
               isExpanded={isThirdPartyConnectionsSectionVisible}
               forceExpanded={isSearchingSettings}
               onToggle={() => setIsThirdPartyConnectionsSectionVisible((visible) => !visible)}
             />
           )}
-          {showDesktopConnections && showDiagnostics && <div className="settings-separator" />}
+          {showExchangeConnections && showDiagnostics && <div className="settings-separator" />}
 
           {showDiagnostics && (
             <DiagnosticsSection
@@ -1654,7 +1654,16 @@ export default function SettingsPanel({
             </section>
           )}
 
-          {showAlertsSection && showChartDisplaySection && <div className="settings-separator" />}
+          {showChartDisplaySection &&
+            (showAlertsSection ||
+              showPnlSection ||
+              showDrawingsSection ||
+              showDrawingSetsSection ||
+              showMarginSection ||
+              showBalanceCard ||
+              showDataBackup ||
+              showDiagnostics ||
+              showExchangeConnections) && <div className="settings-separator" />}
 
           {showChartDisplaySection && (
             <section className="settings-section">

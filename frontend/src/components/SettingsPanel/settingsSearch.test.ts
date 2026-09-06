@@ -10,7 +10,7 @@ describe("buildSettingsSearchModel", () => {
     const model = buildSettingsSearchModel("", true, sizingFields);
     expect(model.showMarginSection).toBe(true);
     expect(model.showDrawingSetsSection).toBe(true);
-    expect(model.showDesktopConnections).toBe(true);
+    expect(model.showExchangeConnections).toBe(true);
     expect(model.showDataBackup).toBe(true);
   });
 
@@ -22,10 +22,10 @@ describe("buildSettingsSearchModel", () => {
     expect(model.showAlertsSection).toBe(false);
   });
 
-  it("never exposes desktop connections in browser mode", () => {
-    const model = buildSettingsSearchModel("telegram", false, sizingFields);
-    expect(model.showDesktopConnections).toBe(false);
-    expect(model.hasAnySettingsSearchResult).toBe(false);
+  it("keeps exchange connection guidance discoverable in browser mode", () => {
+    const model = buildSettingsSearchModel("Binance", false, sizingFields);
+    expect(model.showExchangeConnections).toBe(true);
+    expect(model.hasAnySettingsSearchResult).toBe(true);
   });
 
   it("does not expose dormant alert or notification settings", () => {
@@ -34,7 +34,7 @@ describe("buildSettingsSearchModel", () => {
 
     expect(alerts.showAlertsSection).toBe(false);
     expect(alerts.hasAnySettingsSearchResult).toBe(false);
-    expect(telegram.showDesktopConnections).toBe(false);
+    expect(telegram.showExchangeConnections).toBe(false);
     expect(telegram.hasAnySettingsSearchResult).toBe(false);
   });
 

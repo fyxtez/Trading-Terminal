@@ -97,12 +97,14 @@ export function buildSettingsSearchModel(
     Object.values(chartDisplayOptionMatches).some(Boolean);
 
   const showBalanceCard = matches("Available balance", "USDT futures wallet balance");
-  const showDesktopConnections =
-    isDesktop &&
-    matches(
-      "Exchange Connections Binance account API key",
-      EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
-    );
+  // Keep the section discoverable in browser mode as well. The browser cannot
+  // access the native credential store, so its rendered section explains that
+  // Binance setup belongs in the installed Linux/Android app instead of simply
+  // hiding the only place a user would expect to find it.
+  const showExchangeConnections = matches(
+    "Exchange Connections Binance account API key",
+    EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
+  );
   const showDiagnostics = matches(
     "App status connection Binance trading live prices account updates previous action blocked repeated actions order history",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
@@ -114,7 +116,7 @@ export function buildSettingsSearchModel(
       "export restore migrate drawings layouts settings safety copy archive",
     );
   const hasAnySettingsSearchResult =
-    showDesktopConnections ||
+    showExchangeConnections ||
     showDiagnostics ||
     showDataBackup ||
     showBalanceCard ||
@@ -145,7 +147,7 @@ export function buildSettingsSearchModel(
     chartDisplayOptionMatches,
     showChartDisplaySection,
     showBalanceCard,
-    showDesktopConnections,
+    showExchangeConnections,
     showDiagnostics,
     showDataBackup,
     hasAnySettingsSearchResult,

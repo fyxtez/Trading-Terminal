@@ -238,9 +238,16 @@
 
 .settings-section-heading-with-action {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.settings-section-heading-with-action h3 {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  line-height: 1.2;
 }
 
 .settings-section-heading-with-action > div {
@@ -529,6 +536,32 @@
 
 .settings-connection-statuses .connected b {
   color: var(--green);
+}
+
+.settings-browser-connection-note {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-app);
+}
+
+.settings-browser-connection-note b {
+  margin-left: auto;
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.settings-browser-connection-note p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
 .settings-connection-statuses button {
@@ -888,4 +921,80 @@
   border-color: rgba(245, 166, 35, 0.55);
   background: var(--amber-soft);
   color: var(--amber);
+}
+
+/* Larger desktop-only type scale. Mobile keeps the proven compact sizes and
+ * touch layout from the rules above. */
+@media (min-width: 721px) {
+  .drawing-set-new-confirmation,
+  .drawing-set-item-copy small,
+  .settings-manage-connections,
+  .data-backup-notice strong,
+  .data-backup-summary strong,
+  .data-backup-confirmation input,
+  .data-backup-message {
+    font-size: 13px;
+  }
+
+  .drawing-set-current-row,
+  .drawing-set-message,
+  .drawing-set-empty,
+  .settings-intent-recovery-heading span,
+  .settings-lookback-control output {
+    font-size: 14px;
+  }
+
+  .drawing-set-item-copy strong,
+  .settings-connection-heading > span,
+  .settings-disconnect-confirmation strong {
+    font-size: 15px;
+  }
+
+  .drawing-set-active-badge {
+    font-size: 10px;
+  }
+
+  .settings-section-visibility-button {
+    font-size: 13.5px;
+  }
+
+  .settings-intent-recovery-heading strong,
+  .settings-intent-recovery-item small,
+  .settings-intent-recovery-item kbd,
+  .settings-intent-recovery-item button,
+  .settings-diagnostics-toolbar button,
+  .settings-diagnostics-list b,
+  .settings-connection-statuses b,
+  .settings-browser-connection-note b,
+  .data-backup-summary code {
+    font-size: 11px;
+  }
+
+  .settings-intent-recovery-heading b,
+  .settings-intent-recovery > p,
+  .settings-intent-recovery-item ol,
+  .settings-intent-recovery-item code,
+  .settings-intent-recovery-item input,
+  .settings-diagnostics-list small,
+  .settings-diagnostics-note,
+  .settings-connection-statuses button,
+  .settings-disconnect-confirmation span,
+  .settings-disconnect-error,
+  .settings-disconnect-actions button,
+  .data-backup-actions button,
+  .data-backup-confirmation-actions button,
+  .data-backup-restart {
+    font-size: 12px;
+  }
+
+  .settings-diagnostics-list > div > span,
+  .settings-browser-connection-note p {
+    font-size: 13px;
+  }
+
+  .data-backup-notice span,
+  .data-backup-summary span,
+  .data-backup-confirmation label > span {
+    font-size: 12px;
+  }
 }
