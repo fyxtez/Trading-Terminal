@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const DRAWINGS_VISIBILITY_STORAGE_KEY = "fyxtez:drawings-visible";
 const ASIA_SESSION_STORAGE_KEY = "fyxtez:asia-session-enabled";
 const LONDON_SESSION_STORAGE_KEY = "fyxtez:london-session-enabled";
 const NEW_YORK_SESSION_STORAGE_KEY = "fyxtez:new-york-session-enabled";
 const NEW_YORK_KILL_ZONE_STORAGE_KEY = "fyxtez:new-york-kill-zone-enabled";
-const DESKTOP_SESSION_DEFAULTS_VERSION_KEY = "fyxtez:desktop-session-defaults-v2";
 const PNL_CARD_STORAGE_KEY = "fyxtez:pnl-card-enabled";
 const TOTAL_PNL_CARD_STORAGE_KEY = "fyxtez:total-pnl-card-enabled";
 const CANDLE_COUNTDOWN_STORAGE_KEY = "fyxtez:candle-countdown-enabled";
@@ -33,15 +32,6 @@ function loadOptInPreference(key: string): boolean {
   }
 }
 
-function loadSessionPreference(key: string, isDesktop: boolean): boolean {
-  try {
-    if (isDesktop && localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied") {
-      return false;
-    }
-  } catch {}
-  return loadBooleanPreference(key);
-}
-
 function persistBoolean(key: string, enabled: boolean): void {
   try {
     localStorage.setItem(key, String(enabled));
@@ -60,18 +50,18 @@ function loadStartOfDayLookback(): number {
 }
 
 /** Owns chart-only preferences and their localStorage lifecycle. */
-export function useAppPreferences(isDesktop: boolean) {
+export function useAppPreferences() {
   const [showDrawings, setShowDrawingsState] = useState(() =>
     loadBooleanPreference(DRAWINGS_VISIBILITY_STORAGE_KEY),
   );
   const [showAsiaSession, setShowAsiaSessionState] = useState(() =>
-    loadSessionPreference(ASIA_SESSION_STORAGE_KEY, isDesktop),
+    loadOptInPreference(ASIA_SESSION_STORAGE_KEY),
   );
   const [showLondonSession, setShowLondonSessionState] = useState(() =>
-    loadSessionPreference(LONDON_SESSION_STORAGE_KEY, isDesktop),
+    loadOptInPreference(LONDON_SESSION_STORAGE_KEY),
   );
   const [showNewYorkSession, setShowNewYorkSessionState] = useState(() =>
-    loadSessionPreference(NEW_YORK_SESSION_STORAGE_KEY, isDesktop),
+    loadOptInPreference(NEW_YORK_SESSION_STORAGE_KEY),
   );
   const [showNewYorkKillZone, setShowNewYorkKillZoneState] = useState(() =>
     loadOptInPreference(NEW_YORK_KILL_ZONE_STORAGE_KEY),
@@ -92,7 +82,7 @@ export function useAppPreferences(isDesktop: boolean) {
     loadBooleanPreference(DRAWING_SET_BADGE_STORAGE_KEY),
   );
   const [showStartOfDay, setShowStartOfDayState] = useState(() =>
-    loadBooleanPreference(START_OF_DAY_STORAGE_KEY),
+    loadOptInPreference(START_OF_DAY_STORAGE_KEY),
   );
   const [startOfDayLookbackDays, setStartOfDayLookbackDaysState] = useState(loadStartOfDayLookback);
   const [showPriceAlerts, setShowPriceAlertsState] = useState(() =>
@@ -101,23 +91,6 @@ export function useAppPreferences(isDesktop: boolean) {
   const [persistentAlertsEnabled, setPersistentAlertsEnabledState] = useState(() =>
     loadOptInPreference(PERSISTENT_ALERTS_ENABLED_STORAGE_KEY),
   );
-
-  useEffect(() => {
-    if (!isDesktop) return;
-    try {
-      if (localStorage.getItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY) !== "applied") {
-        setShowAsiaSessionState(false);
-        setShowLondonSessionState(false);
-        setShowNewYorkSessionState(false);
-        persistBoolean(ASIA_SESSION_STORAGE_KEY, false);
-        persistBoolean(LONDON_SESSION_STORAGE_KEY, false);
-        persistBoolean(NEW_YORK_SESSION_STORAGE_KEY, false);
-        localStorage.setItem(DESKTOP_SESSION_DEFAULTS_VERSION_KEY, "applied");
-      }
-    } catch {
-      // The one-time defaults will be retried on the next desktop launch.
-    }
-  }, [isDesktop]);
 
   const booleanSetter = (setter: (enabled: boolean) => void, key: string) => (enabled: boolean) => {
     setter(enabled);

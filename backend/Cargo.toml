@@ -2,6 +2,7 @@
 name = "fyxtez-backend"
 version = "1.0.0"
 edition = "2024"
+default-run = "fyxtez-backend"
 
 [features]
 default = []

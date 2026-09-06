@@ -165,7 +165,7 @@ function App() {
     setShowPriceAlerts,
     persistentAlertsEnabled,
     setPersistentAlertsEnabled,
-  } = useAppPreferences(desktopCredentials.isDesktop);
+  } = useAppPreferences();
 
   const priceAlertsApi = usePriceAlerts(
     refs,
