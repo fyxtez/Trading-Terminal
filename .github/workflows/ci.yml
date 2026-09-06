@@ -63,8 +63,13 @@ jobs:
           cargo fmt --check
           cargo clippy --locked --all-targets --all-features -- -D warnings
           cargo test --locked --all-features
-      - name: Prepare development sidecar
-        run: frontend/scripts/prepare-sidecar.sh debug
+      - name: Prepare Tauri check inputs
+        run: |
+          # The Linux bundle config embeds the production browser UI. This job
+          # only compiles/tests the Rust shell; the isolated frontend job above
+          # builds and validates the real sanitized bundle.
+          mkdir -p frontend/dist
+          frontend/scripts/prepare-sidecar.sh debug
       - name: Check Tauri shell
         working-directory: frontend/src-tauri
         run: |

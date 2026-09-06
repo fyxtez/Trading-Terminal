@@ -17,7 +17,7 @@ const session = {
   binanceNetwork: "testnet",
   expiresInMs: 3_600_000,
 };
-const sessionProof = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+const sessionProof = "a".repeat(64);
 
 describe("local browser runtime", () => {
   afterEach(() => {
@@ -35,7 +35,7 @@ describe("local browser runtime", () => {
   });
 
   it("removes the one-use launch ticket from browser history before it is redeemed", () => {
-    const ticket = "0123456789abcdef0123456789abcdef0123456789abcdef";
+    const ticket = "b".repeat(64);
     window.history.replaceState({}, "", `/#browser-ticket=${ticket}`);
     const replaceState = vi.spyOn(window.history, "replaceState");
 
@@ -61,7 +61,7 @@ describe("local browser runtime", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const ticket = "0123456789abcdef0123456789abcdef0123456789abcdef";
+    const ticket = "b".repeat(64);
     await initializeLocalBrowserRuntime("http://127.0.0.1:8658", ticket);
 
     expect(fetchMock).toHaveBeenNthCalledWith(

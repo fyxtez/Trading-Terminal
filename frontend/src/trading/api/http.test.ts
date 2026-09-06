@@ -3,7 +3,7 @@ import { tradingApiFetch } from "./http";
 
 const runtime = vi.hoisted(() => ({ mode: "local-browser" }));
 const browserAuth = vi.hoisted(() => ({
-  proof: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as string | null,
+  proof: "a".repeat(64) as string | null,
   invalidate: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("../../config/constants", () => ({
 
 describe("tradingApiFetch", () => {
   beforeEach(() => {
-    browserAuth.proof = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    browserAuth.proof = "a".repeat(64);
     browserAuth.invalidate.mockClear();
   });
   afterEach(() => vi.unstubAllGlobals());

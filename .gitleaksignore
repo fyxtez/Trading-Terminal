@@ -1,0 +1,2 @@
+# Deterministic test-only browser proof from c9d694a; never a real credential.
+c9d694a697c002b3c8c2e26209a5116a69b14bd6:frontend/src/trading/api/http.test.ts:generic-api-key:21
