@@ -20,9 +20,10 @@ npm run test:run
 npm run desktop:build
 ```
 
-The Tauri pre-build command compiles the Axum backend in release mode and places
-the target-suffixed binary in the ignored `src-tauri/binaries/` directory. Tauri
-then embeds it as an external binary and creates `.deb` and AppImage bundles.
+The Tauri pre-build command creates a sanitized production frontend snapshot,
+compiles the Axum backend in release mode and places the target-suffixed binary
+in the ignored `src-tauri/binaries/` directory. Tauri embeds both the sidecar and
+the browser-UI resource before creating `.deb` and AppImage bundles.
 
 The build inputs are the exact Git commit, both Cargo lockfiles, the npm
 lockfile, Rust 1.96.0 from `rust-toolchain.toml`, Node 22.12.0 in CI, and the
@@ -121,6 +122,19 @@ the repository installed.
   acceptance.
 - Confirm Settings and onboarding do not expose price alerts, ntfy, or Telegram.
 - Launch the app a second time and verify the existing window receives focus.
+- Enable **Browser access**, confirm the terminal opens at `127.0.0.1:8658`, and
+  place only a Testnet order from that browser. The expected tab proof may appear
+  once in the ticket-redeem response, then only in `sessionStorage` and its
+  request header; confirm API keys and the native service capability appear in
+  neither browser storage nor network responses.
+- Choose **Open in browser** again. Confirm the first tab remains authorized,
+  the new tab also works, and each tab holds a different proof in its own
+  `sessionStorage` while neither exposes the shared `HttpOnly` cookie.
+- Close the native window and confirm the browser keeps working; reopen the
+  native UI from the tray, disable Browser access, and confirm both browser tabs
+  are rejected. Tray **Quit** must stop the local browser endpoint.
+- Occupy port `8658` before launch and confirm the native terminal still works
+  while Settings reports Browser access as unavailable.
 - Terminate the sidecar during a session and verify bounded recovery/degraded
   behavior plus the explicit **Retry backend** action after retries are
   exhausted.

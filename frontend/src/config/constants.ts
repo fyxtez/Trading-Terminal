@@ -207,6 +207,30 @@ export const REMOTE_TRADING_API_BASE_URL =
 export let TRADING_API_BASE_URL = REMOTE_TRADING_API_BASE_URL;
 export let TRADING_API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
 
+export type TradingRuntimeMode = "native" | "local-browser" | "public-browser";
+
+export type LocalBrowserSession = {
+  mode: "local-browser";
+  authenticated: true;
+  binanceConfigured: boolean;
+  binanceNetwork: "mainnet" | "testnet" | null;
+  expiresInMs: number;
+};
+
+/**
+ * The public website remains chart-only. A browser gets account/trading access
+ * only when it is opened by the installed Linux app on the dedicated loopback
+ * origin and redeems a short-lived, one-use launch ticket. The resulting
+ * capability is split between an HttpOnly cookie and a page-session proof.
+ * The proof exists only in sessionStorage on the dedicated local origin;
+ * JavaScript never receives the cookie, native service token, or Binance keys.
+ */
+export let TRADING_RUNTIME_MODE: TradingRuntimeMode = "public-browser";
+export const LOCAL_BROWSER_SESSION_CHANGED_EVENT = "fyxtez:local-browser-session-changed";
+export const LOCAL_BROWSER_SESSION_PROOF_KEY = "fyxtez:local-browser-session-proof";
+
+let localBrowserSession: LocalBrowserSession | null = null;
+
 export const TRADING_API_BASE_URL_CHANGED_EVENT = "trading-api-base-url-changed";
 
 let tradingApiInitialization: Promise<string> | null = null;
@@ -216,6 +240,237 @@ type DesktopRuntime = {
   apiToken: string;
   generation: number;
 };
+
+type BrowserSessionPayload = Partial<LocalBrowserSession> & {
+  mode?: unknown;
+  authenticated?: unknown;
+  binanceConfigured?: unknown;
+  binanceNetwork?: unknown;
+  expiresInMs?: unknown;
+  sessionProof?: unknown;
+};
+
+type ParsedBrowserSession = {
+  session: LocalBrowserSession;
+  sessionProof: string | null;
+};
+
+export class LocalBrowserSessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LocalBrowserSessionError";
+  }
+}
+
+export function getTradingRuntimeMode(): TradingRuntimeMode {
+  return TRADING_RUNTIME_MODE;
+}
+
+export function getLocalBrowserSession(): LocalBrowserSession | null {
+  return localBrowserSession;
+}
+
+export function isLocalBrowserRuntime(): boolean {
+  return TRADING_RUNTIME_MODE === "local-browser";
+}
+
+export function invalidateLocalBrowserSession(): void {
+  clearLocalBrowserSessionProof();
+  if (TRADING_RUNTIME_MODE === "local-browser") publishLocalBrowserSession(null);
+}
+
+function validBrowserSessionProof(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-fA-F]{64}$/.test(value);
+}
+
+export function getLocalBrowserSessionProof(): string | null {
+  if (!isDedicatedBrowserOrigin(TRADING_API_BASE_URL)) return null;
+  try {
+    const proof = window.sessionStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+    if (validBrowserSessionProof(proof)) return proof;
+    window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+  } catch {
+    // Session storage is required for dual browser authentication. Callers
+    // fail closed when it is unavailable instead of copying proof elsewhere.
+  }
+  return null;
+}
+
+function storeLocalBrowserSessionProof(proof: string): void {
+  if (!isDedicatedBrowserOrigin(TRADING_API_BASE_URL) || !validBrowserSessionProof(proof)) {
+    throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
+  }
+  try {
+    window.sessionStorage.setItem(LOCAL_BROWSER_SESSION_PROOF_KEY, proof);
+  } catch {
+    throw new LocalBrowserSessionError(
+      "This browser cannot keep the secure page session. Open it again with session storage enabled.",
+    );
+  }
+}
+
+function clearLocalBrowserSessionProof(): void {
+  if (!isDedicatedBrowserOrigin(TRADING_API_BASE_URL)) return;
+  try {
+    window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+  } catch {
+    // There is nothing else to clear and the proof is never mirrored elsewhere.
+  }
+}
+
+function publishLocalBrowserSession(session: LocalBrowserSession | null): void {
+  localBrowserSession = session;
+  window.dispatchEvent(
+    new CustomEvent(LOCAL_BROWSER_SESSION_CHANGED_EVENT, {
+      detail: session,
+    }),
+  );
+}
+
+function parseBrowserSession(value: unknown, requireProof: boolean): ParsedBrowserSession {
+  if (!value || typeof value !== "object") {
+    throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
+  }
+
+  const payload = value as BrowserSessionPayload;
+  const network = payload.binanceNetwork;
+  const expiresInMs = Number(payload.expiresInMs);
+  const sessionProof = validBrowserSessionProof(payload.sessionProof) ? payload.sessionProof : null;
+  if (
+    payload.mode !== "local-browser" ||
+    payload.authenticated !== true ||
+    typeof payload.binanceConfigured !== "boolean" ||
+    !(network === null || network === "mainnet" || network === "testnet") ||
+    (payload.binanceConfigured && network === null) ||
+    (!payload.binanceConfigured && network !== null) ||
+    (requireProof && sessionProof === null) ||
+    !Number.isFinite(expiresInMs) ||
+    expiresInMs <= 0
+  ) {
+    throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
+  }
+
+  return {
+    session: {
+      mode: "local-browser",
+      authenticated: true,
+      binanceConfigured: payload.binanceConfigured,
+      binanceNetwork: network,
+      expiresInMs,
+    },
+    sessionProof,
+  };
+}
+
+export function consumeBrowserLaunchTicket(): string | null {
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const ticket = fragment.get("browser-ticket") ?? fragment.get("browser-launch");
+  if (!ticket) return null;
+
+  // Remove the one-use capability before the first network await so it cannot
+  // be copied from the address bar, retained in browser history, or included
+  // in a screenshot. Preserve unrelated fragment values if any are added later.
+  fragment.delete("browser-ticket");
+  fragment.delete("browser-launch");
+  const remainingFragment = fragment.toString();
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${window.location.pathname}${window.location.search}${remainingFragment ? `#${remainingFragment}` : ""}`,
+  );
+  return ticket;
+}
+
+export function isDedicatedBrowserOrigin(origin: string): boolean {
+  // Keep this exact. localhost, IPv6 loopback, other ports, and a copied launch
+  // fragment must never gain companion privileges. This mirrors the native
+  // launcher and backend Host/Origin allowlist.
+  return origin === "http://127.0.0.1:8658";
+}
+
+async function readBrowserSessionResponse(
+  response: Response,
+  requireProof = false,
+): Promise<ParsedBrowserSession> {
+  if (!response.ok) {
+    throw new LocalBrowserSessionError(
+      response.status === 401 || response.status === 403
+        ? "This browser connection has expired or was turned off."
+        : "Fyxtez could not confirm this browser connection.",
+    );
+  }
+
+  try {
+    return parseBrowserSession(await response.json(), requireProof);
+  } catch (reason) {
+    if (reason instanceof LocalBrowserSessionError) throw reason;
+    throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
+  }
+}
+
+export async function initializeLocalBrowserRuntime(
+  origin: string,
+  ticket: string | null,
+): Promise<string> {
+  if (!isDedicatedBrowserOrigin(origin)) {
+    throw new LocalBrowserSessionError("Browser access can only open on this computer.");
+  }
+  TRADING_RUNTIME_MODE = "local-browser";
+  TRADING_API_TOKEN = "";
+  const normalizedOrigin = normalizeBaseUrl(origin);
+  selectTradingApiBaseUrl(normalizedOrigin);
+
+  if (ticket) {
+    clearLocalBrowserSessionProof();
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(ticket)) {
+      throw new LocalBrowserSessionError("This browser launch link is invalid or has expired.");
+    }
+    const redeemed = await fetch(`${normalizedOrigin}/api/browser-session/redeem`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      redirect: "error",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticket }),
+    });
+    const redeemedSession = await readBrowserSessionResponse(redeemed, true);
+    storeLocalBrowserSessionProof(redeemedSession.sessionProof!);
+  } else if (!getLocalBrowserSessionProof()) {
+    invalidateLocalBrowserSession();
+    throw new LocalBrowserSessionError("This browser connection has expired or was turned off.");
+  }
+
+  return validateLocalBrowserSession().then(() => normalizedOrigin);
+}
+
+/** Rechecks the HttpOnly browser session without exposing its capability to JS. */
+export async function validateLocalBrowserSession(): Promise<LocalBrowserSession> {
+  if (TRADING_RUNTIME_MODE !== "local-browser") {
+    throw new LocalBrowserSessionError("This is not a local browser session.");
+  }
+
+  const sessionProof = getLocalBrowserSessionProof();
+  if (!sessionProof) {
+    invalidateLocalBrowserSession();
+    throw new LocalBrowserSessionError("This browser connection has expired or was turned off.");
+  }
+
+  const response = await fetch(`${TRADING_API_BASE_URL}/api/browser-session`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    redirect: "error",
+    headers: { "x-fyxtez-browser-proof": sessionProof },
+  });
+  try {
+    const { session } = await readBrowserSessionResponse(response);
+    publishLocalBrowserSession(session);
+    return session;
+  } catch (reason) {
+    invalidateLocalBrowserSession();
+    throw reason;
+  }
+}
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
@@ -237,6 +492,8 @@ function selectTradingApiBaseUrl(nextUrl: string): string {
 }
 
 function applyDesktopRuntime(runtime: DesktopRuntime): string {
+  TRADING_RUNTIME_MODE = "native";
+  publishLocalBrowserSession(null);
   TRADING_API_TOKEN = runtime.apiToken;
   return selectTradingApiBaseUrl(normalizeBaseUrl(runtime.apiBaseUrl));
 }
@@ -247,16 +504,28 @@ function applyDesktopRuntime(runtime: DesktopRuntime): string {
  * the previous implementation auto-probed 127.0.0.1 and could race with
  * history/BFCache resume logic: one path selected the remote server and a later
  * local probe switched the whole app back to localhost. That is exactly why a
- * history restore failed while a hard reload worked. We no longer auto-select
- * localhost at runtime. The app always uses VITE_TRADING_API_URL (or the hosted
- * terminal default). Local development can still opt in explicitly by setting
- * VITE_TRADING_API_URL=http://127.0.0.1:8657 when starting/building the frontend.
+ * history restore failed while a hard reload worked. We no longer auto-probe
+ * arbitrary localhost services. Native Tauri receives its private runtime over
+ * IPC, the exact browser companion origin uses its HttpOnly session, and every
+ * other browser uses VITE_TRADING_API_URL (or the hosted terminal default).
  */
 export async function refreshTradingApiBaseUrl(): Promise<string> {
   if (isTauri()) {
     return applyDesktopRuntime(await invoke<DesktopRuntime>("desktop_runtime"));
   }
 
+  const browserTicket = consumeBrowserLaunchTicket();
+  if (isDedicatedBrowserOrigin(window.location.origin)) {
+    return initializeLocalBrowserRuntime(window.location.origin, browserTicket);
+  }
+
+  if (browserTicket) {
+    throw new LocalBrowserSessionError("Browser access can only open on this computer.");
+  }
+
+  TRADING_RUNTIME_MODE = "public-browser";
+  publishLocalBrowserSession(null);
+  TRADING_API_TOKEN = import.meta.env.VITE_TRADING_API_TOKEN ?? "";
   return Promise.resolve(selectTradingApiBaseUrl(normalizeBaseUrl(REMOTE_TRADING_API_BASE_URL)));
 }
 
@@ -279,6 +548,15 @@ export function initializeTradingApiBaseUrl(): Promise<string> {
   return tradingApiInitialization;
 }
 
+/** Retry startup without ever changing a failed local browser into public mode. */
+export function retryTradingRuntime(): Promise<string> {
+  if (TRADING_RUNTIME_MODE === "local-browser") {
+    tradingApiInitialization = validateLocalBrowserSession().then(() => TRADING_API_BASE_URL);
+    return tradingApiInitialization;
+  }
+  return restartDesktopBackend();
+}
+
 /**
  * Re-assert the configured backend after Chromium/Brave restores the page from
  * history/BFCache.
@@ -286,6 +564,9 @@ export function initializeTradingApiBaseUrl(): Promise<string> {
 export function refreshTradingApiBaseUrlAfterResume(): Promise<string> {
   if (isTauri()) {
     return refreshTradingApiBaseUrl();
+  }
+  if (TRADING_RUNTIME_MODE === "local-browser") {
+    return validateLocalBrowserSession().then(() => TRADING_API_BASE_URL);
   }
   // do this synchronously before returning the resolved Promise so resumed
   // hooks cannot send even one REST/WS request to a stale localhost module value.

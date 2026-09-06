@@ -1,13 +1,16 @@
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode},
+    http::{HeaderName, HeaderValue, StatusCode},
     middleware,
-    routing::{get, post, put},
+    middleware::Next,
+    response::Response,
+    routing::{any, get, post, put},
 };
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -18,6 +21,7 @@ use tokio::{
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
     limit::RequestBodyLimitLayer,
+    services::{ServeDir, ServeFile},
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
@@ -29,6 +33,11 @@ use crate::{
         AutoMarketProtectionOutcome, AutoMarketProtectionRequest, protect_auto_market_entry,
     },
     binance::{BinanceClient, floor_to_step, normalize_symbol, round_to_tick},
+    browser_access::{
+        BrowserAccessState, WebsocketTicket, browser_access_status, browser_session,
+        disable_browser_access, enable_browser_access, launch_browser_access,
+        redeem_browser_session,
+    },
     diagnostics::DiagnosticsState,
     error::{AppError, AppResult},
     icons::IconStore,
@@ -86,7 +95,8 @@ pub struct AppState {
     pub alert_runtime: AlertRuntime,
     pub symbol_registry: SymbolRegistry,
     pub icon_store: IconStore,
-    pub websocket_tickets: Arc<Mutex<HashMap<String, tokio::time::Instant>>>,
+    pub websocket_tickets: Arc<Mutex<HashMap<String, WebsocketTicket>>>,
+    pub browser_access: BrowserAccessState,
     pub diagnostics: DiagnosticsState,
     pub operation_safety: OperationSafety,
 }
@@ -115,6 +125,12 @@ fn request_authoritative_refresh_parts(
 pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", get(health))
+        .route("/api/browser-access/status", get(browser_access_status))
+        .route("/api/browser-access/enable", post(enable_browser_access))
+        .route("/api/browser-access/disable", post(disable_browser_access))
+        .route("/api/browser-access/launch", post(launch_browser_access))
+        .route("/api/browser-session/redeem", post(redeem_browser_session))
+        .route("/api/browser-session", get(browser_session))
         .route("/api/diagnostics", get(diagnostics))
         .route("/api/operation-safety/unresolved", get(unresolved_intents))
         .route(
@@ -189,6 +205,11 @@ pub fn router(state: AppState) -> Router {
         router
     };
 
+    let router = router
+        .route("/api", any(api_not_found))
+        .route("/api/", any(api_not_found))
+        .route("/api/{*path}", any(api_not_found));
+
     router
         .layer(middleware::from_fn_with_state(state.clone(), authorize))
         .layer(middleware::from_fn_with_state(
@@ -200,6 +221,7 @@ pub fn router(state: AppState) -> Router {
                 .allow_origin(AllowOrigin::list([
                     HeaderValue::from_static("http://localhost:5173"),
                     HeaderValue::from_static("http://127.0.0.1:5173"),
+                    HeaderValue::from_static("http://127.0.0.1:8658"),
                     HeaderValue::from_static("tauri://localhost"),
                     HeaderValue::from_static("http://tauri.localhost"),
                     HeaderValue::from_static("https://tauri.localhost"),
@@ -218,8 +240,51 @@ pub fn router(state: AppState) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             REQUEST_TIMEOUT,
         ))
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(
+            |request: &axum::http::Request<axum::body::Body>| {
+                tracing::debug_span!(
+                    "request",
+                    method = %request.method(),
+                    path = %request.uri().path(),
+                )
+            },
+        ))
         .with_state(state)
+}
+
+async fn api_not_found() -> AppError {
+    AppError::NotFound("API route does not exist".into())
+}
+
+/// Serve the same protected API behind the stable browser origin and expose
+/// only the packaged frontend files as an unauthenticated fallback. The
+/// native API listener intentionally keeps its existing no-static-files shape.
+pub fn browser_router(state: AppState, ui_dir: PathBuf) -> Router {
+    let index = ui_dir.join("index.html");
+    router(state)
+        .fallback_service(ServeDir::new(ui_dir).not_found_service(ServeFile::new(index)))
+        .layer(middleware::from_fn(browser_security_headers))
+}
+
+async fn browser_security_headers(request: axum::extract::Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    for (name, value) in [
+        ("x-content-type-options", "nosniff"),
+        ("x-frame-options", "DENY"),
+        ("referrer-policy", "no-referrer"),
+        ("cache-control", "no-store, max-age=0"),
+        ("pragma", "no-cache"),
+        (
+            "content-security-policy",
+            "default-src 'self'; connect-src 'self' ws://127.0.0.1:8658 https://fapi.binance.com https://testnet.binancefuture.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://stream.binancefuture.com wss://contract.mexc.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+        ),
+    ] {
+        response.headers_mut().insert(
+            HeaderName::from_static(name),
+            HeaderValue::from_static(value),
+        );
+    }
+    response
 }
 
 async fn price(

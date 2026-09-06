@@ -1,9 +1,6 @@
-import {
-  PRICE_ALERTS_ENDPOINT,
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { PRICE_ALERTS_ENDPOINT, TRADING_API_BASE_URL } from "../../config/constants";
 import type { PriceAlert } from "../../types/alert";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 type BackendPriceAlert = {
   id: string;
@@ -21,10 +18,9 @@ type BackendPriceAlert = {
 export type ListedPriceAlert = PriceAlert & { symbol: string };
 
 function headers(json = false): HeadersInit {
-  return {
+  return tradingApiHeaders({
     ...(json ? { "Content-Type": "application/json" } : {}),
-    Authorization: `Bearer ${TRADING_API_TOKEN}`,
-  };
+  });
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -62,15 +58,18 @@ function crossingFor(alert: Pick<PriceAlert, "side">): "CROSS_UP" | "CROSS_DOWN"
 
 export async function listPersistentPriceAlerts(symbol: string): Promise<PriceAlert[]> {
   const query = new URLSearchParams({ symbol: symbol.toUpperCase() });
-  const response = await fetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}?${query}`, {
-    headers: headers(),
-  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}?${query}`,
+    {
+      headers: headers(),
+    },
+  );
   return (await parseResponse<BackendPriceAlert[]>(response)).map(fromBackend);
 }
 
 /** omit the symbol filter to use the backend's existing account-wide list endpoint. */
 export async function listAllPersistentPriceAlerts(): Promise<ListedPriceAlert[]> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}`, {
     headers: headers(),
   });
   return (await parseResponse<BackendPriceAlert[]>(response)).map(fromBackendWithSymbol);
@@ -80,7 +79,7 @@ export async function createPersistentPriceAlert(
   symbol: string,
   alert: PriceAlert,
 ): Promise<PriceAlert> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}`, {
     method: "POST",
     headers: headers(true),
     body: JSON.stringify({
@@ -107,24 +106,30 @@ export async function createPersistentPriceAlert(
 }
 
 export async function updatePersistentPriceAlert(alert: PriceAlert): Promise<PriceAlert> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}/${alert.id}`, {
-    method: "PUT",
-    headers: headers(true),
-    body: JSON.stringify({
-      price: alert.price,
-      side: alert.side,
-      pattern: alert.pattern,
-      additionalInfo: alert.additionalInfo.trim() || null,
-      crossing: crossingFor(alert),
-    }),
-  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}/${alert.id}`,
+    {
+      method: "PUT",
+      headers: headers(true),
+      body: JSON.stringify({
+        price: alert.price,
+        side: alert.side,
+        pattern: alert.pattern,
+        additionalInfo: alert.additionalInfo.trim() || null,
+        crossing: crossingFor(alert),
+      }),
+    },
+  );
   return fromBackend(await parseResponse<BackendPriceAlert>(response));
 }
 
 export async function cancelPersistentPriceAlert(alertId: string): Promise<void> {
-  const response = await fetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}/${alertId}`, {
-    method: "DELETE",
-    headers: headers(),
-  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}/${alertId}`,
+    {
+      method: "DELETE",
+      headers: headers(),
+    },
+  );
   await parseResponse<void>(response);
 }

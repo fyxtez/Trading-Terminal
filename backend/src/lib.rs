@@ -4,6 +4,7 @@ mod api;
 mod auto_market_workflow;
 mod binance;
 mod binance_stream;
+mod browser_access;
 mod diagnostics;
 mod error;
 mod icons;
@@ -24,8 +25,9 @@ use std::{collections::HashMap, future::Future, sync::Arc};
 
 use account_state::{AccountState, spawn_refresh_worker};
 use alerts::{AlertRuntime, AlertStore, spawn_alert_worker};
-use api::{AppState, router};
+use api::{AppState, browser_router, router};
 use binance::BinanceClient;
+use browser_access::BrowserAccessState;
 use diagnostics::DiagnosticsState;
 pub use error::{AppError, AppResult};
 use icons::IconStore;
@@ -39,7 +41,7 @@ use sizing_store::SizingStore;
 use symbol_registry::{MarketDataSource, MarketKind, SymbolRegistry};
 use tokio::{
     net::TcpListener,
-    sync::{RwLock, broadcast},
+    sync::{RwLock, broadcast, watch},
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -71,6 +73,11 @@ pub async fn serve<F>(runtime: RuntimeConfig, shutdown: F) -> AppResult<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    let browser_runtime = runtime.browser;
+    let browser_access = browser_runtime
+        .as_ref()
+        .map(|browser| BrowserAccessState::configured(browser.address))
+        .unwrap_or_else(BrowserAccessState::disabled);
     let binance = BinanceClient::from_secure_store(runtime.use_secure_network)?;
     let diagnostics = DiagnosticsState::new(binance.is_configured());
 
@@ -243,6 +250,7 @@ where
         symbol_registry,
         icon_store,
         websocket_tickets: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        browser_access: browser_access.clone(),
         diagnostics: diagnostics.clone(),
         operation_safety,
     };
@@ -268,6 +276,64 @@ where
 
     let listener = TcpListener::bind(runtime.address).await?;
 
+    // Browser access is an optional companion listener. Failure to find the
+    // packaged UI or claim its stable port must never prevent the native app
+    // and its private API from starting.
+    let (browser_shutdown_tx, browser_shutdown_rx) = watch::channel(false);
+    let browser_server_task = if let Some(browser) = browser_runtime {
+        match std::fs::canonicalize(&browser.ui_dir) {
+            Ok(ui_dir) if ui_dir.join("index.html").is_file() => {
+                match TcpListener::bind(browser.address).await {
+                    Ok(browser_listener) => {
+                        browser_access.mark_available().await;
+                        let browser_access_for_task = browser_access.clone();
+                        let browser_state = state.clone();
+                        info!(
+                            address = %browser.address,
+                            "Local browser access listener is ready"
+                        );
+                        Some(tokio::spawn(async move {
+                            let result = axum::serve(
+                                browser_listener,
+                                browser_router(browser_state, ui_dir),
+                            )
+                            .with_graceful_shutdown(wait_for_browser_shutdown(browser_shutdown_rx))
+                            .await;
+                            if result.is_err() {
+                                browser_access_for_task
+                                    .mark_unavailable("Browser access stopped unexpectedly")
+                                    .await;
+                            }
+                            result
+                        }))
+                    }
+                    Err(error) => {
+                        let reason = if error.kind() == std::io::ErrorKind::AddrInUse {
+                            format!(
+                                "Browser access port {} is already in use",
+                                browser.address.port()
+                            )
+                        } else {
+                            "Browser access could not start".to_string()
+                        };
+                        tracing::warn!(%error, %reason);
+                        browser_access.mark_unavailable(reason).await;
+                        None
+                    }
+                }
+            }
+            Ok(_) | Err(_) => {
+                tracing::warn!("Packaged browser UI is unavailable");
+                browser_access
+                    .mark_unavailable("Browser files are unavailable; reinstall the app")
+                    .await;
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     info!(
         address = %runtime.address,
         network = if binance.is_testnet() {
@@ -283,6 +349,19 @@ where
         .await
         .map_err(|error| AppError::Config(format!("server error: {error}")));
 
+    let _ = browser_shutdown_tx.send(true);
+    if let Some(task) = browser_server_task {
+        match task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "Local browser listener stopped");
+            }
+            Err(error) => {
+                tracing::warn!(%error, "Local browser listener task failed");
+            }
+        }
+    }
+
     user_stream_task.abort();
     if let Some(task) = alert_worker_task {
         task.abort();
@@ -295,6 +374,14 @@ where
     position_risk_refresh_task.abort();
     server_result?;
     Ok(())
+}
+
+async fn wait_for_browser_shutdown(mut receiver: watch::Receiver<bool>) {
+    while !*receiver.borrow_and_update() {
+        if receiver.changed().await.is_err() {
+            break;
+        }
+    }
 }
 
 fn load_sizing_config() -> AppResult<MarginSizingConfig> {

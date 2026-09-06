@@ -1,6 +1,6 @@
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
-    Json,
+    Extension, Json,
     body::{Body, to_bytes},
     extract::{Query, State},
     http::{HeaderMap, HeaderValue, Method, header},
@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use tokio::{sync::broadcast, time::Duration};
 
 use crate::{
+    browser_access::{BrowserAccessState, BrowserSessionAuth, RequestAuth, WebsocketTicket},
     diagnostics::DiagnosticsSnapshot,
     error::{AppError, AppResult, ErrorClassification},
     models::{FuturesAccountInfo, HealthResponse},
@@ -83,12 +84,15 @@ fn exchange_backed_path(path: &str) -> bool {
 pub(super) async fn authorize(
     State(state): State<AppState>,
     headers: HeaderMap,
-    request: axum::extract::Request,
+    mut request: axum::extract::Request,
     next: Next,
 ) -> AppResult<Response> {
-    let path = request.uri().path();
+    let path = request.uri().path().to_owned();
 
-    if matches!(path, "/health" | "/api/ws/trading") {
+    if matches!(
+        path.as_str(),
+        "/health" | "/api/ws/trading" | "/api/browser-session/redeem"
+    ) {
         return Ok(next.run(request).await);
     }
 
@@ -97,11 +101,23 @@ pub(super) async fn authorize(
         .and_then(|value| value.to_str().ok());
     let expected = format!("Bearer {}", state.service_token);
 
-    if supplied != Some(expected.as_str()) {
+    let auth = if supplied == Some(expected.as_str()) {
+        RequestAuth::Native
+    } else {
+        let browser_auth = state
+            .browser_access
+            .authenticate_cookie(&headers, request.method())
+            .await?;
+        RequestAuth::Browser(browser_auth)
+    };
+    if matches!(auth, RequestAuth::Browser(_))
+        && (path.starts_with("/api/browser-access/") || path.starts_with("/api/desktop/"))
+    {
         return Err(AppError::Unauthorized);
     }
+    request.extensions_mut().insert(auth);
 
-    if requires_financial_intent(request.method(), path) {
+    if requires_financial_intent(request.method(), &path) {
         return execute_financial_intent(state, request, next).await;
     }
 
@@ -292,57 +308,103 @@ pub(super) struct TradingSocketQuery {
     ticket: String,
 }
 
-pub(super) async fn issue_websocket_ticket(State(state): State<AppState>) -> Json<Value> {
+pub(super) async fn issue_websocket_ticket(
+    State(state): State<AppState>,
+    Extension(auth): Extension<RequestAuth>,
+) -> Json<Value> {
     const TICKET_TTL: Duration = Duration::from_secs(30);
     let now = tokio::time::Instant::now();
     let ticket = uuid::Uuid::new_v4().simple().to_string();
     let mut tickets = state.websocket_tickets.lock().await;
-    tickets.retain(|_, expires_at| *expires_at > now);
-    tickets.insert(ticket.clone(), now + TICKET_TTL);
+    tickets.retain(|_, ticket| ticket.expires_at > now);
+    tickets.insert(
+        ticket.clone(),
+        WebsocketTicket {
+            expires_at: now + TICKET_TTL,
+            auth,
+        },
+    );
     Json(json!({ "ticket": ticket, "expires_in_ms": TICKET_TTL.as_millis() }))
 }
 
 pub(super) async fn trading_websocket(
     State(state): State<AppState>,
     Query(query): Query<TradingSocketQuery>,
+    headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> AppResult<Response> {
-    let expires_at = state.websocket_tickets.lock().await.remove(&query.ticket);
-    if expires_at.is_none_or(|expires_at| expires_at <= tokio::time::Instant::now()) {
+    let ticket = state.websocket_tickets.lock().await.remove(&query.ticket);
+    let Some(ticket) = ticket else {
+        return Err(AppError::Unauthorized);
+    };
+    if ticket.expires_at <= tokio::time::Instant::now() {
         return Err(AppError::Unauthorized);
     }
+    let browser_guard = if let RequestAuth::Browser(browser_auth) = ticket.auth {
+        // WebSocket handshakes are GET requests, but browser-issued tickets
+        // still require an exact Origin to prevent cross-site ticket use.
+        state
+            .browser_access
+            .validate_browser_headers(&headers, true)?;
+        if !state
+            .browser_access
+            .session_auth_is_active(browser_auth)
+            .await
+        {
+            return Err(AppError::Unauthorized);
+        }
+        Some((state.browser_access.clone(), browser_auth))
+    } else {
+        None
+    };
 
     Ok(upgrade
-        .on_upgrade(move |socket| stream_trading_events(socket, state.trading_events.subscribe()))
+        .on_upgrade(move |socket| {
+            stream_trading_events(socket, state.trading_events.subscribe(), browser_guard)
+        })
         .into_response())
 }
 
 async fn stream_trading_events(
     mut socket: WebSocket,
     mut receiver: broadcast::Receiver<TradingEvent>,
+    browser_guard: Option<(BrowserAccessState, BrowserSessionAuth)>,
 ) {
+    let mut session_check = tokio::time::interval(Duration::from_secs(1));
+    session_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
-        match receiver.recv().await {
-            Ok(event) => {
-                let Ok(payload) = serde_json::to_string(&event) else {
+        tokio::select! {
+            _ = session_check.tick(), if browser_guard.is_some() => {
+                let Some((access, auth)) = browser_guard.as_ref() else {
                     continue;
                 };
-                if socket.send(WsMessage::Text(payload.into())).await.is_err() {
+                if !access.session_auth_is_active(*auth).await {
+                    let _ = socket.send(WsMessage::Close(None)).await;
                     break;
                 }
             }
-            Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                let event = TradingEvent::SnapshotRequired {
-                    reason: format!("browser event stream lagged by {skipped} messages"),
-                };
-                let Ok(payload) = serde_json::to_string(&event) else {
-                    continue;
-                };
-                if socket.send(WsMessage::Text(payload.into())).await.is_err() {
-                    break;
+            result = receiver.recv() => match result {
+                Ok(event) => {
+                    let Ok(payload) = serde_json::to_string(&event) else {
+                        continue;
+                    };
+                    if socket.send(WsMessage::Text(payload.into())).await.is_err() {
+                        break;
+                    }
                 }
-            }
-            Err(broadcast::error::RecvError::Closed) => break,
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    let event = TradingEvent::SnapshotRequired {
+                        reason: format!("browser event stream lagged by {skipped} messages"),
+                    };
+                    let Ok(payload) = serde_json::to_string(&event) else {
+                        continue;
+                    };
+                    if socket.send(WsMessage::Text(payload.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            },
         }
     }
 }

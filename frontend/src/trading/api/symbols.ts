@@ -1,4 +1,5 @@
-import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
+import { TRADING_API_BASE_URL } from "../../config/constants";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 export type BackendSymbol = {
   symbol: string;
@@ -25,10 +26,9 @@ type DeleteSymbolResponse = { deleted: boolean; symbol: BackendSymbol };
 type ListIconsResponse = { count: number; icons: BackendIcon[] };
 
 function headers(json = false): HeadersInit {
-  return {
+  return tradingApiHeaders({
     ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(TRADING_API_TOKEN ? { Authorization: `Bearer ${TRADING_API_TOKEN}` } : {}),
-  };
+  });
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -46,7 +46,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export async function listSymbols(): Promise<BackendSymbol[]> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/symbols`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/api/symbols`, {
     headers: headers(),
     cache: "no-store",
   });
@@ -54,7 +54,7 @@ export async function listSymbols(): Promise<BackendSymbol[]> {
 }
 
 export async function addSymbol(symbol: string): Promise<AddSymbolResponse> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/symbols`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/api/symbols`, {
     method: "POST",
     headers: headers(true),
     body: JSON.stringify({ symbol }),
@@ -63,7 +63,7 @@ export async function addSymbol(symbol: string): Promise<AddSymbolResponse> {
 }
 
 export async function deleteSymbol(symbol: string): Promise<DeleteSymbolResponse> {
-  const response = await fetch(
+  const response = await tradingApiFetch(
     `${TRADING_API_BASE_URL}/api/symbols/${encodeURIComponent(symbol)}`,
     { method: "DELETE", headers: headers() },
   );
@@ -77,7 +77,7 @@ export async function deleteSymbol(symbol: string): Promise<DeleteSymbolResponse
  * it doesn't need the query-token workaround.
  */
 export async function listIcons(): Promise<ListIconsResponse> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/icons`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/api/icons`, {
     headers: headers(),
     cache: "no-store",
   });
@@ -91,7 +91,7 @@ export async function fetchIconImageUrl(symbol: string, cachedAtMs?: number): Pr
   if (cachedAtMs !== undefined) {
     url.searchParams.set("v", String(cachedAtMs));
   }
-  const response = await fetch(url, {
+  const response = await tradingApiFetch(url, {
     headers: headers(),
     cache: "force-cache",
   });

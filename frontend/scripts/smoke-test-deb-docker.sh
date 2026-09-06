@@ -68,8 +68,9 @@ apt_get() {
 }
 
 verify_installation() {
-  local binary ldd_output
+  local binary browser_ui_dir ldd_output
   local desktop_file="/usr/share/applications/Fyxtez Terminal.desktop"
+  browser_ui_dir="/usr/lib/Fyxtez Terminal/browser-ui"
 
   test "$(dpkg-query --show --showformat='${db:Status-Abbrev}' "$package_name")" = "ii "
   test "$(dpkg-query --show --showformat='${Version}' "$package_name")" = "$package_version"
@@ -81,6 +82,9 @@ verify_installation() {
   grep -Fxq 'Icon=fyxtez-terminal-desktop' "$desktop_file"
   find /usr/share/icons/hicolor -type f \
     -name 'fyxtez-terminal-desktop.png' -print -quit | grep -q .
+  test -f "$browser_ui_dir/index.html"
+  find "$browser_ui_dir/assets" -maxdepth 1 -type f \
+    \( -name '*.js' -o -name '*.css' \) -print -quit | grep -q .
 
   for binary in /usr/bin/fyxtez-terminal-desktop /usr/bin/fyxtez-backend; do
     ldd_output="$(ldd "$binary")"

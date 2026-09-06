@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../dist": "browser-ui"
+    }
+  }
+}

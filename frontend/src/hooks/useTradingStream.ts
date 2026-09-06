@@ -72,7 +72,10 @@ export function useTradingStream({
 
         reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
         setConnectionState("connected");
-        console.log("[trading-ws] connected", socket?.url);
+        // The URL contains a short-lived one-use ticket. It has already been
+        // consumed by a successful upgrade, but it still does not belong in
+        // browser logs or copied diagnostics.
+        console.log("[trading-ws] connected");
       });
 
       socket.addEventListener("message", (message) => {
@@ -156,10 +159,12 @@ export function useTradingStream({
         scheduleReconnect();
       });
 
-      socket.addEventListener("error", (event) => {
+      socket.addEventListener("error", () => {
         if (disposed) return;
 
-        console.error("[trading-ws] error", event);
+        // Do not log the Event or WebSocket object: its URL can contain a
+        // short-lived, one-use browser access ticket.
+        console.error("[trading-ws] connection error");
         setConnectionState("disconnected");
         socket?.close();
       });

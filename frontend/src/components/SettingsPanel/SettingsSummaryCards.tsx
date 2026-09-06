@@ -144,6 +144,25 @@ export function ExchangeConnectionsSection({
               </button>
             )}
           </>
+        ) : credentials.runtimeMode === "local-browser" ? (
+          <div
+            className={`settings-browser-connection-note ${credentials.status.binanceConfigured ? "connected" : ""}`}
+          >
+            <div className="settings-connection-heading">
+              <span>Binance</span>
+              <b>
+                {credentials.status.binanceConfigured
+                  ? `CONNECTED${credentials.status.binanceNetwork ? ` · ${credentials.status.binanceNetwork.toUpperCase()}` : ""}`
+                  : "NOT SET"}
+              </b>
+            </div>
+            <p>
+              {credentials.status.binanceConfigured
+                ? "Trading is handled securely by Fyxtez on this computer. Open the installed app to replace or remove your Binance keys."
+                : "Open the installed Fyxtez app and use Settings → Exchange Connections to connect Binance."}
+            </p>
+            <small>Binance keys are not exposed to the browser interface.</small>
+          </div>
         ) : (
           <div className="settings-browser-connection-note">
             <div className="settings-connection-heading">

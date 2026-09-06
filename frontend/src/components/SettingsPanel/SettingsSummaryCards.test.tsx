@@ -20,6 +20,8 @@ describe("ExchangeConnectionsSection", () => {
   it("collapses connection details and exposes them again", () => {
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: true,
+      runtimeMode: "native",
+      canTrade: false,
       status: {
         binanceConfigured: false,
         binanceNetwork: null,
@@ -51,6 +53,8 @@ describe("ExchangeConnectionsSection", () => {
     const openSetup = vi.fn();
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: true,
+      runtimeMode: "native",
+      canTrade: true,
       status: {
         binanceConfigured: true,
         binanceNetwork: "testnet",
@@ -71,6 +75,8 @@ describe("ExchangeConnectionsSection", () => {
     const openSetup = vi.fn();
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: false,
+      runtimeMode: "public-browser",
+      canTrade: false,
       status: {
         binanceConfigured: false,
         binanceNetwork: null,
@@ -93,6 +99,8 @@ describe("ExchangeConnectionsSection", () => {
     const disconnectBinance = vi.fn().mockResolvedValue(undefined);
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: true,
+      runtimeMode: "native",
+      canTrade: true,
       status: {
         binanceConfigured: true,
         binanceNetwork: "mainnet",
@@ -122,6 +130,8 @@ describe("ExchangeConnectionsSection", () => {
   it("keeps the confirmation open and shows a styled native error on failure", async () => {
     const credentials: DesktopCredentialsContextValue = {
       isDesktop: true,
+      runtimeMode: "native",
+      canTrade: true,
       status: {
         binanceConfigured: true,
         binanceNetwork: "testnet",
@@ -142,5 +152,28 @@ describe("ExchangeConnectionsSection", () => {
       "Fyxtez could not open your saved connections. Unlock your device and try again.",
     );
     expect(screen.getByRole("group", { name: "Confirm Binance disconnect" })).toBeVisible();
+  });
+
+  it("shows safe Binance status in the local browser without key controls", () => {
+    const credentials: DesktopCredentialsContextValue = {
+      isDesktop: false,
+      runtimeMode: "local-browser",
+      canTrade: true,
+      status: {
+        binanceConfigured: true,
+        binanceNetwork: "testnet",
+        ntfyConfigured: false,
+        telegramConfigured: false,
+      },
+      openSetup: vi.fn(),
+      disconnectBinance: vi.fn(),
+    };
+
+    render(<ConnectionsHarness credentials={credentials} />);
+
+    expect(screen.getByText("CONNECTED · TESTNET")).toBeVisible();
+    expect(screen.getByText(/keys are not exposed to the browser interface/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "EDIT" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "DISCONNECT" })).not.toBeInTheDocument();
   });
 });

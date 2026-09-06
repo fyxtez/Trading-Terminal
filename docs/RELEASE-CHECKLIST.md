@@ -1,16 +1,23 @@
 # Desktop release and live-trading checklist
 
-Last reviewed: 2026-09-05
+Last reviewed: 2026-09-06
 
-The supported product boundary is a self-hosted, single-user Tauri application.
-Browser mode is for chart-only development. A successful desktop package does
-not by itself make Mainnet trading release-ready.
+The supported product boundary is a self-hosted, single-user Tauri application,
+with an optional same-computer Linux browser companion. Standalone Vite browser
+mode is for chart-only development. A successful desktop package does not by
+itself make Mainnet trading release-ready.
 
 ## Desktop release
 
 - [x] Tauri starts, health-checks, supervises and stops the packaged Axum sidecar.
 - [x] Native code generates a per-launch loopback port and capability.
 - [x] Single-instance and bounded sidecar restart behavior are defined.
+- [ ] In a packaged Linux build, enable Browser access; place a Testnet order in
+      the normal browser; choose Open in browser again and confirm both tabs
+      remain authorized; close the native window; reopen it from the tray; then
+      disable access and confirm both browser sessions are rejected.
+- [ ] Confirm a process already using `127.0.0.1:8658` disables only Browser
+      access and does not prevent the native terminal from starting.
 - [x] Linux CI produces `.deb` and AppImage bundles containing the sidecar.
 - [x] A downloaded `.deb` installs and launches on the development Linux machine.
 - [x] A clean Ubuntu 22.04 Docker smoke test installs, verifies, purges and
@@ -79,6 +86,10 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
 
 - [x] Binance secrets live in the OS credential manager.
 - [x] Frontend code can read connection status but cannot retrieve stored secrets.
+- [ ] Inspect Browser access URLs, storage and network responses: the expected
+      proof for each authorized tab may appear once in its ticket-redeem
+      response, then only in `sessionStorage`/its request header; confirm that
+      Binance credentials and the native sidecar capability never appear.
 - [x] Native inputs, outbound redirects, request sizes and timeouts have bounded policies.
 - [x] Outbound providers and secret-redaction behavior are documented.
 - [x] Local backup and restore steps are documented.

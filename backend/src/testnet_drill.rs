@@ -150,7 +150,7 @@ pub async fn run(config: DrillConfig) -> AppResult<DrillReport> {
     let symbol = report.symbol.clone();
     let (elapsed, connectivity) = timed(async {
         client.sync_server_time().await?;
-        client.initialize_reference_data().await?;
+        client.refresh_reference_data().await?;
         let price = client.price(&symbol).await?;
         let filters = client.symbol_filters(&symbol).await?;
         let account = client.account_info().await?;

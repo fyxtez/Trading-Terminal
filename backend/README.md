@@ -46,16 +46,28 @@ from Git. Back them up before production use.
 
 ## API security
 
-Most routes require the bearer token from `SERVICE_API_TOKEN`. `/health` is
+Most routes require either the native/standalone bearer token or, on the optional
+Linux companion listener, both parts of a valid browser session. `/health` is
 public. The WebSocket upgrade uses a short-lived, one-use ticket issued through
-an authenticated POST; icon bytes use the normal bearer-protected fetch path.
-Bind standalone development to localhost.
+an authenticated POST; icon bytes use the normal authenticated fetch path. Bind
+standalone development to localhost.
 
 Native mode ignores project server/token/data-path settings and binds only to
 `127.0.0.1`. Desktop reads a bounded one-line bootstrap payload from stdin;
 Android receives equivalent configuration in process. Both keep data under
 Tauri's platform application-data directory and read exchange/notification
 credentials directly from the platform credential manager.
+
+The Linux sidecar may also receive an optional packaged-UI path and fixed
+loopback Browser access port. Native-only control routes can enable it and issue
+a short-lived launch ticket. The local browser redeems that ticket for a split,
+revocable session: an `HttpOnly`, `SameSite=Strict` cookie plus an independent
+tab-scoped request proof. Both are required on normal account/trading routes;
+another launch in the same browser profile reuses its valid cookie and adds a
+new proof without invalidating existing tabs. The session cannot reload
+credentials or administer Browser access. Neither the sidecar bearer nor
+exchange secrets is returned to the browser. Standalone and Android runtimes do
+not enable this listener.
 
 See [`.env.example`](.env.example) for all configuration variables and
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for service internals.

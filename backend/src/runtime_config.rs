@@ -10,6 +10,14 @@ use crate::error::{AppError, AppResult};
 
 const MIN_SERVICE_TOKEN_LENGTH: usize = 32;
 const MAX_BOOTSTRAP_BYTES: u64 = 16 * 1024;
+#[cfg(target_os = "linux")]
+pub const DESKTOP_BROWSER_PORT: u16 = 8658;
+
+#[derive(Debug)]
+pub struct BrowserRuntimeConfig {
+    pub address: SocketAddr,
+    pub ui_dir: PathBuf,
+}
 
 #[derive(Debug)]
 pub struct RuntimeConfig {
@@ -22,6 +30,7 @@ pub struct RuntimeConfig {
     pub operation_journal_path: PathBuf,
     pub use_secure_network: bool,
     pub parent_process_guard: bool,
+    pub browser: Option<BrowserRuntimeConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,6 +39,10 @@ struct SidecarBootstrap {
     port: u16,
     service_token: String,
     data_dir: PathBuf,
+    #[serde(default)]
+    browser_port: Option<u16>,
+    #[serde(default)]
+    browser_ui_dir: Option<PathBuf>,
 }
 
 impl RuntimeConfig {
@@ -65,6 +78,7 @@ impl RuntimeConfig {
 
         std::fs::create_dir_all(&bootstrap.data_dir)?;
         let data_dir = bootstrap.data_dir;
+        let browser = browser_config(bootstrap.browser_port, bootstrap.browser_ui_dir)?;
 
         Ok(Self {
             address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), bootstrap.port),
@@ -76,6 +90,7 @@ impl RuntimeConfig {
             operation_journal_path: data_dir.join("operations.sqlite3"),
             use_secure_network: true,
             parent_process_guard: true,
+            browser,
         })
     }
 
@@ -105,6 +120,7 @@ impl RuntimeConfig {
             operation_journal_path: env_path("OPERATION_JOURNAL_PATH", "data/operations.sqlite3"),
             use_secure_network: false,
             parent_process_guard: false,
+            browser: None,
         })
     }
 
@@ -131,7 +147,45 @@ impl RuntimeConfig {
             operation_journal_path: data_dir.join("operations.sqlite3"),
             use_secure_network: true,
             parent_process_guard: false,
+            browser: None,
         })
+    }
+}
+
+fn browser_config(
+    browser_port: Option<u16>,
+    browser_ui_dir: Option<PathBuf>,
+) -> AppResult<Option<BrowserRuntimeConfig>> {
+    match (browser_port, browser_ui_dir) {
+        (None, None) => Ok(None),
+        (Some(port), Some(ui_dir)) => {
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (port, ui_dir);
+                return Ok(None);
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                if port != DESKTOP_BROWSER_PORT {
+                    return Err(AppError::Config(format!(
+                        "desktop browser port must be {DESKTOP_BROWSER_PORT}"
+                    )));
+                }
+                if ui_dir.as_os_str().is_empty() {
+                    return Err(AppError::Config(
+                        "desktop browser UI directory must not be empty".into(),
+                    ));
+                }
+                Ok(Some(BrowserRuntimeConfig {
+                    address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+                    ui_dir,
+                }))
+            }
+        }
+        _ => Err(AppError::Config(
+            "desktop browser port and UI directory must be supplied together".into(),
+        )),
     }
 }
 
@@ -182,7 +236,9 @@ fn validate_token(token: &str) -> AppResult<()> {
 mod tests {
     use std::{net::SocketAddr, path::PathBuf};
 
-    use super::{RuntimeConfig, validate_token};
+    #[cfg(target_os = "linux")]
+    use super::DESKTOP_BROWSER_PORT;
+    use super::{RuntimeConfig, browser_config, validate_token};
 
     #[test]
     fn rejects_short_service_tokens() {
@@ -213,5 +269,36 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn browser_bootstrap_fields_are_all_or_nothing() {
+        assert!(browser_config(None, None).unwrap().is_none());
+        assert!(
+            browser_config(Some(8658), None)
+                .unwrap_err()
+                .to_string()
+                .contains("supplied together")
+        );
+        assert!(
+            browser_config(None, Some(PathBuf::from("ui")))
+                .unwrap_err()
+                .to_string()
+                .contains("supplied together")
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_browser_bootstrap_uses_the_stable_loopback_origin() {
+        let browser = browser_config(
+            Some(DESKTOP_BROWSER_PORT),
+            Some(PathBuf::from("browser-ui")),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(browser.address.to_string(), "127.0.0.1:8658");
+        assert_eq!(browser.ui_dir, PathBuf::from("browser-ui"));
+        assert!(browser_config(Some(9000), Some(PathBuf::from("ui"))).is_err());
     }
 }

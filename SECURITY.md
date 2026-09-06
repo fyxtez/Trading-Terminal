@@ -30,6 +30,22 @@ a separate, local-only mechanism. The desktop pre-build explicitly clears
 `VITE_TRADING_*` values so an ignored developer `.env` cannot contaminate a
 release bundle.
 
+Opt-in Linux Browser access does not reuse that native capability. Tauri asks
+Axum for a short-lived one-use launch ticket and opens it only in a loopback URL
+fragment. URL fragments are never transmitted in HTTP requests; the browser
+removes it before its first API request and exchanges it for a split session:
+an opaque, revocable `HttpOnly`,
+`SameSite=Strict` cookie plus an independent proof kept only in that tab's
+`sessionStorage`. Reopening from Fyxtez in the same browser profile keeps the
+shared cookie and adds a new proof without invalidating earlier authorized tabs;
+a different browser profile receives an independent cookie. Every authenticated
+browser request requires a matching pair, so a different localhost port cannot
+use a cookie it happens to receive. Browser JavaScript and storage never receive
+the native sidecar capability or saved Binance credentials.
+Session status exposes only whether Binance is configured and the non-secret
+Live/Practice network selection. Credential entry, replacement and removal stay
+inside the native UI.
+
 ## Binance key policy
 
 - Create a dedicated key for this application.
@@ -45,11 +61,24 @@ release bundle.
 
 ## Network boundary
 
-Axum binds to `127.0.0.1`. Almost every route requires the per-launch bearer
-capability. WebSocket access uses a 30-second, one-use ticket obtained through an
-authenticated POST; protected icon data is fetched with the bearer header.
-CORS accepts only the development and Tauri WebView origins. The local health
-route reveals only service/network status and is intentionally unauthenticated.
+Installed desktop and embedded mobile Axum listeners bind only to loopback.
+Standalone development must also keep `SERVER_HOST` on `127.0.0.1`. The private
+native listener uses the per-launch bearer capability. The optional companion listener uses the fixed local origin
+`http://127.0.0.1:8658` and remains unusable for trading until Browser access is
+explicitly enabled and a launch ticket is redeemed. Browser sessions may use
+normal trading routes but cannot administer Browser access or trigger native
+credential reload. Disable, backend restart and application exit revoke all
+browser capabilities. WebSocket access uses a separate short-lived, one-use
+ticket obtained through an authenticated POST.
+
+CORS accepts only known development and Tauri WebView origins. Companion requests
+always enforce the exact loopback Host and matching tab proof; mutations and
+WebSockets also require the exact Origin, while safe GETs reject any mismatched
+Origin when one is supplied. The served UI sets a restrictive content security
+policy and framing/referrer protections. `/health` reveals only service/network status and is intentionally
+unauthenticated; the packaged static UI is also public but contains no authority
+by itself. Do not
+port-forward either listener or expose it through a reverse proxy.
 
 Native input, Axum body and request-duration limits are explicit. Outbound
 credentials-bearing HTTP clients reject redirects, provider calls have bounded
@@ -72,6 +101,12 @@ Tauri owns the sidecar lifecycle and limits automatic crash recovery to three
 attempts. A second desktop launch focuses the existing window instead of
 starting a competing backend/keyring owner. These controls protect the desktop
 boundary; they do not make the backend safe to expose on a LAN or the Internet.
+While Browser access is enabled and a system tray is available, closing the
+Linux window hides it instead of terminating the process. The tray provides an
+explicit Quit action; disabling Browser access restores the ordinary close
+behavior and revokes existing browser sessions. If tray creation fails, close
+remains a real exit so the process cannot become invisible. This background
+lifecycle does not enable dormant alerts.
 
 ## Release boundary
 

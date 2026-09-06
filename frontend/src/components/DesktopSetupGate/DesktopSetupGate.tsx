@@ -14,6 +14,13 @@ import "./DesktopSetupGate.layout.css";
 import { useAndroidBackNavigation } from "../../hooks/useAndroidBackNavigation";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 import { userFacingError } from "../../utils/userFacingError";
+import {
+  getLocalBrowserSession,
+  getTradingRuntimeMode,
+  LOCAL_BROWSER_SESSION_CHANGED_EVENT,
+  type LocalBrowserSession,
+  type TradingRuntimeMode,
+} from "../../config/constants";
 
 const emptyStatus: DesktopCredentialStatus = {
   binanceConfigured: false,
@@ -84,7 +91,17 @@ const steps = allSteps.filter(
 
 export default function DesktopSetupGate({ children }: { children: ReactNode }) {
   const desktop = isTauri();
-  const [status, setStatus] = useState<DesktopCredentialStatus>(emptyStatus);
+  const runtimeMode: TradingRuntimeMode = desktop ? "native" : getTradingRuntimeMode();
+  const initialBrowserSession = !desktop ? getLocalBrowserSession() : null;
+  const [status, setStatus] = useState<DesktopCredentialStatus>(() =>
+    initialBrowserSession
+      ? {
+          ...emptyStatus,
+          binanceConfigured: initialBrowserSession.binanceConfigured,
+          binanceNetwork: initialBrowserSession.binanceNetwork,
+        }
+      : emptyStatus,
+  );
   const [loaded, setLoaded] = useState(!desktop);
   const [showSetup, setShowSetup] = useState(
     () => desktop && localStorage.getItem(DESKTOP_ONBOARDING_KEY) !== "true",
@@ -115,7 +132,8 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       setValues({
         ...emptyValues(),
         // Editing Binance should show the currently active venue immediately.
-        // Secrets remain intentionally blank and must be entered again.
+        // Secrets remain intentionally blank; the matching venue renders a
+        // visual mask without ever reading them back from protected storage.
         binanceNetwork: connection === "binance" ? (status.binanceNetwork ?? "") : "",
       });
       setError(null);
@@ -178,6 +196,30 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   }, [desktop]);
 
   useEffect(() => {
+    if (runtimeMode !== "local-browser") {
+      if (!desktop) setDesktopCredentialStatus(emptyStatus);
+      return;
+    }
+
+    const applySession = (session: LocalBrowserSession | null) => {
+      const next: DesktopCredentialStatus = session
+        ? {
+            ...emptyStatus,
+            binanceConfigured: session.binanceConfigured,
+            binanceNetwork: session.binanceNetwork,
+          }
+        : emptyStatus;
+      setStatus(next);
+      setDesktopCredentialStatus(next);
+    };
+    applySession(getLocalBrowserSession());
+    const handleSession = (event: Event) =>
+      applySession((event as CustomEvent<LocalBrowserSession | null>).detail);
+    window.addEventListener(LOCAL_BROWSER_SESSION_CHANGED_EVENT, handleSession);
+    return () => window.removeEventListener(LOCAL_BROWSER_SESSION_CHANGED_EVENT, handleSession);
+  }, [desktop, runtimeMode]);
+
+  useEffect(() => {
     if (!desktop) return;
     const open = () => openSetup();
     window.addEventListener(DESKTOP_SETUP_EVENT, open);
@@ -193,8 +235,16 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   }, [activeSteps.length, desktop, loaded, showSetup, targetConnection]);
 
   const context = useMemo(
-    () => ({ isDesktop: desktop, status, openSetup, disconnectBinance }),
-    [desktop, disconnectBinance, openSetup, status],
+    () => ({
+      isDesktop: desktop,
+      runtimeMode,
+      canTrade:
+        (runtimeMode === "native" || runtimeMode === "local-browser") && status.binanceConfigured,
+      status,
+      openSetup,
+      disconnectBinance,
+    }),
+    [desktop, disconnectBinance, openSetup, runtimeMode, status],
   );
 
   function setValue<K extends keyof ReturnType<typeof emptyValues>>(
@@ -202,6 +252,23 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     value: ReturnType<typeof emptyValues>[K],
   ) {
     setValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function selectBinanceNetwork(network: "mainnet" | "testnet") {
+    setError(null);
+    setValues((current) => {
+      if (current.binanceNetwork === network) return current;
+      const switchingBetweenNetworks = current.binanceNetwork !== "";
+      return {
+        ...current,
+        binanceNetwork: network,
+        // Choosing the first venue after pasting a new pair is harmless, but
+        // never carry a pair from one concrete venue into the other.
+        binanceApiKey: switchingBetweenNetworks ? "" : current.binanceApiKey,
+        binanceApiSecret: switchingBetweenNetworks ? "" : current.binanceApiSecret,
+        confirmMainnet: false,
+      };
+    });
   }
 
   const finish = (skipCurrentStep = false) => {
@@ -336,6 +403,11 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   const stepNumber = String(step + 1).padStart(2, "0");
   const stepCount = String(activeSteps.length).padStart(2, "0");
   const configured = activeStep ? status[activeStep.statusKey] : false;
+  const selectedBinanceCredentialsStored =
+    activeStep?.key === "binance" &&
+    status.binanceConfigured &&
+    status.binanceNetwork === values.binanceNetwork;
+  const binanceCredentialPlaceholder = selectedBinanceCredentialsStored ? "***" : undefined;
   const credentialReplacementReady =
     values.binanceApiKey.trim().length > 0 &&
     values.binanceApiSecret.trim().length > 0 &&
@@ -405,10 +477,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                     type="button"
                     className={values.binanceNetwork === "mainnet" ? "selected danger" : ""}
                     aria-pressed={values.binanceNetwork === "mainnet"}
-                    onClick={() => {
-                      setValue("binanceNetwork", "mainnet");
-                      setValue("confirmMainnet", false);
-                    }}
+                    onClick={() => selectBinanceNetwork("mainnet")}
                   >
                     <strong>LIVE</strong>
                     <span>Binance Mainnet · real funds</span>
@@ -417,10 +486,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                     type="button"
                     className={values.binanceNetwork === "testnet" ? "selected" : ""}
                     aria-pressed={values.binanceNetwork === "testnet"}
-                    onClick={() => {
-                      setValue("binanceNetwork", "testnet");
-                      setValue("confirmMainnet", false);
-                    }}
+                    onClick={() => selectBinanceNetwork("testnet")}
                   >
                     <strong>PRACTICE</strong>
                     <span>Binance Testnet · test funds</span>
@@ -443,6 +509,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                   value={values.binanceApiKey}
                   onChange={(event) => setValue("binanceApiKey", event.target.value)}
                   autoComplete="off"
+                  placeholder={binanceCredentialPlaceholder}
                 />
               </label>
               <label>
@@ -452,6 +519,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
                   onChange={(event) => setValue("binanceApiSecret", event.target.value)}
                   type="password"
                   autoComplete="new-password"
+                  placeholder={binanceCredentialPlaceholder}
                 />
               </label>
             </div>

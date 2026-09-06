@@ -59,7 +59,50 @@ describe("DesktopSetupGate", () => {
     });
   });
 
-  it("preselects the active Binance network when editing the connection", async () => {
+  it.each(["mainnet", "testnet"] as const)(
+    "preselects and safely masks the active Binance %s network when editing",
+    async (network) => {
+      const configuredStatus = {
+        ...emptyStatus,
+        binanceConfigured: true,
+        binanceNetwork: network,
+      };
+      invokeMock.mockImplementation((command: string) => {
+        if (command === "credential_status") return Promise.resolve(configuredStatus);
+        if (command === "save_credentials") return Promise.resolve(configuredStatus);
+        return Promise.reject(new Error(`Unexpected command: ${command}`));
+      });
+      localStorage.setItem(DESKTOP_ONBOARDING_KEY, "true");
+
+      render(
+        <DesktopSetupGate>
+          <BinanceEditorLauncher />
+        </DesktopSetupGate>,
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: "Edit Binance" }));
+
+      const selectedNetwork = network === "mainnet" ? /LIVE/ : /PRACTICE/;
+      const otherNetwork = network === "mainnet" ? /PRACTICE/ : /LIVE/;
+      expect(screen.getByRole("button", { name: selectedNetwork })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: otherNetwork })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      expect(screen.getByLabelText("API key from Binance")).toHaveValue("");
+      expect(screen.getByLabelText("API key from Binance")).toHaveAttribute("placeholder", "***");
+      expect(screen.getByLabelText("Secret key from Binance")).toHaveValue("");
+      expect(screen.getByLabelText("Secret key from Binance")).toHaveAttribute(
+        "placeholder",
+        "***",
+      );
+    },
+  );
+
+  it("shows masks only for the stored environment and never submits them as credentials", async () => {
     const configuredStatus = {
       ...emptyStatus,
       binanceConfigured: true,
@@ -79,12 +122,40 @@ describe("DesktopSetupGate", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit Binance" }));
+    const apiKey = screen.getByLabelText("API key from Binance");
+    const apiSecret = screen.getByLabelText("Secret key from Binance");
 
-    expect(screen.getByRole("button", { name: /PRACTICE/ })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    fireEvent.click(screen.getByRole("button", { name: /LIVE/ }));
+    expect(apiKey).toHaveValue("");
+    expect(apiSecret).toHaveValue("");
+    expect(apiKey).not.toHaveAttribute("placeholder", "***");
+    expect(apiSecret).not.toHaveAttribute("placeholder", "***");
+
+    fireEvent.change(apiKey, { target: { value: "mainnet-draft-key" } });
+    fireEvent.change(apiSecret, { target: { value: "mainnet-draft-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /PRACTICE/ }));
+    expect(apiKey).toHaveValue("");
+    expect(apiSecret).toHaveValue("");
+    expect(apiKey).toHaveAttribute("placeholder", "***");
+    expect(apiSecret).toHaveAttribute("placeholder", "***");
+
+    fireEvent.click(screen.getByRole("button", { name: "SAVE" }));
+    expect(screen.getByText("Enter both Binance fields, or choose Skip.")).toBeVisible();
+    expect(invokeMock.mock.calls.some(([command]) => command === "save_credentials")).toBe(false);
+
+    fireEvent.change(apiKey, { target: { value: "replacement-api-key" } });
+    fireEvent.change(apiSecret, { target: { value: "replacement-api-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "SAVE" }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("save_credentials", {
+        input: expect.objectContaining({
+          binanceApiKey: "replacement-api-key",
+          binanceApiSecret: "replacement-api-secret",
+          binanceNetwork: "testnet",
+        }),
+      }),
     );
-    expect(screen.getByRole("button", { name: /LIVE/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("blocks trading immediately while native Binance disconnect is pending", async () => {

@@ -1,10 +1,7 @@
-import {
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-  TRADING_WEBSOCKET_ENDPOINT,
-} from "../config/constants";
+import { TRADING_API_BASE_URL, TRADING_WEBSOCKET_ENDPOINT } from "../config/constants";
 import type { TradingStreamEvent } from "./types";
 import { parseOrderJsonText } from "./api/safeJson";
+import { tradingApiFetch } from "./api/http";
 
 function websocketBaseUrl(httpUrl: string): string {
   const parsed = new URL(httpUrl, window.location.href);
@@ -13,9 +10,8 @@ function websocketBaseUrl(httpUrl: string): string {
 }
 
 export async function getAuthenticatedTradingWebSocketUrl(): Promise<string> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/auth/ws-ticket`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/api/auth/ws-ticket`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
     cache: "no-store",
   });
   if (!response.ok) {

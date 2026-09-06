@@ -4,9 +4,10 @@ Fyxtez Terminal is a personal derivatives-trading terminal with a React charting
 interface and a Rust execution service. It combines live market data, chart
 tools, position management, and Binance USD-M Futures execution in
 a self-hosted Tauri 2 native application. Linux desktop is the supported release
-target; an Android arm64 development build embeds the same Rust backend for
-physical-device UI testing. Browser development remains available for chart/UI
-work and suppresses account requests and execution controls.
+target and can optionally open the same local trading engine in a normal desktop
+browser. An Android arm64 development build embeds the same Rust backend for
+physical-device UI testing. Standalone browser development remains available
+for chart/UI work and suppresses account requests and execution controls.
 
 > **Safety notice:** this application can submit real orders. A new desktop
 > installation has no Binance network or credentials selected and starts in
@@ -23,6 +24,7 @@ work and suppresses account requests and execution controls.
 - Live account, position, order, PNL, and trading-event updates
 - Drawing tools, drawing sets, trade markers, sessions, and hotkeys
 - Explicit market-data degradation/retry UI and redacted runtime diagnostics
+- Opt-in Linux browser access with revocable local sessions and tray lifecycle
 - Dynamic local symbol registry without an arbitrary account-wide limit, plus
   best-effort locally cached symbol icons
 
@@ -57,10 +59,13 @@ cd ..
 ./run.sh
 ```
 
-Tauri compiles and starts Axum as its managed sidecar, chooses a random loopback
-port and per-launch capability, waits for readiness, starts Vite, and opens the
-desktop window. Desktop mode does not read project `.env` files. Configure
-Binance from the first-run wizard or Settings. Price alerts, ntfy, and Telegram
+Tauri compiles and starts Axum as its managed sidecar, chooses a random private
+loopback port and per-launch capability, waits for readiness, starts Vite, and
+opens the desktop window. Desktop mode does not read project `.env` files.
+Configure Binance from the first-run wizard or Settings. The Linux Settings
+panel can also enable **Browser access**, which opens the packaged UI at the
+fixed local origin `http://127.0.0.1:8658`; the installed process must remain
+running. Price alerts, ntfy, and Telegram
 are intentionally dormant in the current product; see
 [ADR 0013](docs/adr/0013-dormant-alerts-and-notifications.md) and the
 [architecture decision records](docs/adr/README.md).
@@ -106,6 +111,15 @@ This creates Linux x86_64 `.deb` and AppImage packages under
 release format; AppImage is the portable fallback. See
 [docs/RELEASING.md](docs/RELEASING.md) before publishing an artifact.
 
+In an installed Linux build, **Settings → Browser access → ENABLE & OPEN** opens an
+authenticated terminal in the user's normal browser. On Linux desktops with a
+working status tray, closing the native window leaves Fyxtez available there;
+**Disable** revokes every browser session, and tray **Quit** stops the local
+service. Without a tray, closing the window remains a real exit so Fyxtez cannot
+be left invisibly running. This listener is loopback only and is not a remotely
+hosted or LAN-accessible terminal. Choosing **OPEN IN BROWSER** again opens
+another authorized tab without disconnecting tabs already in use.
+
 ## Prerequisites
 
 - Node.js 20.19 or newer (or 22.12 or newer) and npm
@@ -122,7 +136,7 @@ rustc --version
 cargo --version
 ```
 
-## Browser development
+## Standalone browser development
 
 ### 1. Configure the backend
 
@@ -166,9 +180,11 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Vite, normally `http://localhost:5173`. This browser UI
-is chart-only by design. `./run.sh browser` starts the complete standalone
-browser-development stack. Use `./run.sh` for account access and execution.
+Open the URL printed by Vite, normally `http://localhost:5173`. This development
+browser UI is chart-only by design. `./run.sh browser` starts the complete
+standalone browser-development stack. It is distinct from the authenticated
+**Browser access** session opened by an installed Linux app; use `./run.sh` and
+enable that setting for account access and execution in a normal browser.
 
 ## Validation
 
@@ -206,10 +222,14 @@ See [the release guide](docs/RELEASING.md).
 
 Binance keys and the selected Binance network belong only in the platform
 credential manager and are configured through the Tauri UI. Native Axum never
-falls back to `.env`. Tauri
-creates its API endpoint and capability in memory for each launch. Desktop sends
-the bootstrap payload to the sidecar over stdin; Android passes it directly to
-the embedded backend. Neither path uses Vite, argv, a URL, or a file.
+falls back to `.env`. Tauri creates its private API endpoint and capability in
+memory for each launch. Desktop sends the bootstrap payload to the sidecar over
+stdin; Android passes it directly to the embedded backend. Neither path uses
+Vite, argv, a URL, or a file. Linux Browser access exchanges a short-lived
+one-use URL-fragment ticket for a revocable session split between an `HttpOnly`
+cookie and a tab-scoped proof. The browser receives neither the native sidecar
+capability nor the Binance credentials; those credentials remain only in the
+operating-system credential manager on that computer.
 
 Before a newly entered Mainnet Binance pair is stored, the native layer checks
 Binance's signed API-key permission response. Reading and Futures access are
@@ -244,8 +264,9 @@ credential manager and are never included in either backup method. See
 
 ## Deployment status
 
-The supported deployment shape is a local, single-user Linux desktop install.
-Do not expose Axum as a public service. CI produces verified, signed/attested
+The supported deployment shape is a local, single-user Linux desktop install,
+including its optional same-computer browser companion. Do not expose Axum as a
+public service or forward its loopback ports. CI produces verified, signed/attested
 Linux `.deb`/AppImage and Android arm64 APK/AAB artifacts. Android remains a
 direct-distribution preview, and the first public release remains gated on the
 clean-machine acceptance procedure in [docs/RELEASING.md](docs/RELEASING.md).

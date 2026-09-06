@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-02
+- Extended by: [ADR 0014](0014-local-browser-companion.md)
 
 ## Context
 
@@ -24,11 +25,12 @@ or is force-terminated before its normal exit callback runs, the operating
 system closes that pipe and `fyxtez-backend` terminates itself instead of
 leaving a credential-bearing loopback API orphaned.
 
-The bootstrap is bounded JSON written to the child's stdin. It contains only the
-port, capability and Tauri application-data directory. It is not passed through
-`VITE_*`, argv, a URL, or a file. The production server always binds to
-`127.0.0.1`. WebSockets use short-lived, one-use tickets so the bearer
-capability does not appear in a URL.
+The bootstrap is bounded JSON written to the child's stdin. Its core fields are
+the private port, capability and Tauri application-data directory; ADR 0014 adds
+the fixed Linux companion port and packaged browser-UI directory as optional
+fields. It is not passed through `VITE_*`, argv, a URL, or a file. The production
+server always binds to `127.0.0.1`. WebSockets use short-lived, one-use tickets
+so the bearer capability does not appear in a URL.
 
 Unexpected sidecar termination triggers at most three automatic restarts with
 backoff. After that, the application exposes a failed state and requires an

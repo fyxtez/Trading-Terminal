@@ -17,5 +17,6 @@ This directory records architectural decisions that are expensive or unsafe to r
 | [0011](0011-mainnet-api-key-permission-gate.md) | Accepted | Reject Mainnet API keys that can withdraw or cannot read/trade Futures |
 | [0012](0012-continuous-background-monitoring.md) | Superseded by 0013 | Use a desktop tray runtime and Android foreground service for continuous monitoring |
 | [0013](0013-dormant-alerts-and-notifications.md) | Accepted | Keep price alerts, ntfy, and Telegram dormant in the current product |
+| [0014](0014-local-browser-companion.md) | Accepted | Allow the installed Linux app to open a secure local trading session in a normal browser |
 
 New ADRs use the next four-digit number and contain Context, Decision, Consequences, and Follow-up sections.

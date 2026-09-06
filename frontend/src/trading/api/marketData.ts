@@ -3,10 +3,10 @@ import {
   getSymbolConfig,
   intervalMs,
   TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
   type Interval,
   type SymbolConfig,
 } from "../../config/constants";
+import { tradingApiFetch } from "./http";
 
 const BINANCE_KLINE_LIMIT = 1500;
 const MEXC_KLINE_LIMIT = 2000;
@@ -129,14 +129,10 @@ async function fetchMexcRange(
 
   params.set("symbol", config.sourceSymbol);
 
-  const headers: HeadersInit = { Accept: "application/json" };
-  if (TRADING_API_TOKEN) {
-    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
-  }
-
-  const response = await fetch(`${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`, {
-    headers,
-  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`,
+    { headers: { Accept: "application/json" } },
+  );
 
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;

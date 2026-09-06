@@ -3,7 +3,6 @@ import {
   LIMIT_ORDER_ENDPOINT,
   MARKET_ORDER_ENDPOINT,
   TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
 } from "../../config/constants";
 import type {
   AutoMarketOrderRequest,
@@ -24,12 +23,12 @@ import {
   financialMutationHeaders,
   runFinancialMutation,
 } from "./financialMutation";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 function mutationHeaders(intentId: string, includeJson = false): Record<string, string> {
-  return {
+  return tradingApiHeaders({
     ...financialMutationHeaders(intentId, includeJson),
-    Authorization: `Bearer ${TRADING_API_TOKEN}`,
-  };
+  });
 }
 
 function payloadWithIntentClientId(payload: unknown, intentId?: string): unknown {
@@ -72,7 +71,7 @@ async function postBinanceOrder<T>(endpoint: string, payload: unknown): Promise<
   return runFinancialMutation(
     financialMutationFingerprint(endpoint, fingerprintPayload),
     async (intentId) => {
-      const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: mutationHeaders(intentId, true),
         body: JSON.stringify(payloadWithIntentClientId(payload, intentId)),
@@ -171,7 +170,7 @@ export async function modifyLimitOrder(
 ): Promise<ModifyLimitOrderResponse> {
   const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`;
   return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "PUT",
       headers: mutationHeaders(intentId, true),
       body: JSON.stringify(payload),
@@ -193,7 +192,7 @@ export async function repriceReduceOrder(
   return runFinancialMutation(
     financialMutationFingerprint(endpoint, payloadWithIntentClientId(payload)),
     async (intentId) => {
-      const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
         method: "PUT",
         headers: mutationHeaders(intentId, true),
         body: JSON.stringify(payloadWithIntentClientId(payload, intentId)),
@@ -208,7 +207,7 @@ export async function repriceReduceOrder(
 export async function cancelOrder(symbol: string, orderId: string): Promise<unknown> {
   const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}`;
   return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "DELETE",
       headers: mutationHeaders(intentId),
     });
@@ -287,9 +286,8 @@ export async function getOpenOrders(
       ? `${TRADING_API_BASE_URL}/api/orders/open?symbol=${encodeURIComponent(normalizedSymbol)}`
       : `${TRADING_API_BASE_URL}/api/orders/open`;
 
-    const response = await fetch(url, {
+    const response = await tradingApiFetch(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
       signal,
     });
 
@@ -334,7 +332,7 @@ export async function updateReduceOrder(
   const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/reduce`;
   const payload = { reduce_pct: reducePct };
   return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "PUT",
       headers: mutationHeaders(intentId, true),
       body: JSON.stringify(payload),
@@ -369,7 +367,7 @@ export async function chaseLimitOrder(
 ): Promise<ChaseLimitOrderResponse> {
   const endpoint = `/api/orders/${encodeURIComponent(symbol.toUpperCase())}/${orderId}/chase`;
   return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: mutationHeaders(intentId),
     });
@@ -416,7 +414,7 @@ export async function placeFullStopLoss(input: {
 export async function cancelConditionalOrder(symbol: string, algoId: string): Promise<unknown> {
   const endpoint = `/api/orders/algo/${encodeURIComponent(symbol.toUpperCase())}/${algoId}`;
   return runFinancialMutation(financialMutationFingerprint(endpoint), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "DELETE",
       headers: mutationHeaders(intentId),
     });

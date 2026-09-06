@@ -20,6 +20,17 @@ viewports and UI preferences. Standalone backend development instead defaults
 to `backend/data/`; browser-development storage belongs to that browser profile
 and is not the installed desktop profile.
 
+The optional Linux Browser access workspace is likewise stored by the user's
+normal browser under the stable `http://127.0.0.1:8658` origin. It shares the
+backend-owned symbols, sizing and financial journal above, but its own drawings,
+tabs and display preferences are separate from the native WebKit workspace and
+are not included in the native **EXPORT BACKUP** archive. Browser access never
+stores Binance keys or the native sidecar capability there. Its revocable
+request proof is returned once during session setup and is then kept only in
+browser `sessionStorage`; each newly authorized tab receives a separate proof.
+These proofs are not backup data and are useless without the matching shared
+browser-profile `HttpOnly` cookie and running installed app.
+
 Binance credentials are intentionally **not** in this directory. They remain in
 the operating-system credential manager and must be reconnected separately
 after a machine migration. Dormant legacy ntfy/Telegram entries may also remain

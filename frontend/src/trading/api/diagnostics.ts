@@ -1,4 +1,5 @@
-import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
+import { TRADING_API_BASE_URL } from "../../config/constants";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 export type ServiceDiagnostic = {
   status: "connecting" | "connected" | "degraded" | "disabled";
@@ -48,8 +49,8 @@ export type OperationSafetyStatus = {
 };
 
 export async function getBackendDiagnostics(signal?: AbortSignal): Promise<BackendDiagnostics> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/diagnostics`, {
-    headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/api/diagnostics`, {
+    headers: tradingApiHeaders(),
     cache: "no-store",
     signal,
   });
@@ -64,11 +65,14 @@ export async function getBackendDiagnostics(signal?: AbortSignal): Promise<Backe
 export async function getOperationSafetyStatus(
   signal?: AbortSignal,
 ): Promise<OperationSafetyStatus> {
-  const response = await fetch(`${TRADING_API_BASE_URL}/api/operation-safety/unresolved`, {
-    headers: { Authorization: `Bearer ${TRADING_API_TOKEN}` },
-    cache: "no-store",
-    signal,
-  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}/api/operation-safety/unresolved`,
+    {
+      headers: tradingApiHeaders(),
+      cache: "no-store",
+      signal,
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Operation safety status returned HTTP ${response.status}`);
@@ -81,14 +85,13 @@ export async function resolveUnresolvedFinancialIntent(
   intentId: string,
   confirmation: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await tradingApiFetch(
     `${TRADING_API_BASE_URL}/api/operation-safety/unresolved/${encodeURIComponent(intentId)}/resolve`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${TRADING_API_TOKEN}`,
+      headers: tradingApiHeaders({
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify({ confirmation }),
     },
   );

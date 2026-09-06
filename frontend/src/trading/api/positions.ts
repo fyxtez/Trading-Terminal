@@ -4,7 +4,6 @@ import {
   POSITION_REALIZED_PNL_ENDPOINT,
   POSITION_INTENT_ENDPOINT,
   TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
 } from "../../config/constants";
 import type { BinanceOrderResponse, TradeOrderType } from "../types";
 import { parseOrderJsonText } from "./safeJson";
@@ -14,6 +13,7 @@ import {
   financialMutationHeaders,
   runFinancialMutation,
 } from "./financialMutation";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 export type PositionSide = "LONG" | "SHORT";
 
@@ -82,14 +82,10 @@ export type PositionIntentResponse = {
 };
 
 function getHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
+  return tradingApiHeaders({
     Accept: "application/json",
     "Content-Type": "application/json",
-  };
-  if (TRADING_API_TOKEN) {
-    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
-  }
-  return headers;
+  });
 }
 
 function getMutationHeaders(intentId: string): Record<string, string> {
@@ -213,12 +209,15 @@ async function getRealizedPositionPnl(
   // reconstruct unchanged lifecycles; forced trade events still bypass it.
   const request = (async () => {
     try {
-      const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_REALIZED_PNL_ENDPOINT}`, {
-        method: "GET",
-        headers: getHeaders(),
-        signal,
-        cache: "no-store",
-      });
+      const response = await tradingApiFetch(
+        `${TRADING_API_BASE_URL}${POSITION_REALIZED_PNL_ENDPOINT}`,
+        {
+          method: "GET",
+          headers: getHeaders(),
+          signal,
+          cache: "no-store",
+        },
+      );
       if (!response.ok) {
         realizedPnlRetryAfter = Date.now() + (response.status === 404 ? 60_000 : 15_000);
         return null;
@@ -271,7 +270,7 @@ export async function getPositions(signal?: AbortSignal, force = false): Promise
     // enrichment is shared and cosmetic; one component unmounting must
     // not abort the realized request used by every other positions consumer.
     const realizedRequest = getRealizedPositionPnl(undefined, force);
-    const response = await fetch(`${TRADING_API_BASE_URL}${ACCOUNT_ENDPOINT}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${ACCOUNT_ENDPOINT}`, {
       method: "GET",
       headers: getHeaders(),
       signal,
@@ -332,7 +331,7 @@ export async function executePositionIntent(
   return runFinancialMutation(
     financialMutationFingerprint(POSITION_INTENT_ENDPOINT, payload),
     async (intentId) => {
-      const response = await fetch(`${TRADING_API_BASE_URL}${POSITION_INTENT_ENDPOINT}`, {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${POSITION_INTENT_ENDPOINT}`, {
         method: "POST",
         headers: getMutationHeaders(intentId),
         body: JSON.stringify(payload),
@@ -354,7 +353,7 @@ export async function closePositionMarket(
   return runFinancialMutation(
     financialMutationFingerprint(CLOSE_POSITION_ENDPOINT, payload),
     async (intentId) => {
-      const response = await fetch(`${TRADING_API_BASE_URL}${CLOSE_POSITION_ENDPOINT}`, {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${CLOSE_POSITION_ENDPOINT}`, {
         method: "POST",
         headers: getMutationHeaders(intentId),
         body: JSON.stringify(payload),
@@ -394,7 +393,7 @@ export async function closeEverything(
   const endpoint = "/api/account/close-everything";
   const payload = symbol ? { symbol } : {};
   return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: getMutationHeaders(intentId),
       // Always send a real JSON object; omitting `symbol` retains the

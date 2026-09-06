@@ -311,7 +311,7 @@ function App() {
   }, [openOrdersApi.orders, drawingsApi.isHydrated, currentSymbol]);
 
   const websocketConnection = useTradingStream({
-    enabled: desktopCredentials.isDesktop && desktopCredentials.status.binanceConfigured,
+    enabled: desktopCredentials.canTrade,
     onOrderExecuted: (event) => {
       const normalizedSymbol = event.symbol.toUpperCase();
       const eventTime = Math.floor(event.event_time / 1000);
@@ -362,7 +362,7 @@ function App() {
   });
 
   const diagnostics = useOperationalDiagnostics({
-    isDesktop: desktopCredentials.isDesktop,
+    isDesktop: desktopCredentials.runtimeMode !== "public-browser",
     backendConnection,
     marketConnection: marketData.marketConnection,
     frontendStreamConnection: websocketConnection,

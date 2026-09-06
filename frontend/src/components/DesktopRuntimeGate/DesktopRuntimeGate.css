@@ -94,6 +94,13 @@
   line-height: 1.6;
 }
 
+.desktop-runtime-gate .desktop-runtime-gate-guidance {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #27303d;
+  color: #c8d0dc;
+}
+
 .desktop-runtime-gate button {
   margin-top: 28px;
   padding: 14px 22px;

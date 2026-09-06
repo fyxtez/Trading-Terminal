@@ -1,17 +1,25 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime};
-use tauri_plugin_shell::{ShellExt, process::CommandEvent};
+use tauri_plugin_shell::{
+    ShellExt,
+    process::{CommandChild, CommandEvent},
+};
 use tokio::sync::{mpsc, oneshot, watch};
 
 const SIDECAR_NAME: &str = "fyxtez-backend";
 const MAX_AUTOMATIC_RESTARTS: usize = 3;
 const STABLE_RUNTIME_RESET: Duration = Duration::from_secs(30);
+pub(crate) const BROWSER_ACCESS_PORT: u16 = 8658;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +47,7 @@ enum SupervisorCommand {
 pub struct BackendSupervisor {
     status: watch::Receiver<BackendStatus>,
     commands: mpsc::UnboundedSender<SupervisorCommand>,
+    browser_access_enabled: Arc<AtomicBool>,
 }
 
 impl BackendSupervisor {
@@ -52,10 +61,23 @@ impl BackendSupervisor {
 
         let (status_tx, status) = watch::channel(BackendStatus::Starting);
         let (commands, command_rx) = mpsc::unbounded_channel();
+        let browser_access_enabled = Arc::new(AtomicBool::new(false));
+        let browser_ui_dir = resolve_browser_ui_dir(app);
         let app = app.clone();
-        tauri::async_runtime::spawn(run_supervisor(app, data_dir, status_tx, command_rx));
+        tauri::async_runtime::spawn(run_supervisor(
+            app,
+            data_dir,
+            browser_ui_dir,
+            Arc::clone(&browser_access_enabled),
+            status_tx,
+            command_rx,
+        ));
 
-        Ok(Self { status, commands })
+        Ok(Self {
+            status,
+            commands,
+            browser_access_enabled,
+        })
     }
 
     pub async fn runtime_info(&self) -> Result<DesktopRuntimeInfo, String> {
@@ -86,6 +108,7 @@ impl BackendSupervisor {
             BackendStatus::Ready(info) => info.generation,
             _ => 0,
         };
+        self.set_browser_access_enabled(false);
         self.commands
             .send(SupervisorCommand::Restart)
             .map_err(|_| "local backend supervisor is unavailable".to_string())?;
@@ -118,6 +141,7 @@ impl BackendSupervisor {
     /// restarts, while the frontend's normal health/retry path covers the brief
     /// transition.
     pub fn request_restart(&self) -> Result<(), String> {
+        self.set_browser_access_enabled(false);
         self.commands
             .send(SupervisorCommand::Restart)
             .map_err(|_| "local backend supervisor is unavailable".to_string())
@@ -125,6 +149,7 @@ impl BackendSupervisor {
 
     pub async fn pause(&self) -> Result<(), String> {
         let (ack_tx, ack_rx) = oneshot::channel();
+        self.set_browser_access_enabled(false);
         self.commands
             .send(SupervisorCommand::Pause(ack_tx))
             .map_err(|_| "local backend supervisor is unavailable".to_string())?;
@@ -135,13 +160,25 @@ impl BackendSupervisor {
     }
 
     pub fn shutdown(&self) {
+        self.set_browser_access_enabled(false);
         let _ = self.commands.send(SupervisorCommand::Shutdown);
+    }
+
+    pub fn browser_access_enabled(&self) -> bool {
+        self.browser_access_enabled.load(Ordering::Acquire)
+    }
+
+    pub fn set_browser_access_enabled(&self, enabled: bool) {
+        self.browser_access_enabled
+            .store(enabled, Ordering::Release);
     }
 }
 
 async fn run_supervisor<R: Runtime>(
     app: AppHandle<R>,
     data_dir: PathBuf,
+    browser_ui_dir: Option<PathBuf>,
+    browser_access_enabled: Arc<AtomicBool>,
     status_tx: watch::Sender<BackendStatus>,
     mut commands: mpsc::UnboundedReceiver<SupervisorCommand>,
 ) {
@@ -163,6 +200,7 @@ async fn run_supervisor<R: Runtime>(
     };
 
     'supervisor: loop {
+        browser_access_enabled.store(false, Ordering::Release);
         let _ = status_tx.send(BackendStatus::Starting);
         generation += 1;
         let info = DesktopRuntimeInfo {
@@ -203,16 +241,34 @@ async fn run_supervisor<R: Runtime>(
             }
         };
 
-        let bootstrap = serde_json::json!({
+        let mut bootstrap = serde_json::json!({
             "port": port,
             "service_token": token.clone(),
             "data_dir": data_dir,
         });
+        if let Some(browser_ui_dir) = browser_ui_dir.as_ref() {
+            let object = bootstrap
+                .as_object_mut()
+                .expect("desktop sidecar bootstrap must be an object");
+            object.insert("browser_port".into(), BROWSER_ACCESS_PORT.into());
+            object.insert(
+                "browser_ui_dir".into(),
+                serde_json::Value::String(browser_ui_dir.to_string_lossy().into_owned()),
+            );
+        }
         if let Err(error) = child.write(format!("{bootstrap}\n").as_bytes()) {
-            let _ = child.kill();
-            let _ = status_tx.send(BackendStatus::Failed(format!(
-                "cannot initialize local backend: {error}"
-            )));
+            let termination = stop_child_and_confirm(child, &mut events).await;
+            let message = match termination.as_ref() {
+                Ok(()) => format!("cannot initialize local backend: {error}"),
+                Err(stop_error) => {
+                    format!("cannot initialize local backend: {error}; {stop_error}")
+                }
+            };
+            let _ = status_tx.send(BackendStatus::Failed(message));
+            if termination.is_err() {
+                wait_after_unconfirmed_termination(&mut commands).await;
+                break;
+            }
             if !wait_for_manual_restart(&mut commands).await {
                 break;
             }
@@ -226,24 +282,26 @@ async fn run_supervisor<R: Runtime>(
                 let _ = status_tx.send(BackendStatus::Ready(info));
             }
             StartupOutcome::Restart => {
-                let _ = child.kill();
+                if let Err(error) = stop_child_and_confirm(child, &mut events).await {
+                    browser_access_enabled.store(false, Ordering::Release);
+                    let _ = status_tx.send(BackendStatus::Failed(format!(
+                        "local backend restart was stopped: {error}"
+                    )));
+                    wait_after_unconfirmed_termination(&mut commands).await;
+                    break;
+                }
                 automatic_restarts = 0;
                 continue;
             }
             StartupOutcome::Pause(ack) => {
-                if child.kill().is_err() {
-                    let _ = ack.send(Err(
-                        "local backend could not be stopped safely for the data operation".into(),
-                    ));
-                    continue;
-                }
-                if wait_for_termination(&mut events).await.is_err() {
-                    let error =
-                        "local backend shutdown could not be confirmed for the data operation";
-                    let _ = status_tx.send(BackendStatus::Failed(error.into()));
-                    let _ = ack.send(Err(error.into()));
-                    automatic_restarts = 0;
-                    continue;
+                if let Err(error) = stop_child_and_confirm(child, &mut events).await {
+                    let error = format!(
+                        "local backend could not be stopped safely for the data operation: {error}"
+                    );
+                    let _ = status_tx.send(BackendStatus::Failed(error.clone()));
+                    let _ = ack.send(Err(error));
+                    wait_after_unconfirmed_termination(&mut commands).await;
+                    break;
                 }
                 let _ = status_tx.send(BackendStatus::Paused);
                 let _ = ack.send(Ok(()));
@@ -257,8 +315,20 @@ async fn run_supervisor<R: Runtime>(
                 let _ = child.kill();
                 break;
             }
-            StartupOutcome::Failed(error) => {
-                let _ = child.kill();
+            StartupOutcome::Failed {
+                error,
+                termination_confirmed,
+            } => {
+                if !termination_confirmed
+                    && let Err(stop_error) = stop_child_and_confirm(child, &mut events).await
+                {
+                    browser_access_enabled.store(false, Ordering::Release);
+                    let _ = status_tx.send(BackendStatus::Failed(format!(
+                        "{error}; automatic restart was stopped: {stop_error}"
+                    )));
+                    wait_after_unconfirmed_termination(&mut commands).await;
+                    break;
+                }
                 automatic_restarts += 1;
                 if automatic_restarts > MAX_AUTOMATIC_RESTARTS {
                     let _ = status_tx.send(BackendStatus::Failed(error));
@@ -278,24 +348,26 @@ async fn run_supervisor<R: Runtime>(
             tokio::select! {
                 command = commands.recv() => match command {
                     Some(SupervisorCommand::Restart) => {
-                        let _ = child.kill();
+                        if let Err(error) = stop_child_and_confirm(child, &mut events).await {
+                            browser_access_enabled.store(false, Ordering::Release);
+                            let _ = status_tx.send(BackendStatus::Failed(format!(
+                                "local backend restart was stopped: {error}"
+                            )));
+                            wait_after_unconfirmed_termination(&mut commands).await;
+                            break 'supervisor;
+                        }
                         automatic_restarts = 0;
                         continue 'supervisor;
                     }
                     Some(SupervisorCommand::Pause(ack)) => {
-                        if child.kill().is_err() {
-                            let _ = ack.send(Err(
-                                "local backend could not be stopped safely for the data operation".into(),
-                            ));
-                            continue 'supervisor;
-                        }
-                        if wait_for_termination(&mut events).await.is_err() {
-                            let error =
-                                "local backend shutdown could not be confirmed for the data operation";
-                            let _ = status_tx.send(BackendStatus::Failed(error.into()));
-                            let _ = ack.send(Err(error.into()));
-                            automatic_restarts = 0;
-                            continue 'supervisor;
+                        if let Err(error) = stop_child_and_confirm(child, &mut events).await {
+                            let error = format!(
+                                "local backend could not be stopped safely for the data operation: {error}"
+                            );
+                            let _ = status_tx.send(BackendStatus::Failed(error.clone()));
+                            let _ = ack.send(Err(error));
+                            wait_after_unconfirmed_termination(&mut commands).await;
+                            break 'supervisor;
                         }
                         let _ = status_tx.send(BackendStatus::Paused);
                         let _ = ack.send(Ok(()));
@@ -314,6 +386,7 @@ async fn run_supervisor<R: Runtime>(
                     Some(CommandEvent::Stdout(line)) => log_sidecar_line("stdout", &line),
                     Some(CommandEvent::Stderr(line)) => log_sidecar_line("stderr", &line),
                     Some(CommandEvent::Terminated(payload)) => {
+                        browser_access_enabled.store(false, Ordering::Release);
                         if ready_since.elapsed() >= STABLE_RUNTIME_RESET {
                             automatic_restarts = 0;
                         }
@@ -333,19 +406,33 @@ async fn run_supervisor<R: Runtime>(
                         }
                         continue 'supervisor;
                     }
-                    Some(CommandEvent::Error(error)) => {
-                        eprintln!("[fyxtez-sidecar] process error: {error}");
-                    }
-                    None => {
+                    monitor_failure @ (Some(CommandEvent::Error(_)) | None) => {
+                        browser_access_enabled.store(false, Ordering::Release);
+                        let monitor_error = match monitor_failure {
+                            Some(CommandEvent::Error(error)) => {
+                                format!("local backend process monitoring failed: {error}")
+                            }
+                            None => "local backend output channel closed before process termination was confirmed".into(),
+                            _ => unreachable!("monitor-failure pattern only accepts errors or a closed channel"),
+                        };
+                        eprintln!("[fyxtez-sidecar] {monitor_error}");
+
+                        if let Err(stop_error) = stop_child_and_confirm(child, &mut events).await {
+                            let _ = status_tx.send(BackendStatus::Failed(format!(
+                                "{monitor_error}; automatic restart was stopped: {stop_error}"
+                            )));
+                            wait_after_unconfirmed_termination(&mut commands).await;
+                            break 'supervisor;
+                        }
+
                         if ready_since.elapsed() >= STABLE_RUNTIME_RESET {
                             automatic_restarts = 0;
                         }
                         automatic_restarts += 1;
                         if automatic_restarts > MAX_AUTOMATIC_RESTARTS {
-                            let _ = status_tx.send(BackendStatus::Failed(
-                                "local backend stopped after repeated output-channel failures"
-                                    .into(),
-                            ));
+                            let _ = status_tx.send(BackendStatus::Failed(format!(
+                                "{monitor_error}; local backend stopped after repeated process-monitor failures"
+                            )));
                             if !wait_for_manual_restart(&mut commands).await {
                                 break 'supervisor;
                             }
@@ -369,7 +456,10 @@ enum StartupOutcome {
     Restart,
     Pause(oneshot::Sender<Result<(), String>>),
     Shutdown,
-    Failed(String),
+    Failed {
+        error: String,
+        termination_confirmed: bool,
+    },
 }
 
 async fn wait_until_ready(
@@ -382,7 +472,10 @@ async fn wait_until_ready(
 
     loop {
         if tokio::time::Instant::now() >= deadline {
-            return StartupOutcome::Failed("local backend startup timed out".into());
+            return StartupOutcome::Failed {
+                error: "local backend startup timed out".into(),
+                termination_confirmed: false,
+            };
         }
 
         tokio::select! {
@@ -394,12 +487,21 @@ async fn wait_until_ready(
             event = events.recv() => match event {
                 Some(CommandEvent::Stdout(line)) => log_sidecar_line("stdout", &line),
                 Some(CommandEvent::Stderr(line)) => log_sidecar_line("stderr", &line),
-                Some(CommandEvent::Terminated(payload)) => return StartupOutcome::Failed(format!(
-                    "local backend exited during startup (exit {:?}, signal {:?})",
-                    payload.code, payload.signal,
-                )),
-                Some(CommandEvent::Error(error)) => return StartupOutcome::Failed(error),
-                None => return StartupOutcome::Failed("local backend output channel closed".into()),
+                Some(CommandEvent::Terminated(payload)) => return StartupOutcome::Failed {
+                    error: format!(
+                        "local backend exited during startup (exit {:?}, signal {:?})",
+                        payload.code, payload.signal,
+                    ),
+                    termination_confirmed: true,
+                },
+                Some(CommandEvent::Error(error)) => return StartupOutcome::Failed {
+                    error,
+                    termination_confirmed: false,
+                },
+                None => return StartupOutcome::Failed {
+                    error: "local backend output channel closed".into(),
+                    termination_confirmed: false,
+                },
                 _ => {}
             },
             _ = tokio::time::sleep(Duration::from_millis(150)) => {
@@ -447,18 +549,54 @@ async fn wait_for_termination(
     events: &mut tauri::async_runtime::Receiver<CommandEvent>,
 ) -> Result<(), ()> {
     let wait = async {
-        while let Some(event) = events.recv().await {
-            match event {
-                CommandEvent::Terminated(_) => return,
-                CommandEvent::Stdout(line) => log_sidecar_line("stdout", &line),
-                CommandEvent::Stderr(line) => log_sidecar_line("stderr", &line),
-                _ => {}
+        loop {
+            match events.recv().await {
+                Some(CommandEvent::Terminated(_)) => return Ok(()),
+                Some(CommandEvent::Stdout(line)) => log_sidecar_line("stdout", &line),
+                Some(CommandEvent::Stderr(line)) => log_sidecar_line("stderr", &line),
+                Some(_) => {}
+                None => return Err(()),
             }
         }
     };
     tokio::time::timeout(Duration::from_secs(5), wait)
         .await
-        .map_err(|_| ())
+        .map_err(|_| ())?
+}
+
+async fn stop_child_and_confirm(
+    child: CommandChild,
+    events: &mut tauri::async_runtime::Receiver<CommandEvent>,
+) -> Result<(), String> {
+    let kill_error = child.kill().err();
+    if wait_for_termination(events).await.is_ok() {
+        return Ok(());
+    }
+
+    Err(kill_error
+        .map(|error| {
+            format!("shutdown could not be confirmed and the stop request failed: {error}")
+        })
+        .unwrap_or_else(|| "shutdown could not be confirmed".into()))
+}
+
+async fn wait_after_unconfirmed_termination(
+    commands: &mut mpsc::UnboundedReceiver<SupervisorCommand>,
+) {
+    // Starting another sidecar after an unconfirmed stop could leave two local
+    // trading processes alive. Keep the supervisor failed until the user exits
+    // the application; a full app restart is the safe recovery boundary.
+    loop {
+        match commands.recv().await {
+            Some(SupervisorCommand::Pause(ack)) => {
+                let _ = ack.send(Err(
+                    "local backend shutdown was not confirmed; close and reopen Fyxtez".into(),
+                ));
+            }
+            Some(SupervisorCommand::Restart) => {}
+            Some(SupervisorCommand::Shutdown) | None => break,
+        }
+    }
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {
@@ -468,6 +606,37 @@ fn reserve_loopback_port() -> Result<u16, String> {
         .local_addr()
         .map(|address| address.port())
         .map_err(|error| format!("cannot inspect reserved loopback port: {error}"))
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_browser_ui_dir<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist");
+
+    #[cfg(not(debug_assertions))]
+    let candidate = match _app.path().resource_dir() {
+        Ok(resources) => resources.join("browser-ui"),
+        Err(error) => {
+            eprintln!("[fyxtez-browser] cannot resolve packaged UI directory: {error}");
+            return None;
+        }
+    };
+
+    if !candidate.join("index.html").is_file() {
+        // Still pass the trusted expected path. The backend treats missing
+        // browser files as an optional-listener failure and reports a useful
+        // reinstall/development-build reason without stopping the native API.
+        eprintln!(
+            "[fyxtez-browser] browser UI snapshot is missing at {}",
+            candidate.display()
+        );
+    }
+    Some(candidate.canonicalize().unwrap_or(candidate))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn resolve_browser_ui_dir<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
+    None
 }
 
 fn generate_token() -> Result<String, String> {
@@ -488,12 +657,35 @@ fn log_sidecar_line(stream: &str, line: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use super::generate_token;
+    use super::{generate_token, wait_for_termination};
+    use tauri_plugin_shell::process::{CommandEvent, TerminatedPayload};
 
     #[test]
     fn generated_capability_has_256_bits_encoded_as_hex() {
         let token = generate_token().expect("token generation");
         assert_eq!(token.len(), 64);
         assert!(token.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    }
+
+    #[tokio::test]
+    async fn termination_wait_requires_an_explicit_termination_event() {
+        let (sender, mut events) = tauri::async_runtime::channel(1);
+        drop(sender);
+
+        assert!(wait_for_termination(&mut events).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn termination_wait_accepts_the_process_termination_event() {
+        let (sender, mut events) = tauri::async_runtime::channel(1);
+        sender
+            .send(CommandEvent::Terminated(TerminatedPayload {
+                code: Some(0),
+                signal: None,
+            }))
+            .await
+            .expect("termination event receiver");
+
+        assert!(wait_for_termination(&mut events).await.is_ok());
     }
 }

@@ -1,16 +1,16 @@
-import { TRADING_API_BASE_URL, TRADING_API_TOKEN } from "../../config/constants";
+import { TRADING_API_BASE_URL } from "../../config/constants";
 import {
   financialMutationFingerprint,
   financialMutationHeaders,
   runFinancialMutation,
 } from "./financialMutation";
+import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 function authHeaders(includeJson = false): Record<string, string> {
-  return {
+  return tradingApiHeaders({
     Accept: "application/json",
-    Authorization: `Bearer ${TRADING_API_TOKEN}`,
     ...(includeJson ? { "Content-Type": "application/json" } : {}),
-  };
+  });
 }
 
 async function readError(response: Response): Promise<string> {
@@ -56,7 +56,7 @@ export async function updateLeverage(
     leverage: Math.round(leverage),
   };
   return runFinancialMutation(financialMutationFingerprint(endpoint, payload), async (intentId) => {
-    const response = await fetch(`${TRADING_API_BASE_URL}${endpoint}`, {
+    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: {
         ...authHeaders(true),
@@ -80,7 +80,7 @@ export type CurrentLeverageResponse = {
  * configured on Binance for this symbol.
  */
 export async function getCurrentLeverage(symbol: string): Promise<CurrentLeverageResponse> {
-  const response = await fetch(
+  const response = await tradingApiFetch(
     `${TRADING_API_BASE_URL}/api/leverage/current/${encodeURIComponent(symbol.toUpperCase())}`,
     {
       method: "GET",
@@ -110,7 +110,7 @@ export type MaxLeverageResponse = {
  * ceiling is whichever of the two is lower - see useTradeMenu.ts.
  */
 export async function getMaxLeverage(symbol: string): Promise<MaxLeverageResponse> {
-  const response = await fetch(
+  const response = await tradingApiFetch(
     `${TRADING_API_BASE_URL}/api/leverage/max/${encodeURIComponent(symbol.toUpperCase())}`,
     {
       method: "GET",

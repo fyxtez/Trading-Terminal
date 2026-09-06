@@ -28,6 +28,16 @@ describe("buildSettingsSearchModel", () => {
     expect(model.hasAnySettingsSearchResult).toBe(true);
   });
 
+  it("finds browser access in native and local-browser settings", () => {
+    expect(buildSettingsSearchModel("open in browser", true, sizingFields).showBrowserAccess).toBe(
+      true,
+    );
+    expect(
+      buildSettingsSearchModel("secure browser", false, sizingFields, "local-browser")
+        .showBrowserAccess,
+    ).toBe(true);
+  });
+
   it("does not expose dormant alert or notification settings", () => {
     const alerts = buildSettingsSearchModel("alerts", true, sizingFields);
     const telegram = buildSettingsSearchModel("telegram", true, sizingFields);

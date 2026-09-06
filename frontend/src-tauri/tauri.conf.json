@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "bash scripts/desktop-dev-server.sh",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "bash scripts/prepare-sidecar.sh release && bash scripts/build-desktop-frontend.sh",
+    "beforeBuildCommand": "bash scripts/build-desktop-frontend.sh && bash scripts/prepare-sidecar.sh release",
     "frontendDist": "../dist"
   },
   "app": {

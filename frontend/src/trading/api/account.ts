@@ -1,9 +1,6 @@
-import {
-  AVAILABLE_BALANCE_ENDPOINT,
-  TRADING_API_BASE_URL,
-  TRADING_API_TOKEN,
-} from "../../config/constants";
+import { AVAILABLE_BALANCE_ENDPOINT, TRADING_API_BASE_URL } from "../../config/constants";
 import { canUseTradingAccount } from "../../desktop/credentials";
+import { tradingApiFetch } from "./http";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -71,11 +68,7 @@ export async function getAvailableBalance(signal?: AbortSignal): Promise<number>
     Accept: "application/json",
   };
 
-  if (TRADING_API_TOKEN) {
-    headers.Authorization = `Bearer ${TRADING_API_TOKEN}`;
-  }
-
-  const response = await fetch(`${TRADING_API_BASE_URL}${AVAILABLE_BALANCE_ENDPOINT}`, {
+  const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${AVAILABLE_BALANCE_ENDPOINT}`, {
     method: "GET",
     headers,
     signal,

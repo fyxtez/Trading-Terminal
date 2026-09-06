@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { TRADING_API_BASE_URL } from "../config/constants";
 import type { ConnectionState } from "./useTradingStream";
+import { tradingApiFetch } from "../trading/api/http";
 
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
 const HEALTH_CHECK_TIMEOUT_MS = 2_000;
@@ -13,7 +14,7 @@ export function useBackendConnection(): ConnectionState {
     const timeoutId = window.setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
 
     try {
-      const response = await fetch(`${TRADING_API_BASE_URL}/health`, {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}/health`, {
         method: "GET",
         cache: "no-store",
         signal: controller.signal,

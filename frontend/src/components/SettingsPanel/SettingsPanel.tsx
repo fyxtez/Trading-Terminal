@@ -23,6 +23,7 @@ import { AvailableBalanceCard, ExchangeConnectionsSection } from "./SettingsSumm
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import DiagnosticsSection from "./DiagnosticsSection";
 import DataBackupSection from "./DataBackupSection";
+import BrowserAccessSection from "./BrowserAccessSection";
 import { buildSettingsSearchModel } from "./settingsSearch";
 import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
@@ -162,6 +163,7 @@ const ALERTS_SECTION_VISIBLE_KEY = "fyxtez.settings.alertsSectionVisible";
 const THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY =
   "fyxtez.settings.thirdPartyConnectionsSectionVisible";
 const DIAGNOSTICS_SECTION_VISIBLE_KEY = "fyxtez.settings.diagnosticsSectionVisible";
+const BROWSER_ACCESS_SECTION_VISIBLE_KEY = "fyxtez.settings.browserAccessSectionVisible";
 
 function readStoredSectionVisibility(key: string): boolean {
   try {
@@ -269,6 +271,9 @@ export default function SettingsPanel({
     useState(() => readStoredSectionVisibility(THIRD_PARTY_CONNECTIONS_SECTION_VISIBLE_KEY));
   const [isDiagnosticsSectionVisible, setIsDiagnosticsSectionVisible] = useState(() =>
     readStoredSectionVisibility(DIAGNOSTICS_SECTION_VISIBLE_KEY),
+  );
+  const [isBrowserAccessSectionVisible, setIsBrowserAccessSectionVisible] = useState(() =>
+    readStoredSectionVisibility(BROWSER_ACCESS_SECTION_VISIBLE_KEY),
   );
   // Settings search keeps a large configuration panel usable without
   // changing the user's persisted HIDE/SHOW preferences for each section.
@@ -414,6 +419,17 @@ export default function SettingsPanel({
       // Keep the preference in memory when localStorage is unavailable.
     }
   }, [isMarginSectionVisible]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        BROWSER_ACCESS_SECTION_VISIBLE_KEY,
+        String(isBrowserAccessSectionVisible),
+      );
+    } catch {
+      // Keep the preference in memory when localStorage is unavailable.
+    }
+  }, [isBrowserAccessSectionVisible]);
 
   useEffect(() => {
     try {
@@ -572,7 +588,7 @@ export default function SettingsPanel({
   useEffect(() => {
     if (!isOpen) return;
     if (backendConnection !== "connected") return;
-    if (desktopCredentials.isDesktop && !desktopCredentials.status.binanceConfigured) {
+    if (!desktopCredentials.canTrade) {
       setAvailableBalance(null);
       setBalanceError(null);
       setIsLoadingBalance(false);
@@ -615,13 +631,7 @@ export default function SettingsPanel({
       });
 
     return () => controller.abort();
-  }, [
-    isOpen,
-    backendConnection,
-    balanceRevision,
-    desktopCredentials.isDesktop,
-    desktopCredentials.status.binanceConfigured,
-  ]);
+  }, [isOpen, backendConnection, balanceRevision, desktopCredentials.canTrade]);
 
   useEffect(() => {
     let refreshTimer: number | null = null;
@@ -858,6 +868,7 @@ export default function SettingsPanel({
     showChartDisplaySection,
     showBalanceCard,
     showExchangeConnections,
+    showBrowserAccess,
     showDiagnostics,
     showDataBackup,
     hasAnySettingsSearchResult,
@@ -869,6 +880,7 @@ export default function SettingsPanel({
       label: FIELD_META[field].label,
       description: FIELD_META[field].description,
     })),
+    desktopCredentials.runtimeMode,
   );
 
   return (
@@ -941,7 +953,18 @@ export default function SettingsPanel({
               onToggle={() => setIsThirdPartyConnectionsSectionVisible((visible) => !visible)}
             />
           )}
-          {showExchangeConnections && showDiagnostics && <div className="settings-separator" />}
+          {showExchangeConnections && showBrowserAccess && <div className="settings-separator" />}
+
+          {showBrowserAccess && (
+            <BrowserAccessSection
+              isExpanded={isBrowserAccessSectionVisible}
+              forceExpanded={isSearchingSettings}
+              onToggle={() => setIsBrowserAccessSectionVisible((visible) => !visible)}
+            />
+          )}
+          {(showExchangeConnections || showBrowserAccess) && showDiagnostics && (
+            <div className="settings-separator" />
+          )}
 
           {showDiagnostics && (
             <DiagnosticsSection

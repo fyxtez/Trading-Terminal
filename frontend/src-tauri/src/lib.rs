@@ -2,6 +2,8 @@
 mod backend_supervisor;
 mod backup;
 mod binance_credentials;
+#[cfg(target_os = "linux")]
+mod browser_access;
 mod credential_store;
 #[cfg(mobile)]
 mod mobile_backend;
@@ -12,6 +14,8 @@ use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
 use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+#[cfg(target_os = "linux")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use zeroize::Zeroizing;
@@ -31,6 +35,52 @@ const EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED: bool = false;
 
 #[derive(Default)]
 struct BackupOperationLock(Mutex<()>);
+
+#[cfg(target_os = "linux")]
+struct LinuxLifecycleState {
+    tray_available: bool,
+    close_check_in_flight: AtomicBool,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxLifecycleState {
+    fn new(tray_available: bool) -> Self {
+        Self {
+            tray_available,
+            close_check_in_flight: AtomicBool::new(false),
+        }
+    }
+
+    fn can_hide_on_close(&self, browser_access_enabled: bool) -> bool {
+        self.tray_available && browser_access_enabled
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserAccessStatus {
+    supported: bool,
+    available: bool,
+    enabled: bool,
+    browser_url: Option<String>,
+    active_sessions: u32,
+    unavailable_reason: Option<String>,
+}
+
+#[cfg(not(target_os = "linux"))]
+fn unsupported_browser_access_status() -> BrowserAccessStatus {
+    BrowserAccessStatus {
+        supported: false,
+        available: false,
+        enabled: false,
+        browser_url: None,
+        active_sessions: 0,
+        unavailable_reason: Some(
+            "Browser access is currently available only in the installed Linux app".into(),
+        ),
+    }
+}
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -345,6 +395,63 @@ async fn restart_backend(
     supervisor.restart().await
 }
 
+#[cfg(target_os = "linux")]
+#[tauri::command]
+async fn browser_access_status(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<browser_access::BrowserAccessStatus, String> {
+    browser_access::status(supervisor.inner()).await
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn browser_access_status() -> BrowserAccessStatus {
+    unsupported_browser_access_status()
+}
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+async fn enable_browser_access(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<browser_access::BrowserAccessStatus, String> {
+    browser_access::enable(supervisor.inner()).await
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn enable_browser_access() -> BrowserAccessStatus {
+    unsupported_browser_access_status()
+}
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+async fn open_browser_terminal(
+    app: tauri::AppHandle,
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<browser_access::BrowserAccessStatus, String> {
+    browser_access::open_in_default_browser(&app, supervisor.inner()).await
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn open_browser_terminal() -> Result<BrowserAccessStatus, String> {
+    Err("Browser access is currently available only in the installed Linux app".into())
+}
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+async fn disable_browser_access(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<browser_access::BrowserAccessStatus, String> {
+    browser_access::disable(supervisor.inner()).await
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn disable_browser_access() -> BrowserAccessStatus {
+    unsupported_browser_access_status()
+}
+
 #[tauri::command]
 async fn export_local_backup(
     app: tauri::AppHandle,
@@ -477,6 +584,58 @@ fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+#[cfg(target_os = "linux")]
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn setup_linux_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::{menu::MenuBuilder, tray::TrayIconBuilder};
+
+    const OPEN_APP: &str = "open-app";
+    const OPEN_BROWSER: &str = "open-browser";
+    const QUIT: &str = "quit";
+
+    let menu = MenuBuilder::new(app)
+        .text(OPEN_APP, "Open Fyxtez")
+        .text(OPEN_BROWSER, "Open in browser")
+        .separator()
+        .text(QUIT, "Quit")
+        .build()?;
+    let mut tray = TrayIconBuilder::with_id("fyxtez-main")
+        .menu(&menu)
+        .tooltip("Fyxtez");
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+
+    tray.on_menu_event(|app, event| match event.id().as_ref() {
+        OPEN_APP => show_main_window(app),
+        OPEN_BROWSER => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let supervisor = app.state::<BackendSupervisor>();
+                if let Err(error) =
+                    browser_access::open_in_default_browser(&app, supervisor.inner()).await
+                {
+                    eprintln!("[fyxtez-browser] {error}");
+                    show_main_window(&app);
+                }
+            });
+        }
+        QUIT => app.exit(0),
+        _ => {}
+    })
+    .build(app)?;
+
+    Ok(())
+}
+
 #[tauri::command]
 #[allow(dead_code)]
 async fn send_notification(input: NotificationInput) -> Result<(), String> {
@@ -607,11 +766,32 @@ pub fn run() {
             })?;
             app.manage(supervisor);
             app.manage(BackupOperationLock::default());
+
+            #[cfg(target_os = "linux")]
+            {
+                let tray_available = match setup_linux_tray(app) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        // Without a tray, closing the window must remain a real
+                        // exit so the app cannot become invisible in the
+                        // background. Browser sessions then fail closed with the
+                        // sidecar process.
+                        eprintln!("[fyxtez-browser] system tray is unavailable: {error}");
+                        false
+                    }
+                };
+                app.manage(LinuxLifecycleState::new(tray_available));
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             desktop_runtime,
             restart_backend,
+            browser_access_status,
+            enable_browser_access,
+            open_browser_terminal,
+            disable_browser_access,
             exit_app,
             credential_status,
             save_credentials,
@@ -625,6 +805,59 @@ pub fn run() {
         .expect("error while building Fyxtez Terminal desktop");
 
     app.run(|app, event| {
+        #[cfg(target_os = "linux")]
+        if let tauri::RunEvent::WindowEvent {
+            label,
+            event: tauri::WindowEvent::CloseRequested { api, .. },
+            ..
+        } = &event
+            && label == "main"
+        {
+            let supervisor = app.state::<BackendSupervisor>();
+            let lifecycle = app.state::<LinuxLifecycleState>();
+            if lifecycle.can_hide_on_close(supervisor.browser_access_enabled()) {
+                api.prevent_close();
+
+                if lifecycle
+                    .close_check_in_flight
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // The atomic flag is only a fast local mirror. Confirm
+                        // with the sidecar before making the native app invisible
+                        // so a failed companion listener never leaves a hidden,
+                        // unusable process behind.
+                        let confirmed =
+                            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                                let supervisor = app.state::<BackendSupervisor>();
+                                browser_access::status(supervisor.inner()).await
+                            })
+                            .await
+                            .ok()
+                            .and_then(Result::ok)
+                            .is_some_and(|status| status.available && status.enabled);
+
+                        let lifecycle = app.state::<LinuxLifecycleState>();
+                        lifecycle
+                            .close_check_in_flight
+                            .store(false, Ordering::Release);
+
+                        if confirmed {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.hide();
+                            }
+                        } else {
+                            app.state::<BackendSupervisor>()
+                                .set_browser_access_enabled(false);
+                            app.exit(0);
+                        }
+                    });
+                }
+            }
+        }
+
         if matches!(
             event,
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
@@ -636,6 +869,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "linux")]
+    use super::LinuxLifecycleState;
     use super::{
         BINANCE_NETWORK, credential_status_from, disconnect_binance_from,
         normalize_ntfy_destination, validate_http_url, validate_secret, validate_telegram_chat_id,
@@ -646,6 +881,17 @@ mod tests {
         future::ready,
         sync::atomic::{AtomicUsize, Ordering},
     };
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn close_hides_only_when_tray_and_browser_access_are_both_available() {
+        let with_tray = LinuxLifecycleState::new(true);
+        assert!(with_tray.can_hide_on_close(true));
+        assert!(!with_tray.can_hide_on_close(false));
+
+        let without_tray = LinuxLifecycleState::new(false);
+        assert!(!without_tray.can_hide_on_close(true));
+    }
 
     #[test]
     fn complete_credential_set_reports_configured_without_returning_secrets() {

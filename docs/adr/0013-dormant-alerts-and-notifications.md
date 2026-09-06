@@ -36,8 +36,9 @@ toasts are not price alerts and remain active.
 - Desktop and Android do not consume background network or battery for price
   alert monitoring.
 - No alert is promised while the application is open, backgrounded, or closed.
-- Linux tray and Android foreground-service work from ADR 0012 is no longer
-  planned for the current release.
+- The alert-specific Linux tray and Android foreground-service work from ADR
+  0012 is no longer planned. ADR 0014's Linux tray keeps an explicitly enabled
+  local browser trading session alive; it does not monitor or deliver alerts.
 - Re-enabling alerts requires an explicit review of lifecycle, delivery,
   security, UI, and retained-data compatibility; changing a single UI element
   is not sufficient.

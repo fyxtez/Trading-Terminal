@@ -2,6 +2,7 @@ import {
   EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED,
   PRICE_ALERTS_ENABLED,
 } from "../../config/features";
+import type { TradingRuntimeMode } from "../../config/constants";
 
 export type SettingsSearchModel = ReturnType<typeof buildSettingsSearchModel>;
 
@@ -16,6 +17,7 @@ export function buildSettingsSearchModel(
   query: string,
   isDesktop: boolean,
   sizingFields: SearchableSizingField[],
+  runtimeMode: TradingRuntimeMode = isDesktop ? "native" : "public-browser",
 ) {
   const normalizedQuery = query.trim().toLowerCase();
   const isSearchingSettings = normalizedQuery.length > 0;
@@ -105,6 +107,10 @@ export function buildSettingsSearchModel(
     "Exchange Connections Binance account API key",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
   );
+  const showBrowserAccess = matches(
+    "Browser access open in browser terminal normal browser Linux background same computer",
+    runtimeMode === "local-browser" ? "connected secure browser installed app" : undefined,
+  );
   const showDiagnostics = matches(
     "App status connection Binance trading live prices account updates previous action blocked repeated actions order history",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
@@ -117,6 +123,7 @@ export function buildSettingsSearchModel(
     );
   const hasAnySettingsSearchResult =
     showExchangeConnections ||
+    showBrowserAccess ||
     showDiagnostics ||
     showDataBackup ||
     showBalanceCard ||
@@ -148,6 +155,7 @@ export function buildSettingsSearchModel(
     showChartDisplaySection,
     showBalanceCard,
     showExchangeConnections,
+    showBrowserAccess,
     showDiagnostics,
     showDataBackup,
     hasAnySettingsSearchResult,

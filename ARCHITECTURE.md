@@ -13,11 +13,14 @@ preserving the React/Axum contract:
 ```text
 Tauri native process
   ├── OS credential-store commands (secrets never returned to WebView)
-  ├── single-instance guard and bounded sidecar supervisor
+  ├── single-instance guard, tray lifecycle and bounded sidecar supervisor
   ├── WebView: existing React/Vite terminal
   └── bundled Axum sidecar on 127.0.0.1:<ephemeral-port>
-      ├── receives port/capability/app-data path once over stdin
-      └── reads the same OS credential-store service directly
+      ├── receives port/capability/app-data/UI paths once over stdin
+      ├── reads the same OS credential-store service directly
+      └── optional browser companion on 127.0.0.1:8658
+          ├── serves the packaged React bundle
+          └── accepts revocable HttpOnly browser sessions
 ```
 
 Linux x86_64 `.deb` and AppImage bundling is enabled and CI attaches SHA-256
@@ -50,6 +53,12 @@ Android Tauri process
   and Mainnet needs an explicit real-funds confirmation. New Mainnet
   credentials are stored only after Binance confirms reading/Futures access
   and `enableWithdrawals=false`.
+- **Local browser companion:** the Linux user explicitly enables Browser access
+  in the installed app. Tauri opens the packaged UI in the user's browser; a
+  one-use launch ticket becomes a split browser session (`HttpOnly` cookie plus
+  tab-scoped proof) which may use the same account and execution API without
+  receiving either Binance secrets or the native sidecar capability. Credential
+  changes remain native-only.
 - **Dormant integrations:** price alerts, ntfy, and Telegram remain in source
   but expose no UI, routes, background worker, or provider delivery.
 
@@ -147,6 +156,8 @@ The backend is a reusable Tokio application exposed through Axum.
   counters exposed through the authenticated diagnostics endpoint.
 - `operation_safety.rs` persists financial request intents, replayable results
   and redacted audit correlation in SQLite.
+- `browser_access.rs` owns opt-in launch tickets, browser sessions, expiry and
+  bulk revocation without persisting raw capabilities.
 - `alerts.rs` retains the dormant persistent-alert implementation. Its routes,
   database, worker, and provider delivery are disabled by ADR 0013.
 - `symbol_registry.rs` owns registered symbols and their market-data source.
@@ -217,6 +228,34 @@ market websocket worker, and ntfy/Telegram delivery are inactive. Their source
 is retained but no runtime path invokes it. Existing alert data and notification
 credentials are preserved without being read. See ADR 0013.
 
+### Linux browser access
+
+1. Native Settings asks Axum, using the private per-launch bearer, to enable
+   Browser access and create a short-lived one-use ticket.
+2. Tauri opens `http://127.0.0.1:8658` with that ticket in the URL fragment. It
+   does not return the ticket or private bearer to React.
+3. URL fragments are not transmitted over HTTP. The packaged browser client
+   removes the fragment before its first API request, then redeems the ticket
+   through a same-origin POST.
+4. Axum sets an opaque `HttpOnly`, `SameSite=Strict` cookie and returns a second
+   random proof kept only in that tab's `sessionStorage`. Normal API and
+   WebSocket-ticket requests require both parts; another localhost port receives
+   neither a usable session nor the native sidecar capability. The ordinary
+   session response exposes only safe connection metadata. Native-only control
+   and credential-reload routes remain unavailable to the browser. A later
+   launch into the same browser profile reuses its cookie and adds another tab
+   proof, so the earlier tab remains authorized. Other browser profiles receive
+   independent cookies.
+5. Disable, backend restart, or real application exit revokes the in-memory
+   browser capabilities. When a system tray is available, closing the Linux
+   window while access is enabled hides it and does not stop the sidecar;
+   otherwise close remains a real exit.
+
+The fixed browser port preserves one browser origin across launches. The native
+WebView and normal browser still have separate `localStorage`, so their drawings,
+tabs and display preferences are separate local workspaces. Account, order,
+sizing, symbol and financial-intent state comes from the shared backend.
+
 ### Failure and diagnostics flow
 
 `/health` answers only whether the local backend API is alive. The authenticated
@@ -235,7 +274,8 @@ a manual retry; uncaught render failures enter the global fail-closed boundary.
 | Legacy alert data (dormant) | `backend/data/alerts.sqlite3` | Preserved, not opened |
 | Financial intents and redacted audit metadata | `backend/data/operations.sqlite3` | Backend |
 | Icon cache | `backend/data/icons/` | Backend |
-| UI settings/drawings/tabs | Browser `localStorage` | Frontend |
+| Native UI settings/drawings/tabs | Tauri WebView `localStorage` | Frontend |
+| Companion UI settings/drawings/tabs | `127.0.0.1:8658` browser `localStorage` | Frontend |
 | Binance secrets | OS credential manager | Native Rust |
 | Legacy ntfy/Telegram secrets (dormant) | OS credential manager | Preserved, not read |
 
@@ -268,16 +308,26 @@ Frontend quality gates are exposed through `npm run lint`, `npm run format:check
 layout; TypeScript, the CSS syntax guard, and the comment-invariant guard reject
 invalid code, unbalanced CSS, and historical `FIX`/`FEATURE` labels in source.
 
-Most API routes require `Authorization: Bearer <capability>`. WebSocket clients
-exchange that bearer value for a 30-second, one-use ticket; protected icon bytes
-are bearer-fetched and displayed through temporary blob URLs. `/health` is the
-only public route. CORS is restricted to known Vite/Tauri origins and CSP allows
-loopback connections on arbitrary ports because the desktop port is ephemeral.
+Most API routes accept the private native bearer. While Linux Browser access is
+enabled, the same normal routes also accept a valid local browser session;
+browser-control and credential-reload routes remain native-only. Browser launch
+tickets are short-lived and one-use; the cookie is inaccessible to JavaScript,
+the matching proof is returned once by the redeem response and then remains
+tab-scoped in `sessionStorage`, and neither part is written to backend or native
+application data. Disabling access revokes them together. WebSocket
+clients exchange their
+current authenticated principal for a separate short-lived, one-use ticket.
+Protected icon bytes use the same normal authentication. `/health` and the
+packaged static shell are the only public surfaces. Exact loopback Host/Origin
+checks, strict same-site cookies, restricted CORS and browser security headers
+bound the companion listener. It must never be forwarded to a LAN or Internet
+interface.
 
 Standalone browser development retains the configured shared token. Because a
 `VITE_*` value is compiled into JavaScript, that workflow is local-only and the
-browser UI deliberately remains chart-only. Neither mode is a public or
-multi-user authentication design.
+Vite browser UI deliberately remains chart-only. The companion cookie is a
+separate installed-app flow. No mode is a public or multi-user authentication
+design. See [ADR 0014](docs/adr/0014-local-browser-companion.md).
 
 ## Safety properties already present
 

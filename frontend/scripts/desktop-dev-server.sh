@@ -11,6 +11,10 @@ for command in cargo npm rustc; do
   fi
 done
 
+# Keep a production snapshot beside the Vite development server. The local
+# backend serves this snapshot to normal browsers while the native window keeps
+# using Vite and hot reload.
+"$FRONTEND_DIR/scripts/build-desktop-frontend.sh"
 "$FRONTEND_DIR/scripts/prepare-sidecar.sh" debug
 cd "$FRONTEND_DIR"
 exec npm run dev

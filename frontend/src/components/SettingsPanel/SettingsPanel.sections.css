@@ -280,6 +280,139 @@
   margin-top: 14px;
 }
 
+.settings-browser-access-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--bg-surface-raised);
+}
+
+.settings-browser-access-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-browser-access-status span,
+.settings-browser-access-status b {
+  font: 800 11px/1.2 var(--font-mono);
+  letter-spacing: 0.55px;
+}
+
+.settings-browser-access-status span {
+  color: var(--text-primary);
+}
+
+.settings-browser-access-status b {
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.settings-browser-access-status.enabled b {
+  color: var(--green);
+}
+
+.settings-browser-access-card p,
+.settings-browser-access-card small {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-browser-access-card small {
+  color: var(--text-faint);
+}
+
+.settings-browser-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.settings-browser-access-actions button,
+.settings-browser-access-confirmation button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(245, 166, 35, 0.5);
+  border-radius: var(--radius-s);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font: 800 10px/1 var(--font-mono);
+  letter-spacing: 0.45px;
+  cursor: pointer;
+}
+
+.settings-browser-access-actions button.danger,
+.settings-browser-access-confirmation button.danger {
+  border-color: rgba(240, 69, 98, 0.45);
+  background: rgba(240, 69, 98, 0.06);
+  color: #ffc9d3;
+}
+
+.settings-browser-access-actions button:disabled,
+.settings-browser-access-confirmation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.settings-browser-access-error {
+  padding: 9px 10px;
+  border: 1px solid rgba(240, 69, 98, 0.45);
+  border-radius: var(--radius-s);
+  background: rgba(240, 69, 98, 0.06);
+  color: #ffc9d3;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-browser-access-confirmation {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(240, 69, 98, 0.4);
+  border-radius: var(--radius-s);
+  background: rgba(240, 69, 98, 0.05);
+}
+
+.settings-browser-access-confirmation > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-browser-access-confirmation strong,
+.settings-browser-access-confirmation span {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.settings-browser-access-confirmation strong {
+  color: var(--text-primary);
+}
+
+.settings-browser-access-confirmation span {
+  color: var(--text-dim);
+  text-align: right;
+}
+
+@media (max-width: 520px) {
+  .settings-browser-access-confirmation > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-browser-access-confirmation span {
+    text-align: left;
+  }
+}
+
 .settings-diagnostics-toolbar {
   display: flex;
   align-items: center;
@@ -557,11 +690,23 @@
   letter-spacing: 0.06em;
 }
 
+.settings-browser-connection-note.connected b {
+  color: var(--green);
+}
+
 .settings-browser-connection-note p {
   margin: 0;
   color: var(--text-dim);
   font-size: 11.5px;
   line-height: 1.5;
+}
+
+.settings-browser-connection-note small {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .settings-connection-statuses button {
@@ -923,35 +1068,57 @@
   color: var(--amber);
 }
 
-/* Larger desktop-only type scale. Mobile keeps the proven compact sizes and
- * touch layout from the rules above. */
+/* Keep desktop subcards on one readable hierarchy: titles, body copy,
+ * metadata, then compact monospace status/action text. Mobile keeps the proven
+ * compact sizes and touch layout from the rules above. */
 @media (min-width: 721px) {
-  .drawing-set-new-confirmation,
+  .settings-manage-connections {
+    font-size: 13px;
+  }
+
   .drawing-set-item-copy small,
-  .settings-manage-connections,
-  .data-backup-notice strong,
-  .data-backup-summary strong,
+  .settings-diagnostics-list small,
+  .settings-diagnostics-note,
+  .settings-browser-connection-note small,
+  .settings-browser-access-card small,
+  .data-backup-notice span,
+  .data-backup-summary span,
+  .data-backup-confirmation label > span {
+    font-size: 13.5px;
+  }
+
+  .drawing-set-new-confirmation,
+  .settings-diagnostics-toolbar small,
   .data-backup-confirmation input,
   .data-backup-message {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .drawing-set-current-row,
   .drawing-set-message,
-  .drawing-set-empty,
-  .settings-intent-recovery-heading span,
-  .settings-lookback-control output {
-    font-size: 14px;
+  .drawing-set-empty {
+    font-size: 14.5px;
   }
 
   .drawing-set-item-copy strong,
   .settings-connection-heading > span,
+  .settings-browser-access-status span {
+    font-size: 16px;
+  }
+
+  .settings-intent-recovery-heading span,
   .settings-disconnect-confirmation strong {
     font-size: 15px;
   }
 
+  .settings-lookback-control output,
+  .data-backup-notice strong,
+  .data-backup-summary strong {
+    font-size: 14.5px;
+  }
+
   .drawing-set-active-badge {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .settings-section-visibility-button {
@@ -959,42 +1126,47 @@
   }
 
   .settings-intent-recovery-heading strong,
-  .settings-intent-recovery-item small,
+  .settings-intent-recovery-heading b,
   .settings-intent-recovery-item kbd,
-  .settings-intent-recovery-item button,
-  .settings-diagnostics-toolbar button,
   .settings-diagnostics-list b,
   .settings-connection-statuses b,
   .settings-browser-connection-note b,
+  .settings-browser-access-status b,
   .data-backup-summary code {
-    font-size: 11px;
+    font-size: 12.5px;
   }
 
-  .settings-intent-recovery-heading b,
+  .settings-intent-recovery-item small {
+    font-size: 13.5px;
+  }
+
+  .settings-intent-recovery-item button,
+  .settings-diagnostics-toolbar button,
+  .settings-connection-statuses button,
+  .settings-disconnect-actions button,
+  .settings-browser-access-actions button,
+  .settings-browser-access-confirmation button,
+  .data-backup-actions button,
+  .data-backup-confirmation-actions button,
+  .data-backup-restart {
+    font-size: 13px;
+  }
+
   .settings-intent-recovery > p,
   .settings-intent-recovery-item ol,
   .settings-intent-recovery-item code,
   .settings-intent-recovery-item input,
-  .settings-diagnostics-list small,
-  .settings-diagnostics-note,
-  .settings-connection-statuses button,
   .settings-disconnect-confirmation span,
   .settings-disconnect-error,
-  .settings-disconnect-actions button,
-  .data-backup-actions button,
-  .data-backup-confirmation-actions button,
-  .data-backup-restart {
-    font-size: 12px;
+  .settings-browser-access-confirmation strong,
+  .settings-browser-access-confirmation span,
+  .settings-browser-access-error {
+    font-size: 14px;
   }
 
   .settings-diagnostics-list > div > span,
-  .settings-browser-connection-note p {
-    font-size: 13px;
-  }
-
-  .data-backup-notice span,
-  .data-backup-summary span,
-  .data-backup-confirmation label > span {
-    font-size: 12px;
+  .settings-browser-connection-note p,
+  .settings-browser-access-card p {
+    font-size: 14.5px;
   }
 }

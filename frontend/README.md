@@ -4,7 +4,7 @@ React 18 + TypeScript + Vite client for the Fyxtez trading terminal.
 
 Development requires Node.js 20.19+ or 22.12+.
 
-## Browser development
+## Standalone browser development
 
 ```bash
 cp .env.example .env
@@ -24,9 +24,9 @@ The local backend normally runs at `http://127.0.0.1:8657`. Set
 | `VITE_TRADING_API_TOKEN` | Shared token used by the current API client |
 | `VITE_PUBLIC_TERMINAL_URL` | Public base URL used in alert links |
 
-All `VITE_*` values are embedded in the browser bundle. The API token is only an
-interim single-user/private-network mechanism and must be replaced before a
-public deployment.
+All `VITE_*` values are embedded in the browser bundle. This token-based workflow
+is local development only and remains chart-only. It is not the installed
+Linux app's authenticated Browser access mode.
 
 ## Commands
 
@@ -45,11 +45,17 @@ The native source is in `src-tauri/`. Desktop commands do not use frontend or
 backend `.env` files: Tauri selects an ephemeral loopback port and per-launch
 API capability, starts and supervises the bundled Axum sidecar, and supplies
 runtime connection data over IPC. `DesktopSetupGate` stores secrets through
-Rust commands in the OS credential manager; browser development continues
-directly to the terminal. Review
+Rust commands in the OS credential manager. On Linux, Browser access serves a
+second copy of the packaged frontend at `127.0.0.1:8658`; a one-use launch
+ticket becomes a split browser session: an `HttpOnly` cookie and a second proof
+kept only in that tab's `sessionStorage`. Opening from Fyxtez again adds another
+tab proof without disconnecting earlier tabs in that browser profile. The native
+capability and Binance keys remain outside browser JavaScript and storage. The
+two frontends share authoritative backend/trading state but keep separate
+origin-scoped drawings, tabs and UI preferences. Review
 [`../docs/adr`](../docs/adr/README.md) before changing IPC permissions, CSP or
-secret handling. Browser mode is intentionally chart-only and does not send
-native ntfy/Telegram notifications.
+secret handling. Standalone Vite browser mode is intentionally chart-only and
+does not send native ntfy/Telegram notifications.
 
 On Android, the same `backend/` crate is linked into the Tauri process and
 served on a per-launch loopback port. The Android app therefore needs neither a

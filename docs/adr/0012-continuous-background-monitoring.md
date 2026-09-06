@@ -5,7 +5,9 @@
 
 > Price alerts and external notification delivery were later made dormant for
 > the current product. The Linux tray and Android foreground-service work below
-> is therefore no longer planned; see ADR 0013.
+> is therefore no longer planned for monitoring; see ADR 0013. ADR 0014 later
+> uses a Linux tray for an explicitly enabled local browser companion, not for
+> alerts or continuous monitoring.
 
 ## Context
 
