@@ -412,9 +412,47 @@
   border-color: rgba(245, 166, 35, 0.55);
 }
 
-.symbol-category-select option {
+.symbol-category-select {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.symbol-category-options {
+  position: fixed;
+  z-index: 20001;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
   background: var(--bg-surface-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.symbol-category-options button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
   color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.symbol-category-options button:hover,
+.symbol-category-options button:focus-visible,
+.symbol-category-options button[aria-selected="true"] {
+  outline: none;
+  background: var(--amber-soft);
+  color: var(--amber);
 }
 
 .symbol-delete-button {

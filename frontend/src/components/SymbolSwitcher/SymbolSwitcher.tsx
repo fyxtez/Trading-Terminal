@@ -9,12 +9,12 @@ import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import { userFacingError } from "../../utils/userFacingError";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
+import CategorySelect from "./CategorySelect";
 import {
   defaultSymbolCategory,
   loadSymbolCategories,
   saveSymbolCategories,
   symbolCategory,
-  SYMBOL_CATEGORY_OPTIONS,
   SYMBOL_CATEGORY_ORDER,
   type EditableSymbolCategory,
   type StoredSymbolCategories,
@@ -399,21 +399,11 @@ export default function SymbolSwitcher({
                         </button>
                         <div className="symbol-switcher-option-actions">
                           {isEditingCategories && !config.protected && (
-                            <select
-                              className="symbol-category-select"
+                            <CategorySelect
                               value={category}
-                              aria-label={`Category for ${candidateInfo.label}`}
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) =>
-                                setCategory(candidate, event.target.value as EditableSymbolCategory)
-                              }
-                            >
-                              {SYMBOL_CATEGORY_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              label={`Category for ${candidateInfo.label}`}
+                              onChange={(value) => setCategory(candidate, value)}
+                            />
                           )}
                           <ExchangeLogo
                             source={config.source}
