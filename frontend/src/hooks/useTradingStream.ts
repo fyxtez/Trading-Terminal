@@ -211,7 +211,10 @@ export function useTradingStream({
         window.clearTimeout(reconnectTimer);
       }
 
-      if (socket?.readyState === WebSocket.OPEN) {
+      if (
+        socket &&
+        (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
+      ) {
         socket.close(1000, "component unmounted");
       }
     };

@@ -32,6 +32,7 @@
   /* text */
   --text: #edf0f6;
   --text-dim: #8991a3;
+  --text-muted: var(--text-dim);
   --text-faint: #545d6e;
 
   /* the one accent */

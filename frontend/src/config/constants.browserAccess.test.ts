@@ -23,6 +23,7 @@ describe("local browser runtime", () => {
   afterEach(() => {
     window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
     window.sessionStorage.clear();
+    window.localStorage.clear();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -44,7 +45,7 @@ describe("local browser runtime", () => {
     expect(window.location.hash).toBe("");
   });
 
-  it("keeps the dual-auth proof only in sessionStorage and sends it after redeem", async () => {
+  it("persists the dual-auth proof across tab restarts and clears it on revocation", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -91,8 +92,11 @@ describe("local browser runtime", () => {
       expiresInMs: null,
     });
     expect(TRADING_API_TOKEN).toBe("");
-    expect(window.sessionStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY)).toBe(sessionProof);
-    expect(window.localStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY)).toBeNull();
+    expect(window.localStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY)).toBe(sessionProof);
+    window.sessionStorage.clear();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(session), { status: 200 }));
+    await initializeLocalBrowserRuntime("http://127.0.0.1:8658", null);
+    expect(getLocalBrowserSession()).not.toBeNull();
 
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
     await tradingApiFetch("http://127.0.0.1:8658/api/account");

@@ -20,6 +20,7 @@ describe("portable Fyxtez local storage", () => {
     localStorage.setItem("price-alerts-BTCUSDT", "private-alert");
     localStorage.setItem("fyxtez:symbol-icon-metadata:v1:local", "cache");
     localStorage.setItem("other-app", "untouched");
+    localStorage.setItem("fyxtez:local-browser-session-proof", "private-proof");
 
     expect(collectFyxtezLocalStorage()).toEqual({
       "drawing-sets-BTCUSDT": "[]",
@@ -45,6 +46,9 @@ describe("portable Fyxtez local storage", () => {
   it("rejects unsupported incoming keys before changing current data", () => {
     localStorage.setItem("drawings-BTCUSDT", "keep");
     expect(() => replaceFyxtezLocalStorage({ "other-app": "bad" })).toThrow("unsupported");
+    expect(() =>
+      replaceFyxtezLocalStorage({ "fyxtez:local-browser-session-proof": "secret" }),
+    ).toThrow("unsupported");
     expect(localStorage.getItem("drawings-BTCUSDT")).toBe("keep");
   });
 });

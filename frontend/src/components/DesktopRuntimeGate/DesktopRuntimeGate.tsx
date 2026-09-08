@@ -1,3 +1,4 @@
+import terminalMark from "../../assets/fyxtez-f-mark-alpha.png?inline";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   getLocalBrowserSessionProof,
@@ -115,7 +116,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
   return (
     <main className="desktop-runtime-gate">
       <section>
-        <img src="/fyxtez-f-mark-alpha.png" alt="" />
+        <img src={terminalMark} alt="" />
         <small>TERMINAL</small>
         <h1>
           {state.kind === "starting"
@@ -148,7 +149,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
               <p className="desktop-runtime-gate-guidance">
                 {canRetry
                   ? "Make sure the installed Terminal app is still open, then check again. Your Binance keys remain protected on this computer."
-                  : "Return to the installed Terminal app and choose Open in browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
+                  : "Return to the installed Terminal app and choose Open in Browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
               </p>
             )}
           </>

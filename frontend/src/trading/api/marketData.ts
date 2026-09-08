@@ -107,6 +107,7 @@ async function fetchMexcRange(
   selectedInterval: Interval,
   startSeconds?: number,
   endSeconds?: number,
+  signal?: AbortSignal,
 ): Promise<CandlestickData[]> {
   const normalizedStart =
     startSeconds === undefined ? undefined : Math.max(0, Math.floor(startSeconds));
@@ -131,7 +132,7 @@ async function fetchMexcRange(
 
   const response = await tradingApiFetch(
     `${TRADING_API_BASE_URL}${MEXC_PROXY_PATH}?${params.toString()}`,
-    { headers: { Accept: "application/json" } },
+    { headers: { Accept: "application/json" }, signal: signal ?? AbortSignal.timeout(15_000) },
   );
 
   if (!response.ok) {
@@ -174,7 +175,9 @@ async function fetchBinanceKlines(
         params.set("endTime", String(endTime));
       }
 
-      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`);
+      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!response.ok) throw new Error(`Binance kline request failed: ${response.status}`);
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -265,7 +268,9 @@ export async function fetchOlderKlines(
     limit: String(Math.min(limit, BINANCE_KLINE_LIMIT)),
     endTime: String(endTimeMs),
   });
-  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`);
+  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!response.ok) throw new Error(`Binance kline request failed: ${response.status}`);
   const data = await response.json();
   if (!Array.isArray(data)) return [];
@@ -284,6 +289,7 @@ export async function fetchOlderKlines(
 export async function fetchLatestKline(
   selectedInterval: Interval,
   symbol: string,
+  signal?: AbortSignal,
 ): Promise<CandlestickData | null> {
   const config = getSymbolConfig(symbol);
 
@@ -291,7 +297,13 @@ export async function fetchLatestKline(
     const endSeconds = Math.floor(Date.now() / 1000);
     const rawStepMs = selectedInterval === "12h" ? intervalMs["4h"] : intervalMs[selectedInterval];
     const startSeconds = Math.max(0, endSeconds - Math.floor((rawStepMs * 4) / 1000));
-    const rawCandles = await fetchMexcRange(config, selectedInterval, startSeconds, endSeconds);
+    const rawCandles = await fetchMexcRange(
+      config,
+      selectedInterval,
+      startSeconds,
+      endSeconds,
+      signal,
+    );
     const candles =
       selectedInterval === "12h" ? aggregateCandles(rawCandles, intervalMs["12h"]) : rawCandles;
     return candles[candles.length - 1] ?? null;
@@ -302,7 +314,9 @@ export async function fetchLatestKline(
     interval: selectedInterval,
     limit: "1",
   });
-  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`);
+  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
+    signal: signal ?? AbortSignal.timeout(15_000),
+  });
   if (!response.ok) throw new Error(`Latest Binance kline request failed: ${response.status}`);
   const data = await response.json();
   if (!Array.isArray(data) || !data[0]) return null;
@@ -322,6 +336,13 @@ export function mergeLatestCandle(
   latest: CandlestickData | null,
 ): CandlestickData[] {
   if (!latest) return candles;
+  const last = candles[candles.length - 1];
+  if (!last || Number(latest.time) > Number(last.time)) return [...candles, latest];
+  if (latest.time === last.time) {
+    const updated = candles.slice();
+    updated[updated.length - 1] = latest;
+    return updated;
+  }
   return normalizeCandles([...candles, latest]);
 }
 

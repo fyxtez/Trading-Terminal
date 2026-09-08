@@ -74,10 +74,17 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let browser_runtime = runtime.browser;
-    let browser_access = browser_runtime
-        .as_ref()
-        .map(|browser| BrowserAccessState::configured(browser.address))
-        .unwrap_or_else(BrowserAccessState::disabled);
+    let browser_access = if let Some(browser) = &browser_runtime {
+        BrowserAccessState::persistent(
+            browser.address,
+            runtime
+                .symbol_registry_path
+                .with_file_name("browser-sessions.json"),
+        )
+        .await?
+    } else {
+        BrowserAccessState::disabled()
+    };
     let binance = BinanceClient::from_secure_store(runtime.use_secure_network)?;
     let diagnostics = DiagnosticsState::new(binance.is_configured());
 

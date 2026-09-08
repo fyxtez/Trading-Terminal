@@ -434,7 +434,8 @@ fn validate_frontend_storage(storage: &BTreeMap<String, String>) -> Result<(), S
 }
 
 fn is_portable_frontend_key(key: &str) -> bool {
-    if key.starts_with("fyxtez:symbol-icon-metadata:")
+    if key == "fyxtez:local-browser-session-proof"
+        || key.starts_with("fyxtez:symbol-icon-metadata:")
         || key.starts_with("price-alerts-")
         || key.starts_with("fyxtez:price-alerts-")
     {

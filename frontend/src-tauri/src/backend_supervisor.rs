@@ -164,10 +164,6 @@ impl BackendSupervisor {
         let _ = self.commands.send(SupervisorCommand::Shutdown);
     }
 
-    pub fn browser_access_enabled(&self) -> bool {
-        self.browser_access_enabled.load(Ordering::Acquire)
-    }
-
     pub fn set_browser_access_enabled(&self, enabled: bool) {
         self.browser_access_enabled
             .store(enabled, Ordering::Release);

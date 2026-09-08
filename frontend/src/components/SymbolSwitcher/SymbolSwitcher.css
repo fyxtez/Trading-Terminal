@@ -314,6 +314,8 @@
 }
 
 .symbol-category-toolbar button {
+  -webkit-appearance: none;
+  appearance: none;
   height: 27px;
   padding: 0 9px;
   border: 1px solid var(--border-strong);
@@ -387,13 +389,19 @@
 }
 
 .symbol-category-select {
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: dark;
   width: 116px;
   height: 26px;
-  padding: 0 5px;
+  padding: 0 23px 0 7px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
   outline: none;
   background: var(--bg-surface-raised);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238991a3' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -402,6 +410,11 @@
 
 .symbol-category-select:focus {
   border-color: rgba(245, 166, 35, 0.55);
+}
+
+.symbol-category-select option {
+  background: var(--bg-surface-raised);
+  color: var(--text);
 }
 
 .symbol-delete-button {

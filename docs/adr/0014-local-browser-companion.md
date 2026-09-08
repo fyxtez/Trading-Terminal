@@ -35,10 +35,10 @@ The Linux installation provides an opt-in **Browser access** mode:
   ticket travels only in a URL fragment, which HTTP never transmits, is removed
   before the first API request, and is exchanged for a split session: an opaque
   `HttpOnly`,
-  `SameSite=Strict` cookie plus an independent proof kept only in that tab's
-  `sessionStorage`. Both parts are required because cookies do not isolate
+  `SameSite=Strict` cookie plus an independent proof kept in the dedicated origin's
+  `localStorage`. Both parts are required because cookies do not isolate
   different ports on the same loopback host. A later launch into the same
-  browser profile reuses its valid cookie session and adds a new tab proof;
+  browser profile reuses its valid cookie session and adds a new proof;
   earlier authorized tabs remain valid. A different browser profile receives
   an independent cookie session.
 - The browser never receives the native sidecar capability, Binance API key or
@@ -48,11 +48,13 @@ The Linux installation provides an opt-in **Browser access** mode:
   UI, including the existing durable-intent protection. They cannot manage
   credential-store entries or browser-access control routes.
 - Disabling Browser access revokes all launch tickets, HTTP sessions and their
-  associated streaming access. Backend restart and application exit also erase
-  every in-memory browser capability.
-- While Browser access is enabled and a system tray is available, closing the
+  associated streaming access. Session hashes, expiry and the enabled setting persist in a private local file,
+  so restarting the backend or application retains authorization for 30 days.
+  Launch tickets remain memory-only. Disabling persists revocation before success.
+- When a system tray is available, closing the
   Linux window hides it and leaves the supervised process available from the
-  tray. Tray **Quit** remains a real shutdown. If tray creation fails, close
+  tray, independently of Browser access. Alt + F4 follows the same close path.
+  Tray **Quit** remains a real shutdown. If tray creation fails, close
   remains a real exit so no invisible background process is created. This
   lifecycle is for an explicitly opened trading UI and does not revive the
   dormant alert system from ADR 0013.
@@ -71,14 +73,13 @@ embedded native UI and does not expose Browser access.
 - Loopback becomes a deliberate browser trust boundary. Host/origin validation,
   split session proof, short-lived one-use tickets, expiry, revocation and
   native-only control authorization require dedicated regression tests.
-- Multiple authorized tabs in one browser profile share its `HttpOnly` cookie
-  but keep separate tab proofs. Sessions have no time-based expiry while access
-  is enabled and the backend runs, and are revoked together on disable or
-  shutdown. The cookie has no Max-Age or Expires; tab proofs remain in
-  sessionStorage. Closing a tab or clearing browser data may require opening a
-  new authorized tab from Terminal. Launch tickets still expire after 60 seconds.
-  The reported session count represents issued, unrevoked proofs rather than a
-  live count of open tabs. Unsupported native platforms hide the settings section.
+- Authorized tabs in one browser profile share the HttpOnly cookie and localStorage
+  proof. Cookie Max-Age and server-side expiry are 30 days from authorization.
+  The backend persists only hashes, with owner-only file permissions on Unix and
+  atomic replacement; session state is excluded from portable backups. Clearing
+  browser data requires a new launch from Terminal. Launch tickets expire after
+  60 seconds. The reported session count represents issued, unrevoked proofs rather
+  than live tabs. Unsupported native platforms hide the settings section.
 - Port `8658` is reserved for the browser workspace. A collision produces a
   clear Browser access error rather than falling back to another origin or
   breaking the native terminal.
@@ -95,11 +96,11 @@ embedded native UI and does not expose Browser access.
    packaged Linux build.
 2. Open the terminal twice from the installed app and confirm both the earlier
    and newer browser tabs retain account and trading access.
-3. Confirm that disabling or restarting rejects new REST requests immediately
+3. Confirm that disabling rejects new REST requests immediately
    and closes the browser WebSocket within about one second. A REST request that
    was already authorized may finish, preserving its durable outcome handling.
 4. Inspect browser storage, URLs and network responses. Each expected tab proof
-   may appear once in the ticket-redeem response, then only in `sessionStorage`
+   may appear once in the ticket-redeem response, then only in origin-scoped `localStorage`
    and its request header; confirm that neither Binance credentials nor the
    native service capability appear.
 5. Consider an explicit workspace import/synchronization design only if using

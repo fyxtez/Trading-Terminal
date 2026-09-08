@@ -55,3 +55,51 @@ describe("tradingApiFetch", () => {
     expect(browserAuth.invalidate).toHaveBeenCalledOnce();
   });
 });
+
+describe("read request lifetime", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("aborts a hung read when its deadline expires without revoking browser access", async () => {
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_input, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+              once: true,
+            });
+          }),
+      ),
+    );
+    browserAuth.invalidate.mockClear();
+    const pending = tradingApiFetch("http://127.0.0.1:8658/api/account");
+    const result = expect(pending).rejects.toThrow("read timed out");
+    deadline.abort(new Error("read timed out"));
+    await result;
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+    expect(browserAuth.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("keeps caller cancellation working alongside the read deadline", async () => {
+    const caller = new AbortController();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await tradingApiFetch("http://127.0.0.1:8658/api/account", { signal: caller.signal });
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    caller.abort();
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("does not impose read deadlines on order mutations", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+    await tradingApiFetch("http://127.0.0.1:8658/api/orders", { method: "POST" });
+    expect(timeout).not.toHaveBeenCalled();
+  });
+});

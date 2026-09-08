@@ -222,7 +222,7 @@ export type LocalBrowserSession = {
  * only when it is opened by the installed Linux app on the dedicated loopback
  * origin and redeems a short-lived, one-use launch ticket. The resulting
  * capability is split between an HttpOnly cookie and a page-session proof.
- * The proof exists only in sessionStorage on the dedicated local origin;
+ * The proof persists in localStorage on the dedicated local origin;
  * JavaScript never receives the cookie, native service token, or Binance keys.
  */
 export let TRADING_RUNTIME_MODE: TradingRuntimeMode = "public-browser";
@@ -286,12 +286,17 @@ function validBrowserSessionProof(value: unknown): value is string {
 export function getLocalBrowserSessionProof(): string | null {
   if (!isDedicatedBrowserOrigin(TRADING_API_BASE_URL)) return null;
   try {
-    const proof = window.sessionStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
-    if (validBrowserSessionProof(proof)) return proof;
-    window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+    const proof =
+      window.localStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY) ??
+      window.sessionStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+    if (validBrowserSessionProof(proof)) {
+      window.localStorage.setItem(LOCAL_BROWSER_SESSION_PROOF_KEY, proof);
+      window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+      return proof;
+    }
+    clearLocalBrowserSessionProof();
   } catch {
-    // Session storage is required for dual browser authentication. Callers
-    // fail closed when it is unavailable instead of copying proof elsewhere.
+    // Persistent storage is required to retain browser authorization across restarts.
   }
   return null;
 }
@@ -301,20 +306,23 @@ function storeLocalBrowserSessionProof(proof: string): void {
     throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
   }
   try {
-    window.sessionStorage.setItem(LOCAL_BROWSER_SESSION_PROOF_KEY, proof);
+    window.localStorage.setItem(LOCAL_BROWSER_SESSION_PROOF_KEY, proof);
+    window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
   } catch {
     throw new LocalBrowserSessionError(
-      "This browser cannot keep the secure page session. Open it again with session storage enabled.",
+      "This browser cannot remember the connection. Enable local storage and open it again.",
     );
   }
 }
 
 function clearLocalBrowserSessionProof(): void {
   if (!isDedicatedBrowserOrigin(TRADING_API_BASE_URL)) return;
-  try {
-    window.sessionStorage.removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
-  } catch {
-    // There is nothing else to clear and the proof is never mirrored elsewhere.
+  for (const storage of ["localStorage", "sessionStorage"] as const) {
+    try {
+      window[storage].removeItem(LOCAL_BROWSER_SESSION_PROOF_KEY);
+    } catch {
+      // Still attempt to clear the other storage if one is unavailable.
+    }
   }
 }
 

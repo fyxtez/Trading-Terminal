@@ -1,3 +1,4 @@
+import { watchPointerInterruption } from "../../utils/pointerInterruption";
 import {
   useEffect,
   useRef,
@@ -69,7 +70,9 @@ export function useDrawingCanvas(
   isHotkeysOpen: boolean,
   setIsHotkeysOpen: (open: boolean) => void,
   showDrawings: boolean,
+  symbol: string,
 ) {
+  const capturedPointerRef = useRef<{ target: HTMLDivElement; id: number } | null>(null);
   const [isHoveringDrawing, setIsHoveringDrawing] = useState(false);
   const [isDirectManipulationActive, setIsDirectManipulationActive] = useState(false);
   const [editingText, setEditingText] = useState<EditingTextState | null>(null);
@@ -527,6 +530,7 @@ export function useDrawingCanvas(
       drawingsApi.syncDrawings([...refs.drawingsRef.current, pen]);
       drawingsApi.setSelectedId(pen.id);
 
+      capturedPointerRef.current = { target: event.currentTarget, id: event.pointerId };
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -1037,6 +1041,7 @@ export function useDrawingCanvas(
     };
     setIsDirectManipulationActive(true);
 
+    capturedPointerRef.current = { target: event.currentTarget, id: event.pointerId };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -1216,7 +1221,6 @@ export function useDrawingCanvas(
 
     if (!drag) return;
 
-    setIsDirectManipulationActive(false);
     event.preventDefault();
     event.stopPropagation();
 
@@ -1340,6 +1344,10 @@ export function useDrawingCanvas(
   };
 
   const handlePointerUpCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    capturedPointerRef.current = null;
+    setIsDirectManipulationActive(false);
+    setIsHoveringDrawing(false);
+    setIsHoveringHorizontalDrawing(false);
     if (refs.toolRef.current === "ruler") {
       // Do not finish the measurement on mouse-up. It remains visible while
       // the pointer moves and is removed only by the ruler's second click.
@@ -1545,6 +1553,34 @@ export function useDrawingCanvas(
     setChaseTooltip(null);
     clearHoveredDrawingInfo();
   };
+
+  const cancelPointerInteraction = () => {
+    const drag = refs.dragRef.current;
+    refs.dragRef.current = null;
+    const pen = refs.penDraftRef.current;
+    refs.penDraftRef.current = null;
+    setIsDirectManipulationActive(false);
+    handlePointerLeave();
+    const captured = capturedPointerRef.current;
+    capturedPointerRef.current = null;
+    if (captured?.target.hasPointerCapture(captured.id)) {
+      captured.target.releasePointerCapture(captured.id);
+    }
+    if (drag || pen) drawingsApi.setSelectedId(null);
+    // Cancellation must never submit a pending order-line move.
+    if (drag && refs.drawingsRef.current.some((drawing) => drawing.id === drag.drawingId)) {
+      drawingsApi.replaceDrawingWithoutHistory(drag.drawingId, cloneDrawing(drag.before));
+    }
+    if (pen) {
+      drawingsApi.syncDrawings(refs.drawingsRef.current.filter((drawing) => drawing.id !== pen.id));
+    }
+  };
+  const cancelPointerRef = useRef(cancelPointerInteraction);
+  cancelPointerRef.current = cancelPointerInteraction;
+  useEffect(() => watchPointerInterruption(() => cancelPointerRef.current()), []);
+  useEffect(() => {
+    cancelPointerRef.current();
+  }, [symbol, marketData.interval, showDrawings]);
 
   return {
     isHoveringDrawing,

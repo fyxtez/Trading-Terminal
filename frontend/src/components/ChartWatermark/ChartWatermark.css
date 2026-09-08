@@ -17,8 +17,8 @@
   height: 70px;
   flex: 0 0 58px;
   background-color: rgb(148 163 184 / 35%);
-  -webkit-mask-image: url("/fyxtez-f-mark-alpha.png");
-  mask-image: url("/fyxtez-f-mark-alpha.png");
+  -webkit-mask-image: url("../../assets/fyxtez-f-mark-alpha.png");
+  mask-image: url("../../assets/fyxtez-f-mark-alpha.png");
   -webkit-mask-size: contain;
   mask-size: contain;
   -webkit-mask-repeat: no-repeat;

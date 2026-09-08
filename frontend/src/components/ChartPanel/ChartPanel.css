@@ -33,7 +33,7 @@
   /* Stay above the canvas, but below the drawing toolbar and chart buttons so
    * an active mobile tool can always be cancelled. */
   z-index: 190;
-  cursor: ns-resize;
+  cursor: inherit;
   pointer-events: auto;
   touch-action: none;
 }
@@ -44,7 +44,6 @@
 
 .chart-wrap.tool-pen,
 .chart-wrap.tool-text,
-.chart-wrap.tool-trend,
 .chart-wrap.tool-box,
 .chart-wrap.tool-group-select,
 .chart-wrap.tool-vertical,
@@ -52,6 +51,7 @@
 .chart-wrap.tool-ruler {
   cursor: crosshair;
 }
+.chart-wrap.tool-trend,
 .chart-wrap.tool-cursor.hovering-drawing {
   cursor: pointer;
 }

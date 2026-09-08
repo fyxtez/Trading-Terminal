@@ -14,8 +14,6 @@ use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
 use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
-#[cfg(target_os = "linux")]
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use zeroize::Zeroizing;
@@ -39,20 +37,16 @@ struct BackupOperationLock(Mutex<()>);
 #[cfg(target_os = "linux")]
 struct LinuxLifecycleState {
     tray_available: bool,
-    close_check_in_flight: AtomicBool,
 }
 
 #[cfg(target_os = "linux")]
 impl LinuxLifecycleState {
     fn new(tray_available: bool) -> Self {
-        Self {
-            tray_available,
-            close_check_in_flight: AtomicBool::new(false),
-        }
+        Self { tray_available }
     }
 
-    fn can_hide_on_close(&self, browser_access_enabled: bool) -> bool {
-        self.tray_available && browser_access_enabled
+    fn can_hide_on_close(&self) -> bool {
+        self.tray_available
     }
 }
 
@@ -602,8 +596,8 @@ fn setup_linux_tray(app: &tauri::App) -> tauri::Result<()> {
     const QUIT: &str = "quit";
 
     let menu = MenuBuilder::new(app)
-        .text(OPEN_APP, "Open Fyxtez")
-        .text(OPEN_BROWSER, "Open in browser")
+        .text(OPEN_APP, "Open Terminal")
+        .text(OPEN_BROWSER, "Open in Browser")
         .separator()
         .text(QUIT, "Quit")
         .build()?;
@@ -813,47 +807,13 @@ pub fn run() {
         } = &event
             && label == "main"
         {
-            let supervisor = app.state::<BackendSupervisor>();
             let lifecycle = app.state::<LinuxLifecycleState>();
-            if lifecycle.can_hide_on_close(supervisor.browser_access_enabled()) {
+            if lifecycle.can_hide_on_close() {
                 api.prevent_close();
-
-                if lifecycle
-                    .close_check_in_flight
-                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-                    .is_ok()
+                if let Some(window) = app.get_webview_window("main")
+                    && let Err(error) = window.hide()
                 {
-                    let app = app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        // The atomic flag is only a fast local mirror. Confirm
-                        // with the sidecar before making the native app invisible
-                        // so a failed companion listener never leaves a hidden,
-                        // unusable process behind.
-                        let confirmed =
-                            tokio::time::timeout(std::time::Duration::from_secs(3), async {
-                                let supervisor = app.state::<BackendSupervisor>();
-                                browser_access::status(supervisor.inner()).await
-                            })
-                            .await
-                            .ok()
-                            .and_then(Result::ok)
-                            .is_some_and(|status| status.available && status.enabled);
-
-                        let lifecycle = app.state::<LinuxLifecycleState>();
-                        lifecycle
-                            .close_check_in_flight
-                            .store(false, Ordering::Release);
-
-                        if confirmed {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.hide();
-                            }
-                        } else {
-                            app.state::<BackendSupervisor>()
-                                .set_browser_access_enabled(false);
-                            app.exit(0);
-                        }
-                    });
+                    eprintln!("[terminal] could not hide the main window: {error}");
                 }
             }
         }
@@ -884,13 +844,12 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn close_hides_only_when_tray_and_browser_access_are_both_available() {
+    fn close_hides_when_tray_is_available_independent_of_browser_access() {
         let with_tray = LinuxLifecycleState::new(true);
-        assert!(with_tray.can_hide_on_close(true));
-        assert!(!with_tray.can_hide_on_close(false));
+        assert!(with_tray.can_hide_on_close());
 
         let without_tray = LinuxLifecycleState::new(false);
-        assert!(!without_tray.can_hide_on_close(true));
+        assert!(!without_tray.can_hide_on_close());
     }
 
     #[test]

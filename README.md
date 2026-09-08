@@ -115,18 +115,23 @@ release format; AppImage is the portable fallback. See
 
 In an installed Linux build, **Settings → Browser access → ENABLE & OPEN** opens an
 authenticated terminal in the user's normal browser. On Linux desktops with a
-working status tray, closing the native window leaves Fyxtez available there;
-**Disable** revokes every browser session, and tray **Quit** stops the local
-service. Without a tray, closing the window remains a real exit so Fyxtez cannot
+working status tray, closing the native window (including **Alt + F4**) hides it
+and keeps the backend running, whether Browser access is enabled or disabled.
+Use the tray menu to reopen the window. **Disable** revokes every browser session,
+and tray **Quit** stops the local service. Without a tray, closing the window
+remains a real exit so Fyxtez cannot
 be left invisibly running. This listener is loopback only and is not a remotely
 hosted or LAN-accessible terminal. Choosing **OPEN IN BROWSER** again opens
 another authorized tab without disconnecting tabs already in use.
 
-Browser sessions have no time limit while Browser access is enabled and the
-backend keeps running. Turning access off, restarting the backend or quitting
-Terminal revokes them. Launch links remain one-use and expire after 60 seconds.
-Closing a browser tab can discard its tab-scoped proof; use **OPEN IN BROWSER**
-to authorize a new tab. Browser access settings are hidden on Android.
+Browser sessions last 30 days from authorization and survive browser and backend
+restarts. The browser stores an HttpOnly cookie plus an origin-scoped persistent
+proof; the backend stores only hashed session credentials and expiry in the private
+`browser-sessions.json` file, excluded from backups. **Disable** permanently revokes
+all sessions. Launch links remain one-use and expire after 60 seconds. After upgrading
+from memory-only sessions, use **OPEN IN BROWSER** once to authorize a persistent
+session. Clearing browser data also requires authorization again. Browser access
+settings are hidden on Android.
 
 ## Prerequisites
 
@@ -227,6 +232,10 @@ The normal developer flow remains only `git add`, `git commit`, and `git push`.
 See [the release guide](docs/RELEASING.md).
 
 ## Configuration
+
+Market-data reads have a 15-second deadline, and live requests cannot overlap.
+Live-price polling remains enabled in background tabs, subject to the browser's
+own timer throttling. Visual rendering pauses while hidden and resumes on return.
 
 Chart candles use public market data independently of the selected execution
 network. In Practice mode, Binance Testnet may have no last-traded quote for a

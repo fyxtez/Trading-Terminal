@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    io::Write,
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -20,9 +22,10 @@ use super::api::AppState;
 
 pub(crate) const BROWSER_SESSION_COOKIE: &str = "fyxtez_browser_session";
 pub(crate) const BROWSER_PROOF_HEADER: &str = "x-fyxtez-browser-proof";
+const SESSION_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
 const LAUNCH_TICKET_TTL: Duration = Duration::from_secs(60);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct BrowserSessionAuth {
     pub session_id: u64,
     pub generation: u64,
@@ -42,25 +45,31 @@ pub(crate) struct WebsocketTicket {
 
 #[derive(Clone)]
 pub(crate) struct BrowserAccessState {
+    persistence_path: Option<PathBuf>,
     origin: Option<String>,
     host: Option<String>,
     inner: Arc<Mutex<BrowserAccessInner>>,
 }
 
+#[derive(Serialize, Deserialize)]
 struct BrowserAccessInner {
+    #[serde(skip)]
     available: bool,
     enabled: bool,
     generation: u64,
     next_session_id: u64,
+    #[serde(skip)]
     unavailable_reason: Option<String>,
+    #[serde(skip)]
     launch_tickets: HashMap<String, Instant>,
     sessions: HashMap<String, BrowserSessionRecord>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct BrowserSessionRecord {
     auth: BrowserSessionAuth,
     proof_hashes: HashSet<[u8; 32]>,
+    expires_at: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,6 +116,7 @@ struct RedeemedBrowserSessionResponse {
 impl BrowserAccessState {
     pub(crate) fn disabled() -> Self {
         Self {
+            persistence_path: None,
             origin: None,
             host: None,
             inner: Arc::new(Mutex::new(BrowserAccessInner {
@@ -124,6 +134,7 @@ impl BrowserAccessState {
     pub(crate) fn configured(address: std::net::SocketAddr) -> Self {
         let host = address.to_string();
         Self {
+            persistence_path: None,
             origin: Some(format!("http://{host}")),
             host: Some(host),
             inner: Arc::new(Mutex::new(BrowserAccessInner {
@@ -136,6 +147,49 @@ impl BrowserAccessState {
                 sessions: HashMap::new(),
             })),
         }
+    }
+
+    pub(crate) async fn persistent(
+        address: std::net::SocketAddr,
+        path: PathBuf,
+    ) -> AppResult<Self> {
+        let mut state = Self::configured(address);
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                let mut saved: BrowserAccessInner = serde_json::from_slice(&bytes)?;
+                remove_expired(&mut saved, Instant::now());
+                *state.inner.lock().await = saved;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        state.persistence_path = Some(path);
+        Ok(state)
+    }
+
+    fn persist(&self, inner: &BrowserAccessInner) -> AppResult<()> {
+        let Some(path) = &self.persistence_path else {
+            return Ok(());
+        };
+        let temporary = path.with_extension(format!("{}.tmp", random_secret()?));
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let result = (|| -> AppResult<()> {
+            let mut file = options.open(&temporary)?;
+            file.write_all(&serde_json::to_vec(inner)?)?;
+            file.sync_all()?;
+            std::fs::rename(&temporary, path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        result
     }
 
     pub(crate) async fn mark_available(&self) {
@@ -189,19 +243,24 @@ impl BrowserAccessState {
                 ));
             }
             inner.enabled = true;
+            if let Err(error) = self.persist(&inner) {
+                inner.enabled = false;
+                return Err(error);
+            }
         }
         Ok(self.status().await)
     }
 
-    pub(crate) async fn disable(&self) -> BrowserAccessStatus {
+    pub(crate) async fn disable(&self) -> AppResult<BrowserAccessStatus> {
         {
             let mut inner = self.inner.lock().await;
             inner.enabled = false;
             inner.generation = inner.generation.wrapping_add(1);
             inner.launch_tickets.clear();
             inner.sessions.clear();
+            self.persist(&inner)?;
         }
-        self.status().await
+        Ok(self.status().await)
     }
 
     pub(crate) async fn issue_launch_ticket(&self) -> AppResult<BrowserLaunchResponse> {
@@ -251,22 +310,22 @@ impl BrowserAccessState {
         let session_proof = random_secret()?;
         let proof_hash = secret_hash(&session_proof);
 
-        // Cookies are shared by tabs, but sessionStorage (and therefore the
-        // proof) is tab-scoped. Reuse an active cookie session and add a proof
-        // for the newly opened tab so older tabs do not lose authorization
-        // when the shared cookie is overwritten. A missing, malformed or stale
-        // cookie starts an independent browser session.
+        // Reuse the browser's cookie when authorizing again. Both the cookie
+        // and proof survive browser restarts; existing proofs remain valid.
         if let Some((session, record)) = existing_session
             .filter(|session| valid_secret(session))
             .and_then(|session| {
                 inner
                     .sessions
-                    .get_mut(session)
+                    .get_mut(&session_key(session))
                     .map(|record| (session.to_owned(), record))
             })
         {
             record.proof_hashes.insert(proof_hash);
-            return Ok((session, session_proof, record.auth));
+            record.expires_at = unix_seconds() + SESSION_TTL_SECONDS;
+            let auth = record.auth;
+            self.persist(&inner)?;
+            return Ok((session, session_proof, auth));
         }
 
         let session = random_secret()?;
@@ -276,12 +335,14 @@ impl BrowserAccessState {
         };
         inner.next_session_id = inner.next_session_id.wrapping_add(1);
         inner.sessions.insert(
-            session.clone(),
+            session_key(&session),
             BrowserSessionRecord {
                 auth,
                 proof_hashes: HashSet::from([proof_hash]),
+                expires_at: unix_seconds() + SESSION_TTL_SECONDS,
             },
         );
+        self.persist(&inner)?;
         Ok((session, session_proof, auth))
     }
 
@@ -307,7 +368,10 @@ impl BrowserAccessState {
         if !inner.available || !inner.enabled {
             return Err(AppError::Unauthorized);
         }
-        let record = inner.sessions.get(session).ok_or(AppError::Unauthorized)?;
+        let record = inner
+            .sessions
+            .get(&session_key(session))
+            .ok_or(AppError::Unauthorized)?;
         if !record.proof_hashes.contains(&secret_hash(session_proof)) {
             return Err(AppError::Unauthorized);
         }
@@ -323,7 +387,21 @@ impl BrowserAccessState {
         inner.available
             && inner.enabled
             && inner.generation == auth.generation
-            && inner.sessions.values().any(|stored| stored.auth == auth)
+            && inner
+                .sessions
+                .values()
+                .any(|stored| stored.auth == auth && stored.expires_at > unix_seconds())
+    }
+
+    async fn remaining_session_ms(&self, auth: BrowserSessionAuth) -> u64 {
+        self.inner
+            .lock()
+            .await
+            .sessions
+            .values()
+            .find(|record| record.auth == auth)
+            .map(|record| record.expires_at.saturating_sub(unix_seconds()) * 1000)
+            .unwrap_or(0)
     }
 
     pub(crate) fn validate_browser_headers(
@@ -376,7 +454,7 @@ pub(crate) async fn disable_browser_access(
     headers: HeaderMap,
 ) -> AppResult<Response> {
     require_master_token(&state, &headers)?;
-    Ok(no_store_json(state.browser_access.disable().await))
+    Ok(no_store_json(state.browser_access.disable().await?))
 }
 
 pub(crate) async fn launch_browser_access(
@@ -401,12 +479,15 @@ pub(crate) async fn redeem_browser_session(
         return Err(AppError::Unauthorized);
     }
     let existing_session = cookie_value(&headers, BROWSER_SESSION_COOKIE);
-    let (session, session_proof, _) = state
+    let (session, session_proof, auth) = state
         .browser_access
         .redeem(&request.ticket, existing_session)
         .await?;
     let body = RedeemedBrowserSessionResponse {
-        session: session_response(&state),
+        session: session_response(
+            &state,
+            state.browser_access.remaining_session_ms(auth).await,
+        ),
         session_proof,
     };
     let mut response = no_store_json(body);
@@ -429,11 +510,14 @@ pub(crate) async fn browser_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> AppResult<Response> {
-    state
+    let auth = state
         .browser_access
         .authenticate_cookie(&headers, &Method::GET)
         .await?;
-    Ok(no_store_json(session_response(&state)))
+    Ok(no_store_json(session_response(
+        &state,
+        state.browser_access.remaining_session_ms(auth).await,
+    )))
 }
 
 fn no_store_json<T: Serialize>(value: T) -> Response {
@@ -448,7 +532,7 @@ fn no_store_json<T: Serialize>(value: T) -> Response {
     response
 }
 
-fn session_response(state: &AppState) -> BrowserSessionResponse {
+fn session_response(state: &AppState, expires_in_ms: u64) -> BrowserSessionResponse {
     let configured = state.binance.is_configured();
     BrowserSessionResponse {
         mode: "local-browser",
@@ -461,7 +545,7 @@ fn session_response(state: &AppState) -> BrowserSessionResponse {
         } else {
             Some("mainnet")
         },
-        expires_in_ms: None,
+        expires_in_ms: Some(expires_in_ms),
     }
 }
 
@@ -481,9 +565,23 @@ fn remove_expired(inner: &mut BrowserAccessInner, now: Instant) {
         .launch_tickets
         .retain(|_, expires_at| *expires_at > now);
     let generation = inner.generation;
-    inner
-        .sessions
-        .retain(|_, record| record.auth.generation == generation);
+    inner.sessions.retain(|_, record| {
+        record.auth.generation == generation && record.expires_at > unix_seconds()
+    });
+}
+
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn session_key(secret: &str) -> String {
+    secret_hash(secret)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn random_secret() -> AppResult<String> {
@@ -503,7 +601,7 @@ fn secret_hash(secret: &str) -> [u8; 32] {
 
 fn browser_session_cookie(session: &str) -> AppResult<HeaderValue> {
     HeaderValue::from_str(&format!(
-        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api"
+        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={SESSION_TTL_SECONDS}"
     ))
     .map_err(|_| AppError::Config("cannot create browser session cookie".into()))
 }
@@ -592,7 +690,7 @@ mod tests {
         .unwrap();
         let cookie = cookie.to_str().unwrap();
         assert!(cookie.contains("Path=/api"));
-        assert!(!cookie.contains("Max-Age="));
+        assert!(cookie.contains("Max-Age=2592000"));
         assert!(!cookie.contains("Expires="));
         assert!(!cookie.contains("Path=/;"));
     }
@@ -626,7 +724,7 @@ mod tests {
                 .await
                 .is_ok()
         );
-        state.disable().await;
+        state.disable().await.unwrap();
         assert!(
             state
                 .authenticate_cookie(&headers, &Method::GET)
@@ -645,7 +743,7 @@ mod tests {
         let (_, _, first_auth) = state.redeem(first_ticket, None).await.unwrap();
         assert!(state.session_auth_is_active(first_auth).await);
 
-        state.disable().await;
+        state.disable().await.unwrap();
         state.enable().await.unwrap();
         assert!(
             !state.session_auth_is_active(first_auth).await,
@@ -661,6 +759,83 @@ mod tests {
             !state.session_auth_is_active(second_auth).await,
             "an unavailable backend must revoke browser streams"
         );
+    }
+
+    #[tokio::test]
+    async fn persistent_sessions_survive_restart_expire_and_stay_revoked() {
+        let directory = std::env::temp_dir().join(format!(
+            "terminal-session-test-{}",
+            super::random_secret().unwrap()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("browser-sessions.json");
+        let address = "127.0.0.1:8658".parse().unwrap();
+        let state = BrowserAccessState::persistent(address, path.clone())
+            .await
+            .unwrap();
+        state.mark_available().await;
+        state.enable().await.unwrap();
+        let launch = state.issue_launch_ticket().await.unwrap();
+        let ticket = launch.url.split("#browser-ticket=").nth(1).unwrap();
+        let (session, proof, auth) = state.redeem(ticket, None).await.unwrap();
+        let bytes = std::fs::read_to_string(&path).unwrap();
+        assert!(!bytes.contains(&session));
+        assert!(!bytes.contains(&proof));
+        assert!(!bytes.contains(ticket));
+        let remaining = state.remaining_session_ms(auth).await;
+        assert!(remaining >= (super::SESSION_TTL_SECONDS - 2) * 1000);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let mut headers = browser_headers(false);
+        add_session_auth(&mut headers, &session, &proof);
+        let restored = BrowserAccessState::persistent(address, path.clone())
+            .await
+            .unwrap();
+        restored.mark_available().await;
+        assert!(
+            restored
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_ok()
+        );
+        assert!(restored.session_auth_is_active(auth).await);
+        // A persisted session past its wall-clock deadline cannot authorize HTTP or streams.
+        {
+            let mut inner = state.inner.lock().await;
+            inner.sessions.values_mut().next().unwrap().expires_at = super::unix_seconds() - 1;
+            state.persist(&inner).unwrap();
+        }
+        let expired = BrowserAccessState::persistent(address, path.clone())
+            .await
+            .unwrap();
+        expired.mark_available().await;
+        assert!(
+            expired
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_err()
+        );
+        assert!(!expired.session_auth_is_active(auth).await);
+        restored.disable().await.unwrap();
+        let revoked = BrowserAccessState::persistent(address, path.clone())
+            .await
+            .unwrap();
+        revoked.mark_available().await;
+        assert!(!revoked.status().await.enabled);
+        revoked.enable().await.unwrap();
+        assert!(
+            revoked
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_err()
+        );
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]
@@ -813,7 +988,7 @@ mod tests {
             "a proof from a different browser cookie must not authenticate"
         );
 
-        let status = state.disable().await;
+        let status = state.disable().await.unwrap();
         assert_eq!(status.active_sessions, 0);
         assert!(
             state

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { startMarketPoll } from "../utils/marketPoll";
 import {
   LineStyle,
   type CandlestickData,
@@ -271,7 +272,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
     refs.candleRef.current?.setData([]);
     refs.futureScaleRef.current?.setData([]);
-    let livePollTimer: number | null = null;
+    let livePolling: ReturnType<typeof startMarketPoll> | null = null;
     /*
      * the fixed
      * LIVE_POLL_INTERVAL_MS timer below only happens to notice a new
@@ -302,23 +303,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     // Applies a freshly-fetched candle to the chart, the series, the
     // future-time-scale overlay, and the live-price UI.
     const applyCandleUpdate = (candle: CandlestickData) => {
-      /*
-       * applyCandleUpdate
-       * is called both by the regular LIVE_POLL_INTERVAL_MS tick and by
-       * the boundary-poke timer (see its own comment above) - which fires
-       * an EXTRA poll deliberately timed for right around when a candle
-       * closes, i.e. right around when the regular interval poll is also
-       * likely to be due. Both do their own independent
-       * fetchLatestKline() request; if the regular poll's request happens
-       * to resolve first (landing the new post-boundary candle) and the
-       * boundary poke's slightly-earlier-started request resolves after
-       * it with the OLDER pre-boundary candle, this got called with data
-       * older than what the series already has - which
-       * lightweight-charts throws on synchronously rather than ignoring.
-       * Comparing against lastDataTimeRef (kept in sync by every caller)
-       * means a genuinely stale response is simply discarded here,
-       * regardless of which of the two timers produced it.
-       */
+      // Keep stale exchange responses from moving the chart backward.
       const currentLast = refs.lastDataTimeRef.current;
 
       if (currentLast !== null && Number(candle.time) < Number(currentLast)) {
@@ -706,13 +691,13 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         // function - via the outer `let pollLive` declared alongside it -
         // to fire one extra poll timed right at each candle's expected
         // close instead of waiting on this fixed interval alone.
-        pollLive = async () => {
+        livePolling = startMarketPoll(async (signal) => {
           if (cancelled || myEpoch !== refs.epochRef.current) return;
 
           try {
-            const candle = await fetchLatestKline(interval, symbol);
+            const candle = await fetchLatestKline(interval, symbol, signal);
 
-            if (cancelled || myEpoch !== refs.epochRef.current || !candle) {
+            if (signal.aborted || cancelled || myEpoch !== refs.epochRef.current || !candle) {
               return;
             }
 
@@ -720,17 +705,16 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
             setMarketConnection("connected");
             setMarketDataError(null);
           } catch (error) {
-            if (cancelled || myEpoch !== refs.epochRef.current) return;
+            if (signal.aborted || cancelled || myEpoch !== refs.epochRef.current) return;
 
             console.warn("[market-poll] failed", error);
             setMarketConnection("disconnected");
             setMarketDataError(userFacingError(error, "Live prices are temporarily unavailable."));
           }
-        };
-
-        void pollLive();
-        livePollTimer = window.setInterval(() => void pollLive(), LIVE_POLL_INTERVAL_MS);
+        }, LIVE_POLL_INTERVAL_MS);
+        pollLive = livePolling.poll;
       } catch (error) {
+        if (cancelled || myEpoch !== refs.epochRef.current) return;
         refs.chartReadyRef.current = false;
         setIsChartLoading(false);
         setMarketConnection("disconnected");
@@ -829,9 +813,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
         window.clearTimeout(viewportSaveTimer);
       }
 
-      if (livePollTimer !== null) {
-        window.clearInterval(livePollTimer);
-      }
+      livePolling?.stop();
 
       if (boundaryPokeTimer !== null) {
         window.clearTimeout(boundaryPokeTimer);

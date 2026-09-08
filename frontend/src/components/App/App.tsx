@@ -934,6 +934,7 @@ function App() {
     // visibility is handled inside the shared canvas so trading order
     // lines remain visible even when the user hides regular drawings.
     showDrawings,
+    currentSymbol,
   );
 
   useHotkeys(refs, drawingsApi, priceAlertsApi, tradeMenuApi, chartTabs);

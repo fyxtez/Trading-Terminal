@@ -119,6 +119,7 @@ export function errorMessage(error: unknown): string {
 }
 
 function isPortableFyxtezKey(key: string): boolean {
+  if (key === "fyxtez:local-browser-session-proof") return false;
   if (key.startsWith("fyxtez:symbol-icon-metadata:")) return false;
   if (key.startsWith("price-alerts-") || key.startsWith("fyxtez:price-alerts-")) return false;
   return (

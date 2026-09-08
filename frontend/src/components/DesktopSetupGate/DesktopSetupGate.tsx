@@ -1,3 +1,4 @@
+import terminalMark from "../../assets/fyxtez-f-mark-alpha.png?inline";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
@@ -418,7 +419,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
     <main className="desktop-setup">
       <section className={`desktop-setup-card ${activeSteps.length === 1 ? "single-step" : ""}`}>
         <header className="desktop-setup-header">
-          <img src="/fyxtez-f-mark-alpha.png" alt="" />
+          <img src={terminalMark} alt="" />
           <div>
             <small>ACCOUNT SETUP</small>
             <h1>

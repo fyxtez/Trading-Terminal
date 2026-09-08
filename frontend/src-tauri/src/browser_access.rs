@@ -50,9 +50,8 @@ pub async fn enable(supervisor: &BackendSupervisor) -> Result<BrowserAccessStatu
 }
 
 pub async fn disable(supervisor: &BackendSupervisor) -> Result<BrowserAccessStatus, String> {
-    // Once the user asks to disable browser access, closing the native window
-    // must be a real exit even if the acknowledgement is lost. Process exit is
-    // the final fail-closed revocation path for every in-memory browser session.
+    // Clear the local mirror immediately; the backend acknowledges disable only
+    // after persisting revocation of the browser sessions.
     supervisor.set_browser_access_enabled(false);
     let status = request(supervisor, Method::POST, "/api/browser-access/disable").await?;
     Ok(status)
@@ -92,7 +91,7 @@ pub async fn open_in_default_browser(
     if let Err(error) = open_result {
         if !was_enabled && disable(supervisor).await.is_err() {
             return Err(format!(
-                "{error}. Browser access could not be turned back off; close and reopen Fyxtez"
+                "{error}. Browser access could not be turned back off; retry Disable in Terminal Settings"
             ));
         }
         return Err(error);
