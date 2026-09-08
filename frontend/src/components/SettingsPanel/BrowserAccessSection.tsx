@@ -107,6 +107,9 @@ export default function BrowserAccessSection({
       .finally(() => setBusy(false));
   };
 
+  // Native platforms without browser hosting (including Android) expose no section.
+  if (runtimeMode === "native" && (!status || !status.supported)) return null;
+
   return (
     <section className="settings-section settings-browser-access">
       <div className="settings-section-heading settings-section-heading-with-action">

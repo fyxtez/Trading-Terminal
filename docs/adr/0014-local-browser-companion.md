@@ -72,9 +72,13 @@ embedded native UI and does not expose Browser access.
   split session proof, short-lived one-use tickets, expiry, revocation and
   native-only control authorization require dedicated regression tests.
 - Multiple authorized tabs in one browser profile share its `HttpOnly` cookie
-  but keep separate tab proofs. They share the cookie session's remaining
-  lifetime and are revoked together; the reported session count represents
-  issued, unexpired proofs rather than a live count of open tabs.
+  but keep separate tab proofs. Sessions have no time-based expiry while access
+  is enabled and the backend runs, and are revoked together on disable or
+  shutdown. The cookie has no Max-Age or Expires; tab proofs remain in
+  sessionStorage. Closing a tab or clearing browser data may require opening a
+  new authorized tab from Terminal. Launch tickets still expire after 60 seconds.
+  The reported session count represents issued, unrevoked proofs rather than a
+  live count of open tabs. Unsupported native platforms hide the settings section.
 - Port `8658` is reserved for the browser workspace. A collision produces a
   clear Browser access error rather than falling back to another origin or
   breaking the native terminal.

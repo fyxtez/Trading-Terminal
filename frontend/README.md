@@ -8,6 +8,10 @@ backup extensions retain their names for compatibility.
 
 Development requires Node.js 20.19+ or 22.12+.
 
+Adding a symbol checks Binance Futures, then MEXC Futures. The menu shows a
+loading indicator until registration and the registry refresh finish. Spot-only
+pairs cannot currently be added, even if they exist on an exchange's spot market.
+
 For desktop development, run `./run.sh` from the repository root. It installs
 missing frontend dependencies before launching the app.
 

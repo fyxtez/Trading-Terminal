@@ -21,13 +21,11 @@ use super::api::AppState;
 pub(crate) const BROWSER_SESSION_COOKIE: &str = "fyxtez_browser_session";
 pub(crate) const BROWSER_PROOF_HEADER: &str = "x-fyxtez-browser-proof";
 const LAUNCH_TICKET_TTL: Duration = Duration::from_secs(60);
-const BROWSER_SESSION_TTL: Duration = Duration::from_secs(12 * 60 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BrowserSessionAuth {
     pub session_id: u64,
     pub generation: u64,
-    pub expires_at: Instant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +93,7 @@ pub(crate) struct BrowserSessionResponse {
     authenticated: bool,
     binance_configured: bool,
     binance_network: Option<&'static str>,
-    expires_in_ms: u64,
+    expires_in_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -168,7 +166,7 @@ impl BrowserAccessState {
             // A browser cookie is shared by tabs, while each redeemed launch
             // ticket creates a separate tab proof. Report those independent
             // tab authorization capabilities rather than only counting cookie
-            // jars. They remain counted until session expiry or revocation;
+            // jars. They remain counted until revocation;
             // this is not a live count of currently open tabs.
             active_sessions: inner
                 .sessions
@@ -275,7 +273,6 @@ impl BrowserAccessState {
         let auth = BrowserSessionAuth {
             session_id: inner.next_session_id,
             generation: inner.generation,
-            expires_at: now + BROWSER_SESSION_TTL,
         };
         inner.next_session_id = inner.next_session_id.wrapping_add(1);
         inner.sessions.insert(
@@ -315,7 +312,7 @@ impl BrowserAccessState {
             return Err(AppError::Unauthorized);
         }
         let auth = record.auth;
-        if auth.generation != inner.generation || auth.expires_at <= now {
+        if auth.generation != inner.generation {
             return Err(AppError::Unauthorized);
         }
         Ok(auth)
@@ -326,7 +323,6 @@ impl BrowserAccessState {
         inner.available
             && inner.enabled
             && inner.generation == auth.generation
-            && auth.expires_at > Instant::now()
             && inner.sessions.values().any(|stored| stored.auth == auth)
     }
 
@@ -405,13 +401,12 @@ pub(crate) async fn redeem_browser_session(
         return Err(AppError::Unauthorized);
     }
     let existing_session = cookie_value(&headers, BROWSER_SESSION_COOKIE);
-    let (session, session_proof, auth) = state
+    let (session, session_proof, _) = state
         .browser_access
         .redeem(&request.ticket, existing_session)
         .await?;
-    let ttl = auth.expires_at.saturating_duration_since(Instant::now());
     let body = RedeemedBrowserSessionResponse {
-        session: session_response(&state, ttl),
+        session: session_response(&state),
         session_proof,
     };
     let mut response = no_store_json(body);
@@ -426,7 +421,7 @@ pub(crate) async fn redeem_browser_session(
     );
     response
         .headers_mut()
-        .append(header::SET_COOKIE, browser_session_cookie(&session, ttl)?);
+        .append(header::SET_COOKIE, browser_session_cookie(&session)?);
     Ok(response)
 }
 
@@ -434,14 +429,11 @@ pub(crate) async fn browser_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> AppResult<Response> {
-    let auth = state
+    state
         .browser_access
         .authenticate_cookie(&headers, &Method::GET)
         .await?;
-    Ok(no_store_json(session_response(
-        &state,
-        auth.expires_at.saturating_duration_since(Instant::now()),
-    )))
+    Ok(no_store_json(session_response(&state)))
 }
 
 fn no_store_json<T: Serialize>(value: T) -> Response {
@@ -456,7 +448,7 @@ fn no_store_json<T: Serialize>(value: T) -> Response {
     response
 }
 
-fn session_response(state: &AppState, remaining: Duration) -> BrowserSessionResponse {
+fn session_response(state: &AppState) -> BrowserSessionResponse {
     let configured = state.binance.is_configured();
     BrowserSessionResponse {
         mode: "local-browser",
@@ -469,7 +461,7 @@ fn session_response(state: &AppState, remaining: Duration) -> BrowserSessionResp
         } else {
             Some("mainnet")
         },
-        expires_in_ms: duration_millis(remaining),
+        expires_in_ms: None,
     }
 }
 
@@ -491,7 +483,7 @@ fn remove_expired(inner: &mut BrowserAccessInner, now: Instant) {
     let generation = inner.generation;
     inner
         .sessions
-        .retain(|_, record| record.auth.expires_at > now && record.auth.generation == generation);
+        .retain(|_, record| record.auth.generation == generation);
 }
 
 fn random_secret() -> AppResult<String> {
@@ -509,10 +501,9 @@ fn secret_hash(secret: &str) -> [u8; 32] {
     Sha256::digest(secret.as_bytes()).into()
 }
 
-fn browser_session_cookie(session: &str, ttl: Duration) -> AppResult<HeaderValue> {
+fn browser_session_cookie(session: &str) -> AppResult<HeaderValue> {
     HeaderValue::from_str(&format!(
-        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={}",
-        ttl.as_secs()
+        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api"
     ))
     .map_err(|_| AppError::Config("cannot create browser session cookie".into()))
 }
@@ -574,7 +565,7 @@ mod tests {
             authenticated: true,
             binance_configured: false,
             binance_network: None,
-            expires_in_ms: 1,
+            expires_in_ms: None,
         };
         let ordinary = serde_json::to_value(&session).unwrap();
         assert!(ordinary.get("sessionProof").is_none());
@@ -597,11 +588,12 @@ mod tests {
     fn browser_cookie_is_scoped_to_the_api_path() {
         let cookie = browser_session_cookie(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            std::time::Duration::from_secs(60),
         )
         .unwrap();
         let cookie = cookie.to_str().unwrap();
-        assert!(cookie.contains("Path=/api;"));
+        assert!(cookie.contains("Path=/api"));
+        assert!(!cookie.contains("Max-Age="));
+        assert!(!cookie.contains("Expires="));
         assert!(!cookie.contains("Path=/;"));
     }
 
@@ -644,7 +636,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn browser_stream_authorization_tracks_revocation_generation_and_expiry() {
+    async fn browser_stream_authorization_tracks_revocation_and_availability() {
         let state = BrowserAccessState::configured("127.0.0.1:8658".parse().unwrap());
         state.mark_available().await;
         state.enable().await.unwrap();
@@ -662,13 +654,55 @@ mod tests {
 
         let second_launch = state.issue_launch_ticket().await.unwrap();
         let second_ticket = second_launch.url.split("#browser-ticket=").nth(1).unwrap();
-        let (_, _, mut second_auth) = state.redeem(second_ticket, None).await.unwrap();
+        let (_, _, second_auth) = state.redeem(second_ticket, None).await.unwrap();
         assert!(state.session_auth_is_active(second_auth).await);
-        second_auth.expires_at = tokio::time::Instant::now();
+        state.mark_unavailable("backend stopped").await;
         assert!(
             !state.session_auth_is_active(second_auth).await,
-            "an expired browser stream must be rejected even without disable"
+            "an unavailable backend must revoke browser streams"
         );
+    }
+
+    #[tokio::test]
+    async fn sessions_survive_elapsed_time_but_launch_tickets_still_expire() {
+        let state = BrowserAccessState::configured("127.0.0.1:8658".parse().unwrap());
+        state.mark_available().await;
+        state.enable().await.unwrap();
+        let launch = state.issue_launch_ticket().await.unwrap();
+        let ticket = launch.url.split("#browser-ticket=").nth(1).unwrap();
+        let (session, proof, auth) = state.redeem(ticket, None).await.unwrap();
+        let unused_launch = state.issue_launch_ticket().await.unwrap();
+        let unused_ticket = unused_launch.url.split("#browser-ticket=").nth(1).unwrap();
+
+        {
+            let mut inner = state.inner.lock().await;
+            super::remove_expired(
+                &mut inner,
+                tokio::time::Instant::now() + std::time::Duration::from_secs(365 * 24 * 60 * 60),
+            );
+        }
+        let mut headers = browser_headers(false);
+        add_session_auth(&mut headers, &session, &proof);
+        assert!(
+            state
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_ok()
+        );
+        assert!(state.session_auth_is_active(auth).await);
+        assert!(state.redeem(unused_ticket, None).await.is_err());
+        assert_eq!(state.status().await.active_sessions, 1);
+
+        let restarted = BrowserAccessState::configured("127.0.0.1:8658".parse().unwrap());
+        restarted.mark_available().await;
+        restarted.enable().await.unwrap();
+        assert!(
+            restarted
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_err()
+        );
+        assert!(!restarted.session_auth_is_active(auth).await);
     }
 
     #[tokio::test]

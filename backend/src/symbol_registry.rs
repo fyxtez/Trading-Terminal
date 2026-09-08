@@ -158,7 +158,7 @@ impl SymbolRegistry {
             }
         } else {
             return Err(AppError::NotFound(format!(
-                "{base}/USDT was not found on Binance Futures or MEXC Futures"
+                "{base}/USDT was not found on Binance Futures or MEXC Futures. Spot pairs are not supported."
             )));
         };
 

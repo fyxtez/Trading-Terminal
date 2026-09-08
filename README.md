@@ -122,6 +122,12 @@ be left invisibly running. This listener is loopback only and is not a remotely
 hosted or LAN-accessible terminal. Choosing **OPEN IN BROWSER** again opens
 another authorized tab without disconnecting tabs already in use.
 
+Browser sessions have no time limit while Browser access is enabled and the
+backend keeps running. Turning access off, restarting the backend or quitting
+Terminal revokes them. Launch links remain one-use and expire after 60 seconds.
+Closing a browser tab can discard its tab-scoped proof; use **OPEN IN BROWSER**
+to authorize a new tab. Browser access settings are hidden on Android.
+
 ## Prerequisites
 
 - Node.js 20.19 or newer (or 22.12 or newer) and npm
@@ -221,6 +227,12 @@ The normal developer flow remains only `git add`, `git commit`, and `git push`.
 See [the release guide](docs/RELEASING.md).
 
 ## Configuration
+
+Chart candles use public market data independently of the selected execution
+network. In Practice mode, Binance Testnet may have no last-traded quote for a
+symbol whose live chart is active. The terminal reports that missing quote and
+blocks actions that need it for sizing; it does not substitute a live or mark
+price. A visible chart therefore does not establish Testnet trading availability.
 
 Binance keys and the selected Binance network belong only in the platform
 credential manager and are configured through the Tauri UI. Native Axum never

@@ -214,7 +214,7 @@ export type LocalBrowserSession = {
   authenticated: true;
   binanceConfigured: boolean;
   binanceNetwork: "mainnet" | "testnet" | null;
-  expiresInMs: number;
+  expiresInMs: number | null;
 };
 
 /**
@@ -334,7 +334,7 @@ function parseBrowserSession(value: unknown, requireProof: boolean): ParsedBrows
 
   const payload = value as BrowserSessionPayload;
   const network = payload.binanceNetwork;
-  const expiresInMs = Number(payload.expiresInMs);
+  const expiresInMs = payload.expiresInMs === null ? null : Number(payload.expiresInMs);
   const sessionProof = validBrowserSessionProof(payload.sessionProof) ? payload.sessionProof : null;
   if (
     payload.mode !== "local-browser" ||
@@ -344,8 +344,7 @@ function parseBrowserSession(value: unknown, requireProof: boolean): ParsedBrows
     (payload.binanceConfigured && network === null) ||
     (!payload.binanceConfigured && network !== null) ||
     (requireProof && sessionProof === null) ||
-    !Number.isFinite(expiresInMs) ||
-    expiresInMs <= 0
+    (expiresInMs !== null && (!Number.isFinite(expiresInMs) || expiresInMs <= 0))
   ) {
     throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
   }

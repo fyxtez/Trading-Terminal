@@ -13,7 +13,7 @@ export function userFacingError(
   fallback = "Something went wrong. Please try again.",
 ): string {
   const raw = reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "";
-  const message = raw.trim();
+  const message = raw.trim().replace(/^Invalid request:\s*/i, "");
 
   if (!message) return fallback;
   if (SAVED_CONNECTION_ERROR_PATTERN.test(message)) {

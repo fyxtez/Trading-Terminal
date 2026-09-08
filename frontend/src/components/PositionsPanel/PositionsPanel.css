@@ -124,15 +124,8 @@
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 
-  /*
-   * Was `hidden`. The heading/position rows below have a min-width of
-   * 1320px (900px on the narrower breakpoint) so every column lines up
-   * in a fixed grid - but on any panel narrower than that, `hidden` just
-   * clipped every column past what fit into empty space instead of
-   * letting you reach them, which is what showed up as a mostly-blank
-   * row with only the "Symbol" cell visible. `auto` makes the rest of
-   * the row reachable by scrolling instead of invisible.
-   */
+  /* Keep every desktop column reachable when the panel is narrower than
+   * the table. Narrow panels switch to cards through the container query. */
   overflow-x: auto;
 
   scrollbar-width: thin;
@@ -167,9 +160,9 @@
 
 .positions-heading-row,
 .position-row {
-  /* reserve a dedicated column for current USDT position notional
-   * immediately after Symbol without compressing the existing controls. */
-  min-width: 1630px;
+  /* Include all column minima, 11 gaps and horizontal padding so the final
+   * column stays inside the row's background and bottom border. */
+  min-width: calc(1479px + 11 * 18px + 32px);
   display: grid;
   grid-template-columns:
     minmax(140px, 1fr)

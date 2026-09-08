@@ -8,6 +8,7 @@ import { useFixedPopoverPosition } from "../../hooks/useFixedPopoverPosition";
 import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import { userFacingError } from "../../utils/userFacingError";
 import SymbolIcon from "../SymbolIcon/SymbolIcon";
+import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import {
   defaultSymbolCategory,
   loadSymbolCategories,
@@ -438,7 +439,11 @@ export default function SymbolSwitcher({
               {groupedSymbols.length === 0 && (
                 // explain an empty filtered list instead of leaving the
                 // menu visually blank when no registered symbol contains the text.
-                <div className="symbol-search-empty">No matching symbols — ready to add</div>
+                <div className="symbol-search-empty">
+                  {pending === "add"
+                    ? "Searching exchanges…"
+                    : "No matching symbols — ready to add"}
+                </div>
               )}
             </div>
 
@@ -481,9 +486,18 @@ export default function SymbolSwitcher({
                 disabled={!canAddSymbol}
                 onClick={() => void handleAdd()}
               >
-                {pending === "add" ? "…" : "Add"}
+                {pending === "add" ? "Adding…" : "Add"}
               </button>
             </div>
+            {pending === "add" && (
+              <div className="symbol-add-progress">
+                <LoadingIndicator
+                  variant="inline"
+                  label={`Adding ${newSymbol.trim()}…`}
+                  detail="Checking Binance and MEXC Futures and loading the symbol."
+                />
+              </div>
+            )}
             {error && (
               <div className="symbol-switcher-error" title={error}>
                 {error}

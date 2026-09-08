@@ -284,7 +284,7 @@ pub struct FuturesPosition {
 
 #[derive(Debug, Deserialize)]
 pub struct PriceResponse {
-    pub price: String,
+    pub price: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

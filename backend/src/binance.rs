@@ -297,10 +297,10 @@ impl BinanceClient {
             .public(
                 Method::GET,
                 "/fapi/v2/ticker/price",
-                vec![("symbol".into(), symbol)],
+                vec![("symbol".into(), symbol.clone())],
             )
             .await?;
-        parse_f64("price", &response.price)
+        parse_reference_price(response, &symbol, self.testnet)
     }
 
     pub async fn initialize_public_reference_data(&self) -> AppResult<()> {
@@ -1340,6 +1340,22 @@ fn decimals_from_step(step: f64) -> usize {
         .unwrap_or(0)
 }
 
+fn parse_reference_price(response: PriceResponse, symbol: &str, testnet: bool) -> AppResult<f64> {
+    // Practice can return HTTP 200 with {} when a symbol has no last-traded
+    // quote. Do not substitute a mainnet or mark price for execution sizing.
+    response
+        .price
+        .as_deref()
+        .and_then(|raw| raw.parse::<f64>().ok())
+        .filter(|price| price.is_finite() && *price > 0.0)
+        .ok_or_else(|| {
+            let network = if testnet { "Practice" } else { "Live" };
+            AppError::Invalid(format!(
+                "Binance {network} has no usable last-traded price for {symbol}. Try again when a quote is available."
+            ))
+        })
+}
+
 fn parse_f64(name: &str, raw: &str) -> AppResult<f64> {
     raw.parse::<f64>()
         .map_err(|_| AppError::Invalid(format!("invalid {name}: {raw}")))
@@ -1368,6 +1384,33 @@ mod tests {
 
     use serde_json::json;
     use zeroize::Zeroizing;
+
+    #[test]
+    fn missing_or_invalid_reference_prices_are_readable_validation_errors() {
+        for payload in [
+            json!({}),
+            json!({"price": null}),
+            json!({"price": "0"}),
+            json!({"price": "-1"}),
+            json!({"price": "NaN"}),
+            json!({"price": "inf"}),
+            json!({"price": "bad"}),
+        ] {
+            let response = serde_json::from_value(payload).unwrap();
+            let error = super::parse_reference_price(response, "PUMPUSDT", true).unwrap_err();
+            assert!(matches!(error, crate::error::AppError::Invalid(_)));
+            assert!(
+                error
+                    .to_string()
+                    .contains("Binance Practice has no usable last-traded price for PUMPUSDT")
+            );
+        }
+        let response = serde_json::from_value(json!({"price": "79324.20"})).unwrap();
+        assert_eq!(
+            super::parse_reference_price(response, "BTCUSDT", false).unwrap(),
+            79324.20
+        );
+    }
 
     use super::{
         append_reduce_only, floor_to_step, load_desktop_configuration, parse_exchange_filters,

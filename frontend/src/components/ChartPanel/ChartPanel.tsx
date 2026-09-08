@@ -596,6 +596,11 @@ export default function ChartPanel({
   const lastTapRef = useRef<{ x: number; y: number; at: number } | null>(null);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button === 1) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     onPointerDownCapture(event);
 
     if (event.pointerType !== "touch" || event.defaultPrevented) return;
@@ -607,6 +612,14 @@ export default function ChartPanel({
       startedAt: performance.now(),
       moved: false,
     };
+  };
+
+  const preventMiddleClickScroll = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // A wheel press can enter the browser's autoscroll mode, taking over chart
+    // gestures. Cancel the mouse default too for browsers using mousedown.
+    if (event.button !== 1) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -697,6 +710,8 @@ export default function ChartPanel({
         isDrawingInteractionActive ? "drawing-interaction-active" : ""
       }`}
       onPointerDownCapture={handlePointerDown}
+      onMouseDownCapture={preventMiddleClickScroll}
+      onAuxClickCapture={preventMiddleClickScroll}
       onPointerMoveCapture={handlePointerMove}
       onPointerUpCapture={handlePointerUp}
       onPointerCancelCapture={handlePointerUp}

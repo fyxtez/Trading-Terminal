@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { userFacingError } from "./userFacingError";
 
 describe("userFacingError", () => {
+  it("shows missing Practice prices without hiding validation guidance", () => {
+    const guidance =
+      "Binance Practice has no usable last-traded price for PUMPUSDT. Try again when a quote is available.";
+    expect(userFacingError(new Error(`Invalid request: ${guidance}`))).toBe(guidance);
+    expect(
+      userFacingError(new Error("Invalid request: invalid JSON payload"), "Cannot continue."),
+    ).toBe("Cannot continue.");
+  });
   it("replaces connection implementation details with a useful next step", () => {
     expect(
       userFacingError(

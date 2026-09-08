@@ -75,4 +75,12 @@ describe("BrowserAccessSection", () => {
     expect(screen.queryByText("LINUX ONLY")).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("could not check browser access");
   });
+
+  it("hides browser access on Android and other unsupported native platforms", async () => {
+    invokeMock.mockResolvedValue({ ...nativeStatus, supported: false, available: false });
+    const { container } = render(<BrowserAccessSection isExpanded onToggle={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("browser_access_status"));
+    expect(container).toBeEmptyDOMElement();
+  });
 });

@@ -465,6 +465,10 @@
   border-top: 1px solid var(--border);
 }
 
+.symbol-add-progress {
+  padding: 10px 0 4px;
+}
+
 .symbol-add-row input {
   min-width: 0;
   height: 31px;

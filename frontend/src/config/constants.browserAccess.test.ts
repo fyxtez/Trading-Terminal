@@ -15,7 +15,7 @@ const session = {
   authenticated: true,
   binanceConfigured: true,
   binanceNetwork: "testnet",
-  expiresInMs: 3_600_000,
+  expiresInMs: null,
 };
 const sessionProof = "a".repeat(64);
 
@@ -88,6 +88,7 @@ describe("local browser runtime", () => {
     expect(getLocalBrowserSession()).toMatchObject({
       binanceConfigured: true,
       binanceNetwork: "testnet",
+      expiresInMs: null,
     });
     expect(TRADING_API_TOKEN).toBe("");
     expect(window.sessionStorage.getItem(LOCAL_BROWSER_SESSION_PROOF_KEY)).toBe(sessionProof);
