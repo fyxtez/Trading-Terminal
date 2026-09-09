@@ -1,12 +1,7 @@
+import { usePanelResize } from "../../hooks/usePanelResize";
 import { useSettingsBackNavigation } from "../../hooks/useSettingsBackNavigation";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getAvailableBalance } from "../../trading/api/account";
 import { getSizing, updateSizing, type SizingConfig } from "../../trading/api/sizing";
 import type { ConnectionState } from "../../hooks/useTradingStream";
@@ -239,7 +234,7 @@ export default function SettingsPanel({
   const [balanceRevision, setBalanceRevision] = useState(0);
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
+  const { isResizing, resizeHandleProps } = usePanelResize("x", width, onWidthChange, isOpen);
   // the account-wide list has its own loading/error state so a failed
   // refresh never blocks the rest of the settings panel.
   const [listedPriceAlerts, setListedPriceAlerts] = useState<ListedPriceAlert[]>([]);
@@ -289,6 +284,22 @@ export default function SettingsPanel({
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState<SettingsSectionId | null>(null);
   const settingsBodyRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const body = settingsBodyRef.current;
+    if (!body) return;
+    const alignContent = () => {
+      // The scrollbar occupies part of the right inset, not extra space beside it.
+      const gutter = `${Math.max(0, body.offsetWidth - body.clientWidth)}px`;
+      if (body.style.getPropertyValue("--settings-scrollbar-width") !== gutter) {
+        body.style.setProperty("--settings-scrollbar-width", gutter);
+      }
+    };
+    alignContent();
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(alignContent) : null;
+    observer?.observe(body);
+    return () => observer?.disconnect();
+  }, []);
   const sectionButtons = useRef<Partial<Record<SettingsSectionId, HTMLButtonElement | null>>>({});
   const backToSections = () => {
     const previous = selectedSection;
@@ -838,57 +849,6 @@ export default function SettingsPanel({
     }
   };
 
-  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (window.matchMedia("(max-width: 720px)").matches || isResizing) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const startX = event.clientX;
-    const startWidth = width;
-
-    setIsResizing(true);
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      // Click once to pick up the divider, then resize just by moving the
-      // pointer. Because the drawer is docked to the right, moving left
-      // makes it wider and moving right makes it narrower.
-      onWidthChange(startWidth + (startX - moveEvent.clientX));
-    };
-
-    const stopResizing = (finishEvent?: PointerEvent) => {
-      if (finishEvent instanceof PointerEvent) {
-        // The finishing click belongs to the resize interaction; don't also
-        // activate whatever control happens to be underneath the pointer.
-        finishEvent.preventDefault();
-        finishEvent.stopPropagation();
-      }
-
-      setIsResizing(false);
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerdown", handleFinishPointerDown, true);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-
-    const handleFinishPointerDown = (finishEvent: PointerEvent) => {
-      stopResizing(finishEvent);
-    };
-
-    const handleKeyDown = (keyEvent: globalThis.KeyboardEvent) => {
-      if (keyEvent.key !== "Escape") return;
-      stopResizing();
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("keydown", handleKeyDown);
-
-    // Delay registration so the pointerdown that STARTED resizing cannot also
-    // be interpreted as the click that finishes it.
-    window.setTimeout(() => {
-      window.addEventListener("pointerdown", handleFinishPointerDown, true);
-    }, 0);
-  };
-
   const searchModel = buildSettingsSearchModel(
     settingsSearchQuery,
     desktopCredentials.isDesktop,
@@ -948,8 +908,8 @@ export default function SettingsPanel({
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize settings panel"
-            title="Click, move, then click again to resize settings panel"
-            onPointerDown={handleResizePointerDown}
+            title="Drag to resize settings panel"
+            {...resizeHandleProps}
           />
         )}
 

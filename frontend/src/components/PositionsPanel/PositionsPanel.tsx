@@ -1,10 +1,5 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { usePanelResize } from "../../hooks/usePanelResize";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePositions } from "../../hooks/usePositions";
 import { useMobileBackDismissal } from "../../hooks/useAndroidBackNavigation";
 import type { OpenOrdersApi } from "../../hooks/useOpenOrders";
@@ -108,7 +103,7 @@ export default function PositionsPanel({
   const [closeEverythingError, setCloseEverythingError] = useState<string | null>(null);
   const closeEverythingRootRef = useRef<HTMLDivElement | null>(null);
   const positionsApi = usePositions(isOpen, onPositionClosed);
-  const [isResizing, setIsResizing] = useState(false);
+  const { isResizing, resizeHandleProps } = usePanelResize("y", height, onHeightChange, isOpen);
   // This counter is only a lightweight render trigger for the shared
   // per-symbol TP/SL visibility preference. The preference itself remains in
   // localStorage so the chart and panel have one source of truth.
@@ -333,57 +328,6 @@ export default function PositionsPanel({
     }
   };
 
-  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (window.matchMedia("(max-width: 720px)").matches || isResizing) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const startY = event.clientY;
-    const startHeight = height;
-
-    setIsResizing(true);
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      // Click once to pick up the divider, then resize just by moving the
-      // pointer. The dock is attached to the bottom edge, so moving up
-      // increases its height and moving down makes it shorter.
-      onHeightChange(startHeight + (startY - moveEvent.clientY));
-    };
-
-    const stopResizing = (finishEvent?: PointerEvent) => {
-      if (finishEvent) {
-        // The finishing click belongs to the resize interaction; don't also
-        // activate whatever control happens to be underneath the pointer.
-        finishEvent.preventDefault();
-        finishEvent.stopPropagation();
-      }
-
-      setIsResizing(false);
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerdown", handleFinishPointerDown, true);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-
-    const handleFinishPointerDown = (finishEvent: PointerEvent) => {
-      stopResizing(finishEvent);
-    };
-
-    const handleKeyDown = (keyEvent: globalThis.KeyboardEvent) => {
-      if (keyEvent.key !== "Escape") return;
-      stopResizing();
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("keydown", handleKeyDown);
-
-    // Delay registration so the pointerdown that STARTED resizing cannot also
-    // be interpreted as the click that finishes it.
-    window.setTimeout(() => {
-      window.addEventListener("pointerdown", handleFinishPointerDown, true);
-    }, 0);
-  };
-
   return (
     <section
       className={`positions-panel ${isResizing ? "resizing" : ""}`}
@@ -395,8 +339,8 @@ export default function PositionsPanel({
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize positions panel"
-          title="Click, move, then click again to resize positions panel"
-          onPointerDown={handleResizePointerDown}
+          title="Drag to resize positions panel"
+          {...resizeHandleProps}
         />
       )}
       <div className="positions-tabs">

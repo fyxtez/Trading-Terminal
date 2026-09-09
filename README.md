@@ -324,7 +324,9 @@ change that chart only. Binance status, Orders, and Settings appear once.
 
 Drag the divider to resize the two charts; the ratio survives refresh. Double-click
 the divider to restore equal widths. When focused, Left/Right adjusts the divider,
-Home restores equal widths, and Escape cancels an in-progress drag.
+Home restores equal widths, and Escape cancels an in-progress drag. Positions and
+Settings resize the same way: hold their edge, drag, then release to finish. The
+Hotkeys popup lists both drag resizing and the divider double-click reset.
 
 Positions and Open Orders share one dock below both charts. Either toolbar toggles
 that same dock; row navigation targets the active chart, and switching panes keeps

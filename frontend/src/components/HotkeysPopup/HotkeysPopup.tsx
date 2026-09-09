@@ -17,6 +17,14 @@ export default function HotkeysPopup({ onClose }: HotkeysPopupProps) {
       </div>
 
       <div className="hotkeys-list">
+        <div className="hotkeys-gesture-row">
+          <kbd>Double-click divider</kbd>
+          <span>Reset split charts to 50/50</span>
+        </div>
+        <div className="hotkeys-gesture-row">
+          <kbd>Hold → Drag → Release</kbd>
+          <span>Resize charts, Positions or Settings</span>
+        </div>
         <div>
           {/* Ctrl+W is browser-reserved in Chromium/Brave, so Alt+W
               provides a dependable close-active-symbol-tab shortcut instead. */}
