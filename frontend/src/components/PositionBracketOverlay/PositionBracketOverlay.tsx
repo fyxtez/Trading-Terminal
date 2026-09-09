@@ -2012,7 +2012,7 @@ export default function PositionBracketOverlay({
         <div
           className={`position-stop-line ${isStopDraft ? "draft" : ""} ${
             stopControlsAbove ? "controls-above" : stopControlsBelow ? "controls-below" : ""
-          } ${isStopPending ? "pending" : ""} ${savedStop ? "draggable" : ""} ${
+          } ${isStopPending ? "pending" : ""} ${savedStop ? "draggable has-cancel-control" : ""} ${
             coordinates.isStopHighlighted || coordinates.isPositionHighlighted ? "highlighted" : ""
           }`}
           style={{

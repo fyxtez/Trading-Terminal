@@ -338,6 +338,8 @@
 
 .position-bracket-zone > span {
   position: absolute;
+  /* The selected SL/TP preview must also cover the liquidation boundary. */
+  z-index: 159;
   right: 6px;
   top: 5px;
   min-height: 22px;
@@ -346,7 +348,7 @@
   align-items: center;
   border: 1px solid currentColor;
   border-radius: 3px;
-  background: rgb(13 16 23 / 92%);
+  background: rgb(13 16 23);
   font-size: 11.5px;
   font-weight: 800;
   white-space: nowrap;
@@ -441,7 +443,9 @@
  */
 .position-stop-line > span {
   position: absolute;
-  right: 34px;
+  /* Keep the badge above the liquidation boundary (158) when prices overlap. */
+  z-index: 159;
+  right: 10px;
   top: -11px;
   height: 22px;
   padding: 0 8px;
@@ -458,7 +462,7 @@
   width: max-content;
   border: 1px solid rgba(240, 69, 98, 0.62);
   border-radius: 3px;
-  background: rgb(13 16 23 / 96%);
+  background: rgb(13 16 23);
   color: var(--red);
   font-size: 11.5px;
   font-weight: 800;
@@ -483,6 +487,7 @@
 
 .position-stop-line > button {
   position: absolute;
+  z-index: 159;
   right: 10px;
   top: -11px;
   width: 22px;
@@ -490,7 +495,7 @@
   padding: 0;
   border: 1px solid rgba(240, 69, 98, 0.62);
   border-radius: 3px;
-  background: rgb(13 16 23 / 96%);
+  background: rgb(13 16 23);
   color: var(--red);
   font-size: 13px;
   line-height: 1;
@@ -499,12 +504,12 @@
 }
 
 .position-stop-line > button:hover:not(:disabled) {
-  background: rgba(240, 69, 98, 0.14);
+  background: linear-gradient(rgba(240, 69, 98, 0.14), rgba(240, 69, 98, 0.14)), rgb(13 16 23);
 }
 
 .position-stop-line > button:disabled {
   cursor: pointer;
-  opacity: 0.5;
+  color: var(--text-faint);
 }
 
 /*
@@ -529,21 +534,14 @@
   top: -5px;
 }
 
-/*
- * Optimistic stop-loss: submitted, not yet confirmed (no algoId / cancel
- * button yet). There's no button in this state, so the label can use the
- * full width up to the edge instead of leaving a gap for one.
- */
-.position-stop-line.pending > span {
-  right: 10px;
-  border-style: dashed;
-  opacity: 0.85;
+/* The old stop's cancel button remains visible during a replacement request.
+ * Reserve its space whenever it exists, including the pending state. */
+.position-stop-line.has-cancel-control > span {
+  right: 34px;
 }
 
-/* A draft SL has no cancel-X because no exchange order exists yet, so
- * let its badge use the space that is otherwise reserved for that button. */
-.position-stop-line.draft > span {
-  right: 10px;
+.position-stop-line.pending > span {
+  border-style: dashed;
 }
 
 .position-bracket-message {
