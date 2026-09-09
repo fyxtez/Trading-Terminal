@@ -4,7 +4,7 @@
   place-items: center;
   padding: 32px;
   background: var(--bg-app);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .app-error-boundary > div {

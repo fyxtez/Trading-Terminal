@@ -3,6 +3,7 @@ import {
   adjacentTabAfterRemoval,
   loadChartWorkspace,
   splitWorkspace,
+  supportsSplitCharts,
   unifyWorkspace,
   moveWorkspaceTab,
   WORKSPACE_STORAGE_KEY,
@@ -84,5 +85,27 @@ describe("neighbor selection after closing a tab", () => {
     expect(adjacentTabAfterRemoval(tabs, "ETH", ["BTC", "SOL", "XRP"])).toBe("SOL");
     expect(adjacentTabAfterRemoval(tabs, "XRP", ["BTC", "ETH", "SOL"])).toBe("SOL");
     expect(adjacentTabAfterRemoval(tabs, "BTC", ["ETH", "SOL", "XRP"])).toBe("ETH");
+  });
+});
+
+describe("Android workspace support", () => {
+  it("disables split on Android browsers and WebViews while retaining desktop support", () => {
+    expect(supportsSplitCharts("Mozilla/5.0 (Linux; Android 14) Chrome/125 Mobile")).toBe(false);
+    expect(supportsSplitCharts("Mozilla/5.0 (Linux; Android 14; wv)")).toBe(false);
+    expect(supportsSplitCharts("Mozilla/5.0 (X11; Linux x86_64)")).toBe(true);
+  });
+  it("merges restored Android panes without dropping tabs or timeframes", () => {
+    const saved = splitWorkspace(single());
+    saved.panes[1].tabs.push("ETHUSDT");
+    saved.panes[1].intervals.ETHUSDT = "4h";
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(saved));
+    try {
+      const restored = loadChartWorkspace("BTCUSDT", false);
+      expect(restored.panes).toHaveLength(1);
+      expect(restored.panes[0].tabs).toEqual(["BTCUSDT", "SOLUSDT", "ETHUSDT"]);
+      expect(restored.panes[0].intervals.ETHUSDT).toBe("4h");
+    } finally {
+      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    }
   });
 });

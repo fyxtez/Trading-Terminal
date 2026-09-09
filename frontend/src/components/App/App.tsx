@@ -20,6 +20,7 @@ import {
   adjacentTabAfterRemoval,
   loadChartWorkspace,
   splitWorkspace,
+  supportsSplitCharts,
   unifyWorkspace,
   moveWorkspaceTab,
   WORKSPACE_STORAGE_KEY,
@@ -31,6 +32,7 @@ import "./App.css";
 
 export default function App() {
   const registry = useSymbol();
+  const allowSplit = supportsSplitCharts();
   const [topbarHost, setTopbarHost] = useState<HTMLDivElement | null>(null);
   const [positionsStore] = useState(createPositionBindingsStore);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
@@ -209,8 +211,15 @@ export default function App() {
                   split={split}
                   initialInterval={pane.intervals[pane.symbol] ?? loadSavedInterval(pane.symbol)}
                   onIntervalChange={setInterval}
-                  onToggleSplit={() =>
-                    setWorkspace((state) => (split ? unifyWorkspace(state) : splitWorkspace(state)))
+                  onToggleSplit={
+                    allowSplit
+                      ? () =>
+                          setWorkspace((state) =>
+                            state.panes.length === 2
+                              ? unifyWorkspace(state)
+                              : splitWorkspace(state),
+                          )
+                      : undefined
                   }
                   moveLabel={index === 0 ? "Switch to right" : "Switch to left"}
                   onMoveTab={(symbol) =>

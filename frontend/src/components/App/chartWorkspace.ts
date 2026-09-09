@@ -10,7 +10,14 @@ export type ChartPaneState = {
 export type ChartWorkspaceState = { panes: ChartPaneState[]; activeId: string };
 export const WORKSPACE_STORAGE_KEY = "fyxtez:chart-workspace";
 
-export function loadChartWorkspace(symbol: string): ChartWorkspaceState {
+export function supportsSplitCharts(userAgent = navigator.userAgent): boolean {
+  return !/Android/i.test(userAgent);
+}
+
+export function loadChartWorkspace(
+  symbol: string,
+  allowSplit = supportsSplitCharts(),
+): ChartWorkspaceState {
   try {
     const saved = JSON.parse(localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? "null");
     if (
@@ -31,12 +38,13 @@ export function loadChartWorkspace(symbol: string): ChartWorkspaceState {
           Object.values(pane.intervals).every((interval) => intervals.includes(interval)),
       )
     ) {
-      return {
+      const restored: ChartWorkspaceState = {
         panes: saved.panes,
         activeId: saved.panes.some((p: ChartPaneState) => p.id === saved.activeId)
           ? saved.activeId
           : saved.panes[0].id,
       };
+      return allowSplit ? restored : unifyWorkspace(restored);
     }
   } catch {
     /* Fall back to the existing single-chart workspace. */

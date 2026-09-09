@@ -76,7 +76,7 @@ import "./App.css";
 // Settings or Positions has mounted, App keeps it mounted while closed so its
 // existing local UI state behaves exactly as it did before code splitting.
 const SettingsPanel = lazy(() => import("../SettingsPanel/SettingsPanel"));
-const HotkeysPopup = lazy(() => import("../HotkeysPopup/HotkeysPopup"));
+import HotkeysPopup from "../HotkeysPopup/HotkeysPopup";
 
 type ChartWorkspacePaneProps = {
   registry: SymbolApi;
@@ -86,7 +86,7 @@ type ChartWorkspacePaneProps = {
   split: boolean;
   initialInterval: Interval;
   onIntervalChange: (interval: Interval) => void;
-  onToggleSplit: () => void;
+  onToggleSplit?: () => void;
   moveLabel: string;
   onMoveTab: (symbol: string) => void;
 };
@@ -191,7 +191,7 @@ function ChartWorkspacePane({
         saveViewportToStorage(`right:${currentSymbol}`, marketData.interval, viewport);
       }
     }
-    onToggleSplit();
+    onToggleSplit?.();
   };
   const { positionPnl, totalPnl, clearPositionPnl } = useChartPositionPnl(currentSymbol);
 
@@ -1268,17 +1268,7 @@ function ChartWorkspacePane({
         )}
       </div>
 
-      {isHotkeysOpen && (
-        <Suspense
-          fallback={
-            <div className="floating-panel lazy-hotkeys-loading" role="status">
-              Loading shortcuts…
-            </div>
-          }
-        >
-          <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />
-        </Suspense>
-      )}
+      {isHotkeysOpen && <HotkeysPopup onClose={() => setIsHotkeysOpen(false)} />}
 
       {tradeMenuApi.tradeMenu && (
         <TradeMenu
@@ -1314,7 +1304,7 @@ function ChartWorkspacePane({
 
       {drawingsApi.contextMenu && (
         <ContextMenu
-          onToggleSplit={toggleWorkspaceSplit}
+          onToggleSplit={onToggleSplit ? toggleWorkspaceSplit : undefined}
           split={split}
           contextMenu={drawingsApi.contextMenu}
           hasPenDrawings={drawingsApi.drawings.some((drawing) => drawing.type === "pen")}
