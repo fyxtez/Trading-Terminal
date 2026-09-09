@@ -77,7 +77,7 @@
 .desktop-runtime-gate small {
   display: block;
   color: #efad2d;
-  font: 700 12px/1.2 monospace;
+  font: 700 12px/1.2 var(--font-ui);
   letter-spacing: 0.18em;
 }
 
@@ -107,7 +107,7 @@
   border: 1px solid #efad2d;
   color: #080b10;
   background: #efad2d;
-  font: 700 12px/1 monospace;
+  font: 700 12px/1 var(--font-ui);
   letter-spacing: 0.12em;
   cursor: pointer;
 }

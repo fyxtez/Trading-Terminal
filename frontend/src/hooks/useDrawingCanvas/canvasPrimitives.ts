@@ -184,7 +184,7 @@ export function drawPendingOrderCancelButton(
   context.lineWidth = 1;
   context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   context.fillStyle = color;
-  context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
+  context.font = "700 12px 'Manrope Variable', sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText("×", rect.x + rect.width / 2, rect.y + rect.height / 2 + 1);
@@ -204,7 +204,7 @@ function drawOutlinedButton(
   context.lineWidth = 1;
   context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
   context.fillStyle = color;
-  context.font = "700 8px 'JetBrains Mono', ui-monospace, monospace";
+  context.font = "700 8px 'Manrope Variable', sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2 + 0.5);

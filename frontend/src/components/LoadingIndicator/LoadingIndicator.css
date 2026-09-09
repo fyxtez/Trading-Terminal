@@ -27,7 +27,7 @@
 
 .loading-indicator__label {
   color: var(--text, #edf0f6);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-ui, "Manrope Variable", sans-serif);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.07em;

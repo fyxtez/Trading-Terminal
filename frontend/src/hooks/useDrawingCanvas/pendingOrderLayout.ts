@@ -7,7 +7,7 @@ export const PENDING_ORDER_LABEL_PADDING_X = 8;
 export const REDUCE_ORDER_EDITOR_WIDTH = 220;
 export const REDUCE_ORDER_EDITOR_HEIGHT = 108;
 export const REDUCE_ORDER_EDITOR_GAP = 8;
-export const PENDING_ORDER_FONT = "600 11px 'JetBrains Mono', ui-monospace, monospace";
+export const PENDING_ORDER_FONT = "600 11px 'Manrope Variable', sans-serif";
 
 const PENDING_ORDER_CANCEL_SIZE = 20;
 const PENDING_ORDER_EDIT_WIDTH = 38;

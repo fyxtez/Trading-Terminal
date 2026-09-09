@@ -3,7 +3,7 @@
   background: radial-gradient(circle at 75% 5%, rgb(230 165 48/10%), transparent 42%), #07090d;
   color: #edf0f5;
   display: flex;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-ui);
   inset: 0;
   justify-content: center;
   min-height: 100vh;
@@ -53,7 +53,7 @@
 .desktop-setup-header small,
 .desktop-setup-step-copy > span {
   color: #dca33b;
-  font: 700 11px monospace;
+  font: 700 11px var(--font-ui);
   letter-spacing: 0.17em;
 }
 .desktop-setup-header h1 {
@@ -78,7 +78,7 @@
   border-bottom: 2px solid #272c35;
   color: #626a78;
   display: flex;
-  font: 700 11px monospace;
+  font: 700 11px var(--font-ui);
   gap: 12px;
   letter-spacing: 0.12em;
   padding: 23px 0;
@@ -167,7 +167,7 @@
   border: 1px solid #343a46;
   border-radius: 5px;
   color: #f1f3f7;
-  font: 15px monospace;
+  font: 15px var(--font-ui);
   outline: 0;
   padding: 16px;
   min-width: 0;
@@ -188,7 +188,7 @@
 }
 .desktop-setup-actions > span {
   color: #646c79;
-  font: 10px monospace;
+  font: 10px var(--font-ui);
 }
 .desktop-setup-actions > div {
   display: flex;
@@ -198,7 +198,7 @@
 .desktop-setup-actions button {
   border-radius: 4px;
   cursor: pointer;
-  font: 700 11px monospace;
+  font: 700 11px var(--font-ui);
   letter-spacing: 0.08em;
   min-height: 44px;
   padding: 0 22px;
@@ -225,12 +225,12 @@
   background: rgb(228 72 93/8%);
   border: 1px solid rgb(228 72 93/30%);
   color: #ef8796;
-  font: 12px monospace;
+  font: 12px var(--font-ui);
   padding: 14px;
 }
 .desktop-setup-loading {
   color: #929aa8;
-  font: 14px monospace;
+  font: 14px var(--font-ui);
 }
 @media (max-width: 900px) {
   .desktop-setup {

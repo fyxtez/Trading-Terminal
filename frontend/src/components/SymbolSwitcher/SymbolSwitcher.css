@@ -467,7 +467,7 @@
   background: transparent;
   color: var(--text-faint);
   cursor: pointer;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 17px;
   font-weight: 400;
   line-height: 1;

@@ -1069,7 +1069,7 @@
 }
 
 /* Keep desktop subcards on one readable hierarchy: titles, body copy,
- * metadata, then compact monospace status/action text. Mobile keeps the proven
+ * metadata, then compact status/action text. Mobile keeps the proven
  * compact sizes and touch layout from the rules above. */
 @media (min-width: 721px) {
   .settings-manage-connections {

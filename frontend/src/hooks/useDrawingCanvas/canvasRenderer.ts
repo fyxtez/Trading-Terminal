@@ -252,7 +252,7 @@ export function drawCanvasFrame({
       context.fill();
 
       context.fillStyle = "#0b0e14";
-      context.font = `700 ${fontSize}px 'JetBrains Mono', ui-monospace, monospace`;
+      context.font = `700 ${fontSize}px 'Manrope Variable', sans-serif`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(isBuy ? "B" : "S", anchor.x, badgeCenterY + 0.5);
@@ -461,7 +461,7 @@ export function drawCanvasFrame({
               : rect.left;
 
         context.save();
-        context.font = `500 ${fontSize}px Inter, "Helvetica Neue", Arial, sans-serif`;
+        context.font = `500 ${fontSize}px 'Manrope Variable', sans-serif`;
         context.fillStyle = drawing.color;
         context.textAlign = align;
         context.textBaseline = "middle";
@@ -661,7 +661,7 @@ export function drawCanvasFrame({
         );
         context.setLineDash([]);
 
-        context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
+        context.font = "700 12px 'Manrope Variable', sans-serif";
         const textWidth = context.measureText(label).width;
         const labelWidth = textWidth + 14;
         const labelHeight = 24;
@@ -705,7 +705,7 @@ export function drawCanvasFrame({
       const color = selected ? brightenColor(drawing.color) : drawing.color;
 
       context.save();
-      context.font = "600 11px 'JetBrains Mono', ui-monospace, monospace";
+      context.font = "600 11px 'Manrope Variable', sans-serif";
       context.textBaseline = "middle";
 
       if (y >= 0 && y <= paneSize.height && width > paneSize.width) {

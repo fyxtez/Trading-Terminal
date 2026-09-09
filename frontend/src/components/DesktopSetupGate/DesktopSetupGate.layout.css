@@ -52,7 +52,7 @@
 
 .desktop-network-picker button strong {
   color: #d5dae2;
-  font: 700 12px monospace;
+  font: 700 12px var(--font-ui);
   letter-spacing: 0.08em;
 }
 

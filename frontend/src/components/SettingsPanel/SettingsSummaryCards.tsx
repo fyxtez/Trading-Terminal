@@ -54,14 +54,16 @@ export function ExchangeConnectionsSection({
     <section className="settings-section settings-desktop-connections">
       <div className="settings-section-heading settings-section-heading-with-action">
         <h3>Exchange Connections</h3>
-        <button
-          type="button"
-          className="settings-section-visibility-button"
-          aria-expanded={forceExpanded || isExpanded}
-          onClick={onToggle}
-        >
-          {forceExpanded ? "MATCH" : isExpanded ? "HIDE" : "SHOW"}
-        </button>
+        {!forceExpanded && (
+          <button
+            type="button"
+            className="settings-section-visibility-button"
+            aria-expanded={isExpanded}
+            onClick={onToggle}
+          >
+            {isExpanded ? "HIDE" : "SHOW"}
+          </button>
+        )}
       </div>
       {(forceExpanded || isExpanded) &&
         (credentials.isDesktop ? (
@@ -157,9 +159,12 @@ export function ExchangeConnectionsSection({
               </b>
             </div>
             <p>
-              {credentials.status.binanceConfigured
-                ? "Trading is handled securely by Terminal on this computer. Open the installed app to replace or remove your Binance keys."
-                : "Open the installed Terminal app and use Settings → Exchange Connections to connect Binance."}
+              To choose Testnet or Mainnet and add or edit API keys, open Terminal from the system
+              tray, then click the BINANCE badge at the top of the desktop window.
+            </p>
+            <p>
+              Network and API key editing is available in the installed app. This browser page shows
+              the active connection.
             </p>
             <small>Binance keys are not exposed to the browser interface.</small>
           </div>

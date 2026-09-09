@@ -53,7 +53,7 @@ export function useChartInstance(
 
         textColor: "#aab2c5",
         attributionLogo: false,
-        fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+        fontFamily: "'Manrope Variable', sans-serif",
       },
 
       localization: {
@@ -402,7 +402,17 @@ export function useChartInstance(
 
     resizeObserver.observe(refs.containerRef.current);
 
+    let disposed = false;
+    void document.fonts
+      ?.load('12px "Manrope Variable"')
+      .then(() => {
+        if (!disposed)
+          chart.applyOptions({ layout: { fontFamily: "'Manrope Variable', sans-serif" } });
+      })
+      .catch(() => {});
+
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(clampFrame);
       window.removeEventListener("resize", resize);
       wheelSurface.removeEventListener("wheel", handlePriceScaleWheel, true);

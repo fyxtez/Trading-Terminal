@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./components/App/App";
+import "@fontsource-variable/manrope";
 import "./styles/global.css";
 import DesktopSetupGate from "./components/DesktopSetupGate/DesktopSetupGate";
 import DesktopRuntimeGate from "./components/DesktopRuntimeGate/DesktopRuntimeGate";

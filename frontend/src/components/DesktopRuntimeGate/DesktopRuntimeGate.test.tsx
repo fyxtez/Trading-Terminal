@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DesktopRuntimeGate from "./DesktopRuntimeGate";
 import { initializeTradingApiBaseUrl, retryTradingRuntime } from "../../config/constants";
 import { LOCAL_BROWSER_SESSION_ENDED_EVENT } from "../../trading/api/http";
@@ -20,6 +20,21 @@ const initializeMock = vi.mocked(initializeTradingApiBaseUrl);
 const restartMock = vi.mocked(retryTradingRuntime);
 
 describe("DesktopRuntimeGate", () => {
+  afterEach(() => vi.useRealTimers());
+  it("skips the startup message when initialization finishes quickly", async () => {
+    vi.useFakeTimers();
+    initializeMock.mockResolvedValueOnce("http://127.0.0.1:12345");
+    render(
+      <DesktopRuntimeGate>
+        <div>terminal</div>
+      </DesktopRuntimeGate>,
+    );
+    expect(screen.queryByText("Getting Terminal ready")).not.toBeInTheDocument();
+    await act(async () => {});
+    expect(screen.getByText("terminal")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.queryByText("Getting Terminal ready")).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     runtime.mode = "native";
@@ -90,6 +105,7 @@ describe("DesktopRuntimeGate", () => {
   });
 
   it("does not render the terminal before the local backend is ready", async () => {
+    vi.useFakeTimers();
     let resolveRuntime: (value: string) => void = () => undefined;
     initializeMock.mockReturnValue(
       new Promise((resolve) => {
@@ -103,11 +119,13 @@ describe("DesktopRuntimeGate", () => {
       </DesktopRuntimeGate>,
     );
     expect(screen.queryByText("terminal")).not.toBeInTheDocument();
+    expect(screen.queryByText("Getting Terminal ready")).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByText("Getting Terminal ready")).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    resolveRuntime("http://127.0.0.1:12345");
-    expect(await screen.findByText("terminal")).toBeInTheDocument();
+    await act(async () => resolveRuntime("http://127.0.0.1:12345"));
+    expect(screen.getByText("terminal")).toBeInTheDocument();
   });
 
   it("offers an explicit retry after supervisor failure", async () => {

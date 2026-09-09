@@ -51,6 +51,13 @@ function failedRuntimeState(reason: unknown): RuntimeState {
 
 export default function DesktopRuntimeGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>({ kind: "starting" });
+  const [showStartupMessage, setShowStartupMessage] = useState(false);
+
+  useEffect(() => {
+    if (state.kind !== "starting") return;
+    const timer = window.setTimeout(() => setShowStartupMessage(true), 300);
+    return () => window.clearTimeout(timer);
+  }, [state.kind]);
 
   useEffect(() => {
     let current = true;
@@ -100,6 +107,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
   }, [state.kind]);
 
   const retry = () => {
+    setShowStartupMessage(false);
     setState({ kind: "starting" });
     void retryTradingRuntime().then(
       () => setState({ kind: "ready" }),
@@ -108,6 +116,9 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
   };
 
   if (state.kind === "ready") return children;
+  if (state.kind === "starting" && !showStartupMessage) {
+    return <main className="desktop-runtime-gate" aria-busy="true" aria-label="Loading Terminal" />;
+  }
 
   const localBrowser =
     getTradingRuntimeMode() === "local-browser" || (state.kind === "failed" && state.browserAccess);

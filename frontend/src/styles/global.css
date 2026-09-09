@@ -8,9 +8,8 @@
    1. Amber is the single accent color (a Bloomberg/exchange-
       terminal cue) instead of the default app-blue. It marks
       anything the user is actively pointing at or editing.
-   2. Every number (price, PnL-relevant figures) renders in a
-      tabular monospace face, like a digital readout — while
-      UI chrome (labels, buttons) stays on a plain grotesque.
+   2. Manrope is shared by labels, controls and chart annotations.
+      Tabular figures keep changing prices and PNL values aligned.
 
    Buy/sell keep the standard green/red vocabulary traders
    already know — that's not a place to be original.
@@ -50,8 +49,8 @@
   --red-glow: rgba(240, 69, 98, 0.4);
 
   /* type */
-  --font-ui: "Inter", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-ui: "Manrope Variable", sans-serif;
+  --font-mono: var(--font-ui);
 
   /* shape — sharper, "panel" corners, not bubbly consumer-app ones */
   --radius-s: 4px;
@@ -69,12 +68,15 @@ body,
   overflow: hidden;
   background: var(--bg-app);
   font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
 }
 
 * {
   box-sizing: border-box;
 }
 button,
-input {
+input,
+select,
+textarea {
   font-family: inherit;
 }

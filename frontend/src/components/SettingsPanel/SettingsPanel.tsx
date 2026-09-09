@@ -1,3 +1,5 @@
+import { useSettingsBackNavigation } from "../../hooks/useSettingsBackNavigation";
+import { invoke } from "@tauri-apps/api/core";
 import {
   useEffect,
   useRef,
@@ -25,6 +27,11 @@ import DiagnosticsSection from "./DiagnosticsSection";
 import DataBackupSection from "./DataBackupSection";
 import BrowserAccessSection from "./BrowserAccessSection";
 import { buildSettingsSearchModel } from "./settingsSearch";
+import {
+  SETTINGS_SECTIONS,
+  selectSettingsSections,
+  type SettingsSectionId,
+} from "./settingsNavigation";
 import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
 
@@ -280,8 +287,40 @@ export default function SettingsPanel({
   // Settings search keeps a large configuration panel usable without
   // changing the user's persisted HIDE/SHOW preferences for each section.
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
+  const [selectedSection, setSelectedSection] = useState<SettingsSectionId | null>(null);
+  const settingsBodyRef = useRef<HTMLDivElement>(null);
+  const sectionButtons = useRef<Partial<Record<SettingsSectionId, HTMLButtonElement | null>>>({});
+  const backToSections = () => {
+    const previous = selectedSection;
+    setSettingsSearchQuery("");
+    setSelectedSection(null);
+    if (previous) window.requestAnimationFrame(() => sectionButtons.current[previous]?.focus());
+  };
+  useSettingsBackNavigation(isOpen && selectedSection !== null, backToSections);
+  const [browserSupported, setBrowserSupported] = useState(
+    desktopCredentials.runtimeMode !== "native",
+  );
   useEffect(() => {
-    if (exchangeConnectionsRequest > 0) setSettingsSearchQuery("Exchange Connections");
+    if (desktopCredentials.runtimeMode !== "native") return;
+    let active = true;
+    void invoke<{ supported: boolean }>("browser_access_status").then(
+      (status) => {
+        if (active) setBrowserSupported(status.supported);
+      },
+      () => {},
+    );
+    return () => {
+      active = false;
+    };
+  }, [desktopCredentials.runtimeMode]);
+  useEffect(() => {
+    if (settingsBodyRef.current) settingsBodyRef.current.scrollTop = 0;
+  }, [selectedSection, settingsSearchQuery]);
+  useEffect(() => {
+    if (exchangeConnectionsRequest > 0) {
+      setSettingsSearchQuery("");
+      setSelectedSection("showExchangeConnections");
+    }
   }, [exchangeConnectionsRequest]);
 
   const saveTimerRef = useRef<number | null>(null);
@@ -850,6 +889,16 @@ export default function SettingsPanel({
     }, 0);
   };
 
+  const searchModel = buildSettingsSearchModel(
+    settingsSearchQuery,
+    desktopCredentials.isDesktop,
+    (Object.keys(FIELD_META) as SizingField[]).map((field) => ({
+      name: field,
+      label: FIELD_META[field].label,
+      description: FIELD_META[field].description,
+    })),
+    desktopCredentials.runtimeMode,
+  );
   // Matching sections auto-expand while searching without changing their
   // persisted HIDE/SHOW state.
   const {
@@ -871,23 +920,14 @@ export default function SettingsPanel({
     chartDisplaySectionTitleMatches,
     chartDisplayOptionMatches,
     showChartDisplaySection,
-    showBalanceCard,
     showExchangeConnections,
     showBrowserAccess,
     showDiagnostics,
     showDataBackup,
     hasAnySettingsSearchResult,
-  } = buildSettingsSearchModel(
-    settingsSearchQuery,
-    desktopCredentials.isDesktop,
-    (Object.keys(FIELD_META) as SizingField[]).map((field) => ({
-      name: field,
-      label: FIELD_META[field].label,
-      description: FIELD_META[field].description,
-    })),
-    desktopCredentials.runtimeMode,
-  );
+  } = selectSettingsSections(searchModel, selectedSection, browserSupported);
 
+  const forceSectionsExpanded = isSearchingSettings || selectedSection !== null;
   return (
     <>
       {/*
@@ -949,12 +989,71 @@ export default function SettingsPanel({
           </div>
         </div>
 
-        <div className={`settings-body ${isFullyOpen ? "scrollable" : ""}`}>
+        <div className="settings-pinned-balance">
+          <AvailableBalanceCard
+            availableBalance={availableBalance}
+            error={balanceError}
+            isLoading={isLoadingBalance}
+          />
+        </div>
+
+        <div
+          ref={settingsBodyRef}
+          className={`settings-body ${isFullyOpen ? "scrollable" : ""} ${forceSectionsExpanded ? "settings-section-view" : ""}`}
+        >
+          {!isSearchingSettings && selectedSection === null && (
+            <nav className="settings-section-grid" aria-label="Settings sections">
+              {SETTINGS_SECTIONS.filter(
+                ({ id }) => searchModel[id] && (id !== "showBrowserAccess" || browserSupported),
+              ).map(({ id, label, icon }) => (
+                <button
+                  key={id}
+                  ref={(element) => {
+                    sectionButtons.current[id] = element;
+                  }}
+                  type="button"
+                  className="settings-section-tile"
+                  onClick={() => setSelectedSection(id)}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d={icon} />
+                  </svg>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
+          )}
+          {!isSearchingSettings && selectedSection !== null && (
+            <button type="button" className="settings-section-back" onClick={backToSections}>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m14 6-6 6 6 6" />
+              </svg>
+              <span>All settings</span>
+            </button>
+          )}
           {showExchangeConnections && (
             <ExchangeConnectionsSection
               credentials={desktopCredentials}
               isExpanded={isThirdPartyConnectionsSectionVisible}
-              forceExpanded={isSearchingSettings}
+              forceExpanded={forceSectionsExpanded}
               onToggle={() => setIsThirdPartyConnectionsSectionVisible((visible) => !visible)}
             />
           )}
@@ -963,7 +1062,7 @@ export default function SettingsPanel({
           {showBrowserAccess && (
             <BrowserAccessSection
               isExpanded={isBrowserAccessSectionVisible}
-              forceExpanded={isSearchingSettings}
+              forceExpanded={forceSectionsExpanded}
               onToggle={() => setIsBrowserAccessSectionVisible((visible) => !visible)}
             />
           )}
@@ -975,24 +1074,16 @@ export default function SettingsPanel({
             <DiagnosticsSection
               diagnostics={diagnostics}
               isExpanded={isDiagnosticsSectionVisible}
-              forceExpanded={isSearchingSettings}
+              forceExpanded={forceSectionsExpanded}
               onToggle={() => setIsDiagnosticsSectionVisible((visible) => !visible)}
             />
           )}
           {showDiagnostics && showDataBackup && <div className="settings-separator" />}
 
-          {showDataBackup && <DataBackupSection forceExpanded={isSearchingSettings} />}
+          {showDataBackup && <DataBackupSection forceExpanded={forceSectionsExpanded} />}
 
-          {(showDiagnostics || showDataBackup) && (showBalanceCard || showMarginSection) && (
+          {(showDiagnostics || showDataBackup) && showMarginSection && (
             <div className="settings-separator" />
-          )}
-
-          {showBalanceCard && (
-            <AvailableBalanceCard
-              availableBalance={availableBalance}
-              error={balanceError}
-              isLoading={isLoadingBalance}
-            />
           )}
 
           {isSearchingSettings && !hasAnySettingsSearchResult && (
@@ -1000,14 +1091,6 @@ export default function SettingsPanel({
               No settings match “{settingsSearchQuery.trim()}”.
             </div>
           )}
-
-          {showBalanceCard &&
-            (showMarginSection ||
-              showDrawingSetsSection ||
-              showDrawingsSection ||
-              showPnlSection ||
-              showAlertsSection ||
-              showChartDisplaySection) && <div className="settings-separator" />}
 
           {showMarginSection && (
             <section className="settings-section">
@@ -1021,14 +1104,14 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isMarginSectionVisible}
+                  aria-expanded={forceSectionsExpanded || isMarginSectionVisible}
                   onClick={() => setIsMarginSectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings ? "MATCH" : isMarginSectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
 
-              {(isSearchingSettings || isMarginSectionVisible) && (
+              {(forceSectionsExpanded || isMarginSectionVisible) && (
                 <>
                   {!isBackendConnected && (
                     <div className="settings-error settings-backend-warning">
@@ -1131,14 +1214,14 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isDrawingSetsSectionVisible}
+                  aria-expanded={forceSectionsExpanded || isDrawingSetsSectionVisible}
                   onClick={() => setIsDrawingSetsSectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings ? "MATCH" : isDrawingSetsSectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
 
-              {(isSearchingSettings || isDrawingSetsSectionVisible) && (
+              {(forceSectionsExpanded || isDrawingSetsSectionVisible) && (
                 <>
                   <div className="drawing-set-save-row">
                     <input
@@ -1341,7 +1424,7 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isDrawingsDisplaySectionVisible}
+                  aria-expanded={forceSectionsExpanded || isDrawingsDisplaySectionVisible}
                   onClick={() => setIsDrawingsDisplaySectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings
@@ -1352,7 +1435,7 @@ export default function SettingsPanel({
                 </button>
               </div>
 
-              {(isSearchingSettings || isDrawingsDisplaySectionVisible) && (
+              {(forceSectionsExpanded || isDrawingsDisplaySectionVisible) && (
                 <>
                   {(!isSearchingSettings ||
                     drawingsSectionTitleMatches ||
@@ -1499,14 +1582,14 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isPnlSectionVisible}
+                  aria-expanded={forceSectionsExpanded || isPnlSectionVisible}
                   onClick={() => setIsPnlSectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings ? "MATCH" : isPnlSectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
 
-              {(isSearchingSettings || isPnlSectionVisible) && (
+              {(forceSectionsExpanded || isPnlSectionVisible) && (
                 <>
                   {(!isSearchingSettings ||
                     pnlSectionTitleMatches ||
@@ -1563,14 +1646,14 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isAlertsSectionVisible}
+                  aria-expanded={forceSectionsExpanded || isAlertsSectionVisible}
                   onClick={() => setIsAlertsSectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings ? "MATCH" : isAlertsSectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
 
-              {(isSearchingSettings || isAlertsSectionVisible) && (
+              {(forceSectionsExpanded || isAlertsSectionVisible) && (
                 <>
                   {(!isSearchingSettings ||
                     alertsSectionTitleMatches ||
@@ -1688,7 +1771,6 @@ export default function SettingsPanel({
               showDrawingsSection ||
               showDrawingSetsSection ||
               showMarginSection ||
-              showBalanceCard ||
               showDataBackup ||
               showDiagnostics ||
               showExchangeConnections) && <div className="settings-separator" />}
@@ -1702,14 +1784,14 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="settings-section-visibility-button"
-                  aria-expanded={isSearchingSettings || isChartDisplaySectionVisible}
+                  aria-expanded={forceSectionsExpanded || isChartDisplaySectionVisible}
                   onClick={() => setIsChartDisplaySectionVisible((isVisible) => !isVisible)}
                 >
                   {isSearchingSettings ? "MATCH" : isChartDisplaySectionVisible ? "HIDE" : "SHOW"}
                 </button>
               </div>
 
-              {(isSearchingSettings || isChartDisplaySectionVisible) && (
+              {(forceSectionsExpanded || isChartDisplaySectionVisible) && (
                 <>
                   {(!isSearchingSettings ||
                     chartDisplaySectionTitleMatches ||
