@@ -322,7 +322,7 @@ function createCoordinateMapping(
      * the exact same stored time (differing only in price) - a vertical
      * jog - before jumping to the next candle's time as a big diagonal
      * step. `continuous: true` skips native lookup entirely and goes
-     * straight to the calibration-based linear interpolation (real
+     * straight to interpolation between adjacent bar coordinates (real
      * sub-bar precision, proportional to pixel offset) so pen points
      * capture the mouse's actual continuous path instead of only ever
      * landing on candle boundaries.
@@ -337,16 +337,23 @@ function createCoordinateMapping(
 
     /*
      * Continuous drawing placement must be the inverse of timeToX's fallback.
-     * Using coordinateToLogical() here means a point captured between candles
-     * stays on that exact fractional logical position when the chart is later
-     * zoomed or panned. A seconds-per-pixel calibration is only an
-     * approximation and was the source of Text's horizontal anchor drift.
+     * coordinateToLogical() in the installed chart library rounds to a whole
+     * bar. Recover the fraction from two adjacent bars' pixel coordinates;
+     * otherwise even continuous Pen samples snap into vertical steps.
+     * Use logical space so gaps in history and zoom/pan preserve the anchor.
      */
-    const logical = chart.timeScale().coordinateToLogical(x);
+    const timeScale = chart.timeScale();
+    const logical = timeScale.coordinateToLogical(x);
 
     if (logical === null) return null;
 
-    return logicalToTime(logical);
+    const anchor = Math.floor(Number(logical));
+    const anchorX = timeScale.logicalToCoordinate(anchor as Logical);
+    const nextX = timeScale.logicalToCoordinate((anchor + 1) as Logical);
+    if (anchorX === null || nextX === null || nextX === anchorX) return null;
+
+    const continuousLogical = anchor + (x - anchorX) / (nextX - anchorX);
+    return logicalToTime(continuousLogical);
   };
 
   const chartPointToScreen = (

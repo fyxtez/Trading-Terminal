@@ -625,6 +625,11 @@ export function useDrawingCanvas(
           end: chartPoint,
           color: DEFAULT_LINE_COLOR,
         });
+        // addDrawing selects the new line, which keeps the chart interaction
+        // shield active even after switching tools. Finish in navigation mode.
+        drawingsApi.setSelectedId(null);
+        setIsHoveringDrawing(false);
+        setIsHoveringHorizontalDrawing(false);
       } else {
         drawingsApi.addDrawing({
           id: crypto.randomUUID(),

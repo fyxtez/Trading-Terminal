@@ -24,6 +24,53 @@ function setup() {
 }
 
 describe("coordinate mapping", () => {
+  it.each([43200, 86400, 604800, 2592000])(
+    "preserves sub-bar Pen samples with %s-second candles despite rounded native lookup",
+    (step) => {
+      const { result } = setup();
+      const { refs, coord } = result.current;
+      const start = 1700000000;
+      refs.loadedCandlesRef.current = [
+        candle(start),
+        candle(start + step),
+        candle(start + step * 3),
+      ];
+      let spacing = 40;
+      let offset = 100;
+      const nativeTime = vi.fn(() => timestamp(start));
+      refs.chartRef.current = {
+        timeScale: () => ({
+          coordinateToLogical: (x: number) => Math.ceil((x - offset) / spacing),
+          logicalToCoordinate: (index: number) => offset + index * spacing,
+          coordinateToTime: nativeTime,
+        }),
+      } as unknown as IChartApi;
+      refs.candleRef.current = {
+        coordinateToPrice: (y: number) => y,
+        priceToCoordinate: (price: number) => price,
+      } as unknown as ISeriesApi<"Candlestick">;
+      // Include multiple points inside each bar, a history gap and future whitespace.
+      const xs = [103, 107, 113, 121, 139, 147, 173, 193];
+      const points = xs.map((x) => coord.screenToChartPoint(x, 20, true)!);
+      expect(new Set(points.map((point) => point.time)).size).toBe(xs.length);
+      points.forEach((point, index) => {
+        expect(coord.chartPointToScreen(point, false)?.x).toBeCloseTo(xs[index], 2);
+      });
+      expect(nativeTime).not.toHaveBeenCalled();
+      spacing = 80;
+      offset = 50;
+      points.forEach((point, index) => {
+        expect(coord.chartPointToScreen(point, false)?.x).toBeCloseTo(
+          50 + (xs[index] - 100) * 2,
+          2,
+        );
+      });
+      // Single-click tools retain their intentional candle snapping.
+      expect(coord.xToTime(53)).toBe(start);
+      expect(nativeTime).toHaveBeenCalledOnce();
+    },
+  );
+
   it("keeps callbacks stable across renders while using replaced history and chart refs", () => {
     const { result, rerender } = setup();
     const { refs, coord } = result.current;
