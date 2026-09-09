@@ -166,6 +166,7 @@ export const getChartDisplayDecimals = (symbol: string): number =>
   getSymbolConfig(symbol).chartDecimals;
 
 export const DEFAULT_LINE_COLOR = "#60a5fa";
+export const DEFAULT_PEN_COLOR = "#ffffff";
 export const DEFAULT_BOX_COLOR = "#a78bfa";
 
 /**

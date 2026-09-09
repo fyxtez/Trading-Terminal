@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
-import { DEFAULT_BOX_COLOR, DEFAULT_LINE_COLOR } from "../../config/constants";
+import { DEFAULT_BOX_COLOR, DEFAULT_LINE_COLOR, DEFAULT_PEN_COLOR } from "../../config/constants";
 import { cloneDrawing, getTextFontSize } from "../../utils/drawings";
 import { startPacedLoop } from "../../utils/pacedLoop";
 import { userFacingError } from "../../utils/userFacingError";
@@ -517,7 +517,7 @@ export function useDrawingCanvas(
         id: crypto.randomUUID(),
         type: "pen",
         points: [{ ...startPoint }],
-        color: DEFAULT_LINE_COLOR,
+        color: DEFAULT_PEN_COLOR,
         // Pen drawings are added directly (not through drawingsApi.addDrawing,
         // which stamps this for every other drawing type) since the draft
         // needs to exist in refs.drawingsRef immediately, while still being
