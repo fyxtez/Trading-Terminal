@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  WorkspaceRuntimeContext,
+  WORKSPACE_ORDER_EVENT,
+} from "../components/App/workspaceRuntimeContext";
+import { useContext, useEffect, useRef, useState } from "react";
 import { getAuthenticatedTradingWebSocketUrl, parseTradingStreamEvent } from "../trading/events";
 import type { OrderExecutedEvent } from "../trading/types";
 import { TRADING_API_BASE_URL_CHANGED_EVENT } from "../config/constants";
@@ -20,12 +24,21 @@ export function useTradingStream({
   enabled,
   onOrderExecuted,
 }: UseTradingStreamOptions): ConnectionState {
+  const runtime = useContext(WorkspaceRuntimeContext);
+  const shared = runtime !== null;
   const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
 
   const handlerRef = useRef(onOrderExecuted);
   handlerRef.current = onOrderExecuted;
 
   useEffect(() => {
+    if (shared) {
+      const receive = (event: Event) => {
+        if (enabled) handlerRef.current((event as CustomEvent<OrderExecutedEvent>).detail);
+      };
+      window.addEventListener(WORKSPACE_ORDER_EVENT, receive);
+      return () => window.removeEventListener(WORKSPACE_ORDER_EVENT, receive);
+    }
     if (!enabled || !canUseTradingAccount()) {
       setConnectionState("disabled");
       return;
@@ -218,7 +231,7 @@ export function useTradingStream({
         socket.close(1000, "component unmounted");
       }
     };
-  }, [enabled]);
+  }, [enabled, shared]);
 
-  return connectionState;
+  return runtime?.stream ?? connectionState;
 }

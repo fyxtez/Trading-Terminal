@@ -1,3 +1,4 @@
+import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import {
   useCallback,
   useEffect,
@@ -1250,6 +1251,7 @@ export default function PositionBracketOverlay({
     if (!dragKind) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) return;
       const rawPrice = getPriceFromClientY(event.clientY);
       if (rawPrice == null) return;
 
@@ -1335,6 +1337,10 @@ export default function PositionBracketOverlay({
      * Escape or a right-click cancels instead of confirming.
      */
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) {
+        cancelDrag();
+        return;
+      }
       // a right-click used to consume the one-shot pointerdown listener
       // without confirming or cancelling the TP/SL placement. If the chart's
       // context-menu handler then stopped the later `contextmenu` event, the
@@ -1489,6 +1495,7 @@ export default function PositionBracketOverlay({
     if (!isEntryControlsMoving) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) return;
       const wrap = chartWrapRef.current;
       if (wrap === null) return;
 
@@ -1509,6 +1516,10 @@ export default function PositionBracketOverlay({
     };
 
     const handlePlacementPointerDown = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) {
+        setIsEntryControlsMoving(false);
+        return;
+      }
       const target = event.target;
       if (target instanceof Element && target.closest(".position-entry-controls-move-button")) {
         return;
@@ -1682,6 +1693,7 @@ export default function PositionBracketOverlay({
     if (!edgeDrag) return;
 
     const handleMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) return;
       const start = edgeDragStartRef.current;
       if (!start) return;
 
@@ -1702,6 +1714,10 @@ export default function PositionBracketOverlay({
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) {
+        cancelEdgeDrag();
+        return;
+      }
       if (event.button !== 0) return;
 
       // persist the manually chosen width when click-move-click finishes.
@@ -1729,7 +1745,7 @@ export default function PositionBracketOverlay({
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (isEventInChartWorkspace(event, chartWrapRef.current)) event.preventDefault();
       cancelEdgeDrag();
     };
 

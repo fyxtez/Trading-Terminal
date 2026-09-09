@@ -79,9 +79,32 @@ const BACKFILL_CHUNK_SIZE = 1500;
  * poll loop, clears all chart data/refs, and reloads everything fresh
  * for the new symbol, exactly like switching from 1m to 1h already did.
  */
-export function useMarketData(refs: ChartRefs, symbol: string, registryReady = true) {
-  const [interval, setIntervalState] = useState<Interval>(() => loadSavedInterval(symbol));
+export function useMarketData(
+  refs: ChartRefs,
+  symbol: string,
+  registryReady = true,
+  workspace?: {
+    paneId: string;
+    active: boolean;
+    initialInterval: Interval;
+    onIntervalChange: (interval: Interval) => void;
+  },
+) {
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  const viewportSymbol = workspace?.paneId === "right" ? `right:${symbol}` : symbol;
+  const [interval, setIntervalState] = useState<Interval>(
+    () => workspace?.initialInterval ?? loadSavedInterval(symbol),
+  );
   const intervalSymbolRef = useRef(symbol);
+  useEffect(() => {
+    if (workspace?.initialInterval && intervalSymbolRef.current === symbol) {
+      setIntervalState(workspace.initialInterval);
+    }
+  }, [workspace?.initialInterval, symbol]);
+  useEffect(() => {
+    workspaceRef.current?.onIntervalChange(workspaceRef.current.initialInterval);
+  }, [symbol]);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [marketDataError, setMarketDataError] = useState<string | null>(null);
@@ -124,7 +147,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
     if (intervalSymbolRef.current === symbol) return;
 
     intervalSymbolRef.current = symbol;
-    const savedInterval = loadSavedInterval(symbol);
+    const savedInterval = workspaceRef.current?.initialInterval ?? loadSavedInterval(symbol);
 
     // never expose the previous market's quote under the newly-selected
     // symbol. Besides showing stale UI, that old value used to look like a real
@@ -241,7 +264,8 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
     refs.liveMarketPriceRef.current = price;
 
-    document.title = `${formatSymbolPair(tickerSymbol)} ${price.toFixed(pricePrecisionRef.current)}`;
+    if (workspaceRef.current?.active !== false)
+      document.title = `${formatSymbolPair(tickerSymbol)} ${price.toFixed(pricePrecisionRef.current)}`;
 
     updateLivePriceLine(price);
   };
@@ -551,7 +575,8 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
         if (timeScale) {
           const lastIndex = candles.length - 1;
-          const savedViewport = loadSavedViewport(symbol, interval);
+          const savedViewport =
+            loadSavedViewport(viewportSymbol, interval) ?? loadSavedViewport(symbol, interval);
 
           if (savedViewport && savedViewportShowsCandles(savedViewport, candles)) {
             // Store X relative to the newest candle rather than as absolute logical
@@ -768,7 +793,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
       const yFrom = Math.max(0, yRange.from);
       const yTo = yRange.from < 0 ? yFrom + ySpan : yRange.to;
 
-      saveViewportToStorage(symbol, interval, {
+      saveViewportToStorage(viewportSymbol, interval, {
         xFromOffset: xRange.from - lastLogicalIndex,
         xToOffset: xRange.to - lastLogicalIndex,
         yFrom,
@@ -829,6 +854,7 @@ export function useMarketData(refs: ChartRefs, symbol: string, registryReady = t
 
     refs.pendingVisibleRangeRef.current = null;
     saveInterval(symbol, nextInterval);
+    workspaceRef.current?.onIntervalChange(nextInterval);
     setIntervalState(nextInterval);
   };
 

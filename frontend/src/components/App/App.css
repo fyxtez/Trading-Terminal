@@ -167,3 +167,109 @@
     height: min(72vh, 560px);
   }
 }
+
+.chart-workspaces {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.chart-workspace-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+}
+
+.chart-workspaces.split {
+  display: grid;
+}
+.chart-divider {
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--bg-app);
+  outline: none;
+}
+.chart-divider::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--border-strong);
+}
+.chart-divider:hover::after,
+.chart-divider:focus-visible::after,
+.resizing-charts > .chart-divider::after {
+  background: #71809a;
+}
+.resizing-charts {
+  cursor: col-resize;
+  user-select: none;
+}
+.resizing-charts > .chart-workspace-pane {
+  pointer-events: none;
+}
+
+.chart-workspaces.split .chart-workspace-pane.active .chart-tab.active {
+  background: var(--bg-surface-raised);
+  border-color: #526078;
+}
+
+.chart-workspaces.split .app-main.settings-open {
+  grid-template-columns: minmax(0, 1fr) 0;
+}
+.chart-workspaces.split .settings-panel,
+.chart-workspaces.split .settings-panel-loading {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 100%);
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  z-index: 100;
+}
+.chart-workspaces.split .settings-panel:not(.open) {
+  display: none;
+}
+.chart-workspaces.split .app-main {
+  position: relative;
+}
+
+.terminal-workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.terminal-workspace > .chart-workspaces {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.shared-positions-dock {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+/* Chart overlays stay within their workspace stacking layer, below Settings. */
+.workspace {
+  isolation: isolate;
+  z-index: 0;
+}
+
+.terminal-topbar {
+  flex-shrink: 0;
+  min-height: 46px;
+}
+
+@media (max-width: 720px) {
+  .terminal-topbar {
+    min-height: 50px;
+  }
+}

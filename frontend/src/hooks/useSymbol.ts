@@ -90,7 +90,7 @@ function writeSymbolToPath(symbol: TradingSymbol): void {
   try {
     const path = `/${getSymbolInfo(symbol).label}`;
     if (window.location.pathname !== path) {
-      window.history.replaceState(null, "", path + window.location.search);
+      window.history.replaceState(window.history.state, "", path + window.location.search);
     }
   } catch {}
 }

@@ -1,3 +1,4 @@
+import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   MouseEvent as ReactMouseEvent,
@@ -541,6 +542,7 @@ export default function ChartPanel({
     if (!isCandleCountdownMoving) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) return;
       const wrap = chartWrapRef.current;
       const base = candleCountdownBaseAnchorRef.current;
       if (wrap === null || base === null) return;
@@ -562,6 +564,11 @@ export default function ChartPanel({
     };
 
     const handlePlacementPointerDown = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, chartWrapRef.current)) {
+        setIsCandleCountdownMoving(false);
+        setIsCandleCountdownMoveArmed(false);
+        return;
+      }
       const target = event.target;
       if (target instanceof Element && target.closest(".candle-countdown-move-button")) {
         return;

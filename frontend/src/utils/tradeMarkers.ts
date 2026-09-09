@@ -92,9 +92,16 @@ export function loadStoredTradeMarkers(storageKey: string): TradeMarker[] {
   }
 }
 
+export const TRADE_MARKERS_CHANGED_EVENT = "terminal:trade-markers-changed";
+
 export function saveTradeMarkers(storageKey: string, markers: TradeMarker[]) {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(markers));
+    const serialized = JSON.stringify(markers);
+    if (localStorage.getItem(storageKey) === serialized) return;
+    localStorage.setItem(storageKey, serialized);
+    window.dispatchEvent(
+      new CustomEvent(TRADE_MARKERS_CHANGED_EVENT, { detail: { storageKey, markers } }),
+    );
   } catch (error) {
     console.error("Failed to save trade markers", error);
   }

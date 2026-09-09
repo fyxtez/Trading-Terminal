@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import type { UTCTimestamp } from "lightweight-charts";
 import { tradeMarkersStorageKey } from "../config/constants";
 import {
+  TRADE_MARKERS_CHANGED_EVENT,
+  appendTradeMarkerForSymbol,
   filterActiveTradeMarkers,
   loadStoredTradeMarkers,
   millisecondsUntilNextTradeMarkerExpiry,
@@ -38,7 +39,9 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
 
   const [markerState, setMarkerState] = useState<SymbolMarkerState>(() => ({
     symbol: normalizedSymbol,
-    markers: loadMarkers(normalizedSymbol),
+    markers: filterActiveTradeMarkers(
+      loadStoredTradeMarkers(tradeMarkersStorageKey(normalizedSymbol)),
+    ),
   }));
 
   const isHydrated = markerState.symbol === normalizedSymbol;
@@ -66,12 +69,30 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
   }, [normalizedSymbol]);
 
   useEffect(() => {
-    // Do not write the previous symbol's transitional state under the newly
-    // selected symbol's storage key.
-    if (!isHydrated) return;
-
-    saveTradeMarkers(tradeMarkersStorageKey(markerState.symbol), markerState.markers);
-  }, [isHydrated, markerState]);
+    const update = () => {
+      const next = filterActiveTradeMarkers(
+        loadStoredTradeMarkers(tradeMarkersStorageKey(normalizedSymbol)),
+      );
+      refs.tradeMarkersRef.current = next;
+      setMarkerState({ symbol: normalizedSymbol, markers: next });
+    };
+    const receive = (event: Event) => {
+      if (
+        (event as CustomEvent<{ storageKey: string }>).detail.storageKey ===
+        tradeMarkersStorageKey(normalizedSymbol)
+      )
+        update();
+    };
+    const storage = (event: StorageEvent) => {
+      if (event.key === tradeMarkersStorageKey(normalizedSymbol)) update();
+    };
+    window.addEventListener(TRADE_MARKERS_CHANGED_EVENT, receive);
+    window.addEventListener("storage", storage);
+    return () => {
+      window.removeEventListener(TRADE_MARKERS_CHANGED_EVENT, receive);
+      window.removeEventListener("storage", storage);
+    };
+  }, [normalizedSymbol, refs.tradeMarkersRef]);
 
   useEffect(() => {
     if (!isHydrated || markers.length === 0) return;
@@ -80,17 +101,10 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
     if (delay === null) return;
 
     const id = window.setTimeout(() => {
-      setMarkerState((current) => {
-        if (current.symbol !== normalizedSymbol) return current;
-
-        const next = filterActiveTradeMarkers(current.markers);
-        refs.tradeMarkersRef.current = next;
-
-        return {
-          symbol: current.symbol,
-          markers: next,
-        };
-      });
+      saveTradeMarkers(
+        tradeMarkersStorageKey(normalizedSymbol),
+        filterActiveTradeMarkers(loadStoredTradeMarkers(tradeMarkersStorageKey(normalizedSymbol))),
+      );
     }, delay);
 
     return () => window.clearTimeout(id);
@@ -104,32 +118,7 @@ export function useTradeMarkers(refs: ChartRefs, symbol: string) {
     // This hook belongs only to the chart's currently selected symbol.
     if (fillSymbol !== normalizedSymbol) return;
 
-    setMarkerState((current) => {
-      // Ignore a fill arriving through a stale callback while a symbol switch
-      // is in progress. It must never be written into the new symbol's state.
-      if (current.symbol !== normalizedSymbol) return current;
-
-      const id = fill.id ?? crypto.randomUUID();
-      if (current.markers.some((marker) => marker.id === id)) return current;
-
-      const next = filterActiveTradeMarkers([
-        ...current.markers,
-        {
-          id,
-          time: fill.time as UTCTimestamp,
-          price: fill.price,
-          side: fill.side,
-          createdAt: Date.now(),
-        },
-      ]);
-
-      refs.tradeMarkersRef.current = next;
-
-      return {
-        symbol: current.symbol,
-        markers: next,
-      };
-    });
+    appendTradeMarkerForSymbol(normalizedSymbol, fill);
   };
 
   const addMarkerNow = (side: TradeSide, price?: number) => {

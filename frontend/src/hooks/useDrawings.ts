@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Logical } from "lightweight-charts";
 import {
   activeDrawingSetStorageKey,
@@ -38,6 +38,10 @@ type SymbolDrawingsState = {
   symbol: string;
   drawings: Drawing[];
 };
+
+const DRAWINGS_CHANGED_EVENT = "terminal:workspace-drawings-changed";
+const manualDrawings = (drawings: Drawing[]) =>
+  drawings.filter((drawing) => !(drawing.type === "horizontal" && drawing.orderSide));
 
 const normalizeSymbol = (symbol: string) => symbol.toUpperCase();
 
@@ -84,6 +88,7 @@ function drawingMoveLabel(drawing: Drawing): string {
 }
 
 export function useDrawings(refs: ChartRefs, symbol: string) {
+  const sender = useRef({});
   const normalizedSymbol = normalizeSymbol(symbol);
   const [tool, setToolState] = useState<DrawingTool>("cursor");
   const [drawingState, setDrawingState] = useState<SymbolDrawingsState>(() => ({
@@ -147,7 +152,20 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
   };
 
   const syncDrawings = (next: Drawing[], options: { syncActiveDrawingSet?: boolean } = {}) => {
+    const manual = manualDrawings(next);
+    const changed =
+      JSON.stringify(manual) !== JSON.stringify(manualDrawings(refs.drawingsRef.current));
     refs.drawingsRef.current = next;
+    if (changed)
+      window.dispatchEvent(
+        new CustomEvent(DRAWINGS_CHANGED_EVENT, {
+          detail: {
+            symbol: normalizedSymbol,
+            sender: sender.current,
+            drawings: cloneDrawings(manual),
+          },
+        }),
+      );
     setDrawingState({
       symbol: normalizedSymbol,
       drawings: next,
@@ -682,6 +700,27 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     refs.redoRef.current = [];
     refs.pendingStartRef.current = null;
     refs.previewPointRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedSymbol]);
+
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{ symbol: string; sender: object; drawings: Drawing[] }>)
+        .detail;
+      if (detail.symbol !== normalizedSymbol || detail.sender === sender.current) return;
+      const orders = refs.drawingsRef.current.filter(
+        (drawing) => drawing.type === "horizontal" && drawing.orderSide,
+      );
+      const next = [...orders, ...cloneDrawings(detail.drawings)];
+      refs.drawingsRef.current = next;
+      setDrawingState({ symbol: normalizedSymbol, drawings: next });
+      // History built against an older document must not resurrect a remote deletion.
+      refs.undoRef.current = [];
+      refs.redoRef.current = [];
+      if (!next.some((drawing) => drawing.id === refs.selectedIdRef.current)) setSelectedId(null);
+    };
+    window.addEventListener(DRAWINGS_CHANGED_EVENT, receive);
+    return () => window.removeEventListener(DRAWINGS_CHANGED_EVENT, receive);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedSymbol]);
 

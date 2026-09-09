@@ -17,6 +17,7 @@ for chart/UI work and suppresses account requests and execution controls.
 ## Features
 
 - Multi-symbol, multi-tab candlestick charts built with Lightweight Charts
+- Side-by-side chart workspaces with independent tabs and timeframes (right-click → Split chart)
 - Binance and MEXC market-data sources
 - Preseeded Binance Gold (`XAUUSDT`) and Silver (`XAGUSDT`) TradFi charts
 - Market, limit, stop-market, take-profit, reduce, chase, and close-position flows
@@ -310,3 +311,34 @@ has no automatic updater.
 - [Binance Testnet failure drill](docs/TESTNET-FAILURE-DRILL.md)
 - [Emergency trading procedure](docs/EMERGENCY-PROCEDURE.md)
 - [Authoritative exchange reconciliation](docs/adr/0008-authoritative-exchange-reconciliation.md)
+
+## Split chart workspaces
+
+Right-click the chart background and choose **Split chart** to duplicate the
+current symbol, timeframe, viewport, and open tabs into left/right panes. Each
+pane has its own active symbol, remembered timeframes, zoom, and tab order. Click
+inside a pane to target keyboard shortcuts there; its header shows an Active label that softly lights up for the active chart, and its selected tab has a
+subtle brighter background and border.
+The shared top toolbar targets the active pane: its symbol and timeframe controls
+change that chart only. Binance status, Orders, and Settings appear once.
+
+Drag the divider to resize the two charts; the ratio survives refresh. Double-click
+the divider to restore equal widths. When focused, Left/Right adjusts the divider,
+Home restores equal widths, and Escape cancels an in-progress drag.
+
+Positions and Open Orders share one dock below both charts. Either toolbar toggles
+that same dock; row navigation targets the active chart, and switching panes keeps
+the selected Positions/Open Orders tab. Settings appears above chart overlays.
+
+The symbol picker opens symbols only in the pane that invoked it. Registration
+and deletion still apply to the shared symbol registry. Right-click a tab to
+**Switch to left/right**; right-click `+` to move the active tab. The destination
+reuses an existing tab for that symbol and adopts the moved tab's timeframe.
+Moving the last tab out of a pane returns to one chart.
+
+**Unify charts** retains the left chart and merges the open tabs from both sides,
+without duplicate symbols. For a symbol open on both sides, the left timeframe
+wins. Layout, tabs, and timeframes survive refresh. Same-symbol drawings and
+execution markers are shared, and both panes receive the same account events
+through one trading WebSocket. Only visible panes mount chart instances; hidden
+tabs remain lightweight metadata.

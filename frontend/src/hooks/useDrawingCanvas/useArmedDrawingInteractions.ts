@@ -1,3 +1,4 @@
+import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { BoxDrawing, Drawing, HorizontalDrawing, TrendDrawing } from "../../types/drawing";
@@ -297,6 +298,7 @@ export function useArmedDrawingInteractions(
     if (!armedOrderLineId) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       if (!wrap) return;
 
@@ -341,6 +343,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        cancelOrderLineMove();
+        return;
+      }
       if (event.button !== 0) return;
 
       const before = armedOrderLineBeforeRef.current;
@@ -361,7 +367,7 @@ export function useArmedDrawingInteractions(
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) event.preventDefault();
       cancelOrderLineMove();
     };
 
@@ -385,6 +391,7 @@ export function useArmedDrawingInteractions(
     if (!armedTrendEndpoint) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       if (!wrap) return;
 
@@ -409,6 +416,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        cancelTrendEndpointMove();
+        return;
+      }
       if (event.button !== 0) return;
 
       const before = armedTrendEndpointBeforeRef.current;
@@ -435,7 +446,7 @@ export function useArmedDrawingInteractions(
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) event.preventDefault();
       cancelTrendEndpointMove();
     };
 
@@ -459,6 +470,7 @@ export function useArmedDrawingInteractions(
     if (!isGroupMarqueeActive) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       const marquee = refs.groupSelectionBoxRef.current;
       if (!wrap || !marquee) return;
@@ -470,6 +482,11 @@ export function useArmedDrawingInteractions(
     };
 
     const finishMarquee = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        refs.groupSelectionBoxRef.current = null;
+        setIsGroupMarqueeActive(false);
+        return;
+      }
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
@@ -498,8 +515,10 @@ export function useArmedDrawingInteractions(
     };
 
     const cancelMarquee = (event: Event) => {
-      event.preventDefault();
-      event.stopPropagation();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       refs.groupSelectionBoxRef.current = null;
       setIsGroupMarqueeActive(false);
     };
@@ -529,6 +548,7 @@ export function useArmedDrawingInteractions(
     if (!armedGroupMove) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       if (!wrap) return;
 
@@ -583,6 +603,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        cancelGroupMove();
+        return;
+      }
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
@@ -598,8 +622,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       cancelGroupMove();
     };
 
@@ -624,6 +650,7 @@ export function useArmedDrawingInteractions(
     if (!armedTrendMove) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       const before = armedTrendMoveBeforeRef.current;
       if (!wrap || !before) return;
@@ -652,6 +679,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        cancelTrendMove();
+        return;
+      }
       if (event.button !== 0) return;
 
       // the drop click belongs only to the armed trendline. Capturing
@@ -687,7 +718,7 @@ export function useArmedDrawingInteractions(
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) event.preventDefault();
       cancelTrendMove();
     };
 
@@ -712,6 +743,7 @@ export function useArmedDrawingInteractions(
     if (!armedBoxHandle) return;
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) return;
       const wrap = refs.chartWrapRef.current;
       if (!wrap) return;
 
@@ -739,6 +771,10 @@ export function useArmedDrawingInteractions(
     };
 
     const handleConfirmClick = (event: PointerEvent) => {
+      if (!isEventInChartWorkspace(event, refs.chartWrapRef.current)) {
+        cancelBoxHandleMove();
+        return;
+      }
       if (event.button !== 0) return;
 
       const before = armedBoxHandleBeforeRef.current;
@@ -765,7 +801,7 @@ export function useArmedDrawingInteractions(
     };
 
     const handleCancelContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
+      if (isEventInChartWorkspace(event, refs.chartWrapRef.current)) event.preventDefault();
       cancelBoxHandleMove();
     };
 

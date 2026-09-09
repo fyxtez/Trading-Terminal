@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useViewportMenuPosition } from "../../hooks/useViewportMenuPosition";
+import { useRef, useState } from "react";
 import { intervals, type Interval } from "../../config/constants";
 import type { ContextMenuState, Drawing } from "../../types/drawing";
 import "../../styles/floatingPanel.css";
@@ -92,6 +94,8 @@ type ContextMenuProps = {
   onStraightenOnXAxis: (id: string) => void;
   onStraightenSelectionOnXAxis: (ids: string[]) => void;
   onResetView: () => void;
+  onToggleSplit?: () => void;
+  split?: boolean;
   onDeleteAllPen: () => void;
   onDeleteAllDrawings: () => void;
   onDeleteDrawingsByTimeframe: (timeframe: Interval) => void;
@@ -130,6 +134,8 @@ export default function ContextMenu({
   onStraightenOnXAxis,
   onStraightenSelectionOnXAxis,
   onResetView,
+  onToggleSplit,
+  split,
   onDeleteAllPen,
   onDeleteAllDrawings,
   onDeleteDrawingsByTimeframe,
@@ -139,6 +145,8 @@ export default function ContextMenu({
   onCreateCoordinateMarker,
   onClose,
 }: ContextMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  useViewportMenuPosition(menuRef, contextMenu);
   const isDrawingMenu = Boolean(contextMenu.drawingId);
   const isGroupDrawingMenu = Boolean(contextMenu.drawingIds?.length);
   const canCreateAlertFromDrawing =
@@ -158,8 +166,9 @@ export default function ContextMenu({
   const [confirmingTimeframe, setConfirmingTimeframe] = useState<Interval | null>(null);
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
 
-  return (
+  return createPortal(
     <div
+      ref={menuRef}
       className={`context-menu ${isDrawingMenu ? "context-menu-drawing" : "context-menu-chart"}`}
       style={{ left: contextMenu.x, top: contextMenu.y }}
       onClick={(event) => event.stopPropagation()}
@@ -285,6 +294,17 @@ export default function ContextMenu({
           >
             Reset chart view
           </button>
+          {onToggleSplit && (
+            <button
+              className="context-action"
+              onClick={() => {
+                onClose();
+                onToggleSplit();
+              }}
+            >
+              {split ? "Unify charts" : "Split chart"}
+            </button>
+          )}
 
           {priceAlertsEnabled && (
             <button
@@ -425,6 +445,7 @@ export default function ContextMenu({
           </button>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

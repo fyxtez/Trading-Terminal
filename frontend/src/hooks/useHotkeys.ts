@@ -161,7 +161,10 @@ export function useHotkeys(
   priceAlertsApi: PriceAlertsApi,
   tradeMenuApi: TradeMenuApi,
   chartTabsApi: ChartTabsApi,
+  enabled = true,
 ) {
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const copiedDrawingRef = useRef<Drawing | null>(null);
 
   /*
@@ -208,6 +211,7 @@ export function useHotkeys(
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!enabledRef.current) return;
       const drawingsApi = drawingsApiRef.current;
       const priceAlertsApi = priceAlertsApiRef.current;
       const tradeMenuApi = tradeMenuApiRef.current;

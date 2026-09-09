@@ -1,3 +1,4 @@
+import { useViewportMenuPosition } from "../../hooks/useViewportMenuPosition";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getSymbolConfig, type TradingSymbol } from "../../config/constants";
@@ -14,6 +15,10 @@ import {
 import "./ChartTabs.css";
 
 type ChartTabsProps = {
+  active?: boolean;
+  paneLabel?: "LEFT" | "RIGHT";
+  onMoveTab?: (symbol: TradingSymbol) => void;
+  moveLabel?: string;
   tabs: readonly TradingSymbol[];
   activeSymbol: TradingSymbol;
   availableToOpen: readonly TradingSymbol[];
@@ -26,6 +31,10 @@ type ChartTabsProps = {
 };
 
 export default function ChartTabs({
+  active = true,
+  paneLabel,
+  onMoveTab,
+  moveLabel,
   tabs,
   activeSymbol,
   availableToOpen,
@@ -36,6 +45,12 @@ export default function ChartTabs({
   onDeleteTracked,
   onReorder,
 }: ChartTabsProps) {
+  useEffect(() => {
+    if (!active) {
+      setIsAddOpen(false);
+      setTabContextMenu(null);
+    }
+  }, [active]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [addHighlightedIndex, setAddHighlightedIndex] = useState(0);
@@ -55,6 +70,7 @@ export default function ChartTabs({
   const addSearchRef = useRef<HTMLInputElement | null>(null);
   const addHighlightedOptionRef = useRef<HTMLButtonElement | null>(null);
   const tabContextMenuRef = useRef<HTMLDivElement | null>(null);
+  useViewportMenuPosition(tabContextMenuRef, tabContextMenu);
   const addMenuStyle = useFixedPopoverPosition(addMenuTriggerRef, isAddOpen, 252, 5);
 
   const groupedAvailableSymbols = useMemo(() => {
@@ -259,7 +275,21 @@ export default function ChartTabs({
         })}
       </div>
 
-      <div className="chart-tab-add-wrap" ref={addMenuRef}>
+      <div
+        className="chart-tab-add-wrap"
+        ref={addMenuRef}
+        onContextMenu={(event) => {
+          if (!onMoveTab) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setIsAddOpen(false);
+          setTabContextMenu({
+            symbol: activeSymbol,
+            x: Math.min(event.clientX, window.innerWidth - 210),
+            y: event.clientY,
+          });
+        }}
+      >
         <button
           ref={addMenuTriggerRef}
           className="chart-tab-add"
@@ -365,6 +395,21 @@ export default function ChartTabs({
           )}
       </div>
 
+      {paneLabel && (
+        <div
+          className={`chart-pane-status ${active ? "is-active" : ""}`}
+          aria-label={`${paneLabel === "LEFT" ? "Left" : "Right"} chart${active ? ", active" : ", inactive"}`}
+          title={
+            active
+              ? "Active chart — toolbar and keyboard shortcuts control this chart"
+              : "Click this chart to activate it"
+          }
+        >
+          <span className="chart-pane-status-dot" aria-hidden="true" />
+          <span>Active</span>
+        </div>
+      )}
+
       {tabContextMenu &&
         (() => {
           const menuInfo = getSymbolInfo(tabContextMenu.symbol);
@@ -375,6 +420,17 @@ export default function ChartTabs({
               style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
               onContextMenu={(event) => event.preventDefault()}
             >
+              {onMoveTab && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onMoveTab(tabContextMenu.symbol);
+                    setTabContextMenu(null);
+                  }}
+                >
+                  {moveLabel}
+                </button>
+              )}
               <button
                 type="button"
                 disabled={tabs.length === 1 && availableToOpen.length === 0}

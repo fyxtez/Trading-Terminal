@@ -1,6 +1,11 @@
 .context-menu {
   z-index: 10000;
   width: 204px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--bg-surface);
   padding: 9px;
   display: flex;
   flex-direction: column;
