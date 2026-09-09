@@ -814,6 +814,7 @@ export default function ChartPanel({
 
       {autoMarketDraft && (
         <AutoMarketOverlay
+          symbol={symbol}
           draft={autoMarketDraft}
           isSubmitting={isSubmittingAutoMarket}
           chartWrapRef={chartWrapRef}

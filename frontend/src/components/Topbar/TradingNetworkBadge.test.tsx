@@ -1,8 +1,17 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import TradingNetworkBadge from "./TradingNetworkBadge";
 
 describe("TradingNetworkBadge", () => {
+  it.each(["mainnet", "testnet", null] as const)(
+    "opens connection management for %s",
+    (network) => {
+      const onClick = vi.fn();
+      render(<TradingNetworkBadge network={network} onClick={onClick} />);
+      fireEvent.click(screen.getByRole("button"));
+      expect(onClick).toHaveBeenCalledOnce();
+    },
+  );
   it("makes Mainnet unmistakably live", () => {
     render(<TradingNetworkBadge network="mainnet" />);
 

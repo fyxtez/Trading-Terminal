@@ -4,9 +4,12 @@ import type { ISeriesApi, UTCTimestamp } from "lightweight-charts";
 import type { AutoMarketDraft } from "../../hooks/useTradeMenu";
 import type { TradeSide } from "../../trading/types";
 import { startPacedLoop } from "../../utils/pacedLoop";
+import { getAutoMarketLeverage } from "../../trading/api/sizing";
+import { startMarketPoll } from "../../utils/marketPoll";
 import "./AutoMarketOverlay.css";
 
 type AutoMarketOverlayProps = {
+  symbol: string;
   draft: AutoMarketDraft;
   isSubmitting: boolean;
   chartWrapRef: MutableRefObject<HTMLDivElement | null>;
@@ -54,6 +57,7 @@ function isValidStop(side: TradeSide, marketPrice: number, stopLoss: number) {
 }
 
 export default function AutoMarketOverlay({
+  symbol,
   draft,
   isSubmitting,
   chartWrapRef,
@@ -68,6 +72,35 @@ export default function AutoMarketOverlay({
 }: AutoMarketOverlayProps) {
   const [coordinates, setCoordinates] = useState<OverlayCoordinates | null>(null);
   const lastCoordinatesRef = useRef<OverlayCoordinates | null>(null);
+  const [leveragePreview, setLeveragePreview] = useState<{
+    key: string;
+    leverage: number | null;
+  } | null>(null);
+  const previewKey = `${symbol}:${draft.side}:${draft.stopLoss}`;
+  useEffect(() => {
+    let poll: ReturnType<typeof startMarketPoll> | undefined;
+    // Wait for SL movement to settle, then keep the backend preview current.
+    const timer = window.setTimeout(() => {
+      poll = startMarketPoll(async (signal) => {
+        try {
+          const leverage = await getAutoMarketLeverage(symbol, draft.side, draft.stopLoss, signal);
+          if (!signal.aborted) setLeveragePreview({ key: previewKey, leverage });
+        } catch {
+          if (!signal.aborted) setLeveragePreview({ key: previewKey, leverage: null });
+        }
+      }, 5000);
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      poll?.stop();
+    };
+  }, [symbol, draft.side, draft.stopLoss, previewKey]);
+  const leverageLabel =
+    leveragePreview?.key === previewKey
+      ? leveragePreview.leverage === null
+        ? "—"
+        : `${leveragePreview.leverage}×`
+      : "…";
 
   // --- Click-move-click stop-loss placement -----------------------------
   //
@@ -269,7 +302,15 @@ export default function AutoMarketOverlay({
         className="auto-market-entry-line stable"
         style={{ left: coordinates.left, top: coordinates.entryY, width: coordinates.width }}
       >
-        <span>MARKET {formatPrice(coordinates.marketPrice, pricePrecision)}</span>
+        <span>
+          MARKET {formatPrice(coordinates.marketPrice, pricePrecision)}
+          <span
+            className="auto-market-leverage"
+            title="Auto Market leverage preview; recalculated at execution"
+          >
+            LEVERAGE {leverageLabel}
+          </span>
+        </span>
       </div>
 
       {coordinates.valid && (

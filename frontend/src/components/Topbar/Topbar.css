@@ -62,6 +62,9 @@
 }
 
 .topbar-network-badge {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -426,4 +429,13 @@ button.topbar-connection-item:not(:disabled) {
     font-size: 12.5px;
     gap: 5px;
   }
+}
+
+.topbar-network-badge:hover {
+  filter: brightness(1.15);
+}
+
+.topbar-network-badge:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
 }

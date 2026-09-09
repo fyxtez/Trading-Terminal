@@ -29,6 +29,7 @@ import "./SettingsPanel.css";
 import "./SettingsPanel.sections.css";
 
 type SettingsPanelProps = {
+  exchangeConnectionsRequest?: number;
   isOpen: boolean;
   onClose: () => void;
   width: number;
@@ -179,6 +180,7 @@ const alertPriceFormatter = new Intl.NumberFormat("en-US", {
 });
 
 export default function SettingsPanel({
+  exchangeConnectionsRequest = 0,
   isOpen,
   onClose,
   width,
@@ -278,6 +280,9 @@ export default function SettingsPanel({
   // Settings search keeps a large configuration panel usable without
   // changing the user's persisted HIDE/SHOW preferences for each section.
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
+  useEffect(() => {
+    if (exchangeConnectionsRequest > 0) setSettingsSearchQuery("Exchange Connections");
+  }, [exchangeConnectionsRequest]);
 
   const saveTimerRef = useRef<number | null>(null);
   const saveRequestIdRef = useRef(0);

@@ -1,3 +1,5 @@
+import { getSymbolFilters, roundToStep } from "./exchangeInfo";
+import type { TradeSide } from "../types";
 import { SIZING_ENDPOINT, TRADING_API_BASE_URL } from "../../config/constants";
 import {
   financialMutationFingerprint,
@@ -97,4 +99,29 @@ export async function updateSizing(
       return validateSizing(await response.json());
     },
   );
+}
+
+/** Read the backend's automatic leverage without changing the account or placing an order. */
+export async function getAutoMarketLeverage(
+  symbol: string,
+  side: TradeSide,
+  stopLoss: number,
+  signal: AbortSignal,
+): Promise<number> {
+  const filters = await getSymbolFilters(symbol);
+  signal.throwIfAborted();
+  const query = new URLSearchParams({
+    side,
+    stop_loss: String(roundToStep(stopLoss, filters.tickSize)),
+  });
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}${SIZING_ENDPOINT}/preview/${encodeURIComponent(symbol)}?${query}`,
+    { headers: getHeaders(), signal },
+  );
+  if (!response.ok) throw new Error(await readError(response));
+  const body = await response.json();
+  if (!Number.isInteger(body.leverage) || body.leverage < 1) {
+    throw new Error("Backend returned invalid automatic leverage");
+  }
+  return body.leverage;
 }

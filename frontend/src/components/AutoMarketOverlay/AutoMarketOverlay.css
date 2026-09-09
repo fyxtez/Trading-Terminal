@@ -389,3 +389,9 @@
   white-space: nowrap;
   pointer-events: none;
 }
+
+.auto-market-leverage {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-strong);
+}

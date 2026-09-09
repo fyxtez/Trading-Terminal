@@ -25,6 +25,7 @@ type TopbarProps = {
   onZoomOut: () => void;
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
+  onManageBinance: () => void;
   isOrdersOpen: boolean;
   onToggleOrders: () => void;
   /**
@@ -81,6 +82,7 @@ export default function Topbar({
   onZoomOut,
   isSettingsOpen,
   onToggleSettings,
+  onManageBinance,
   isOrdersOpen,
   onToggleOrders,
   backendConnection,
@@ -201,7 +203,7 @@ export default function Topbar({
 
       <div className="topbar-spacer" />
 
-      <TradingNetworkBadge network={binanceNetwork} />
+      <TradingNetworkBadge network={binanceNetwork} onClick={onManageBinance} />
 
       <div className="topbar-connection-group" aria-label="Connection status">
         <button

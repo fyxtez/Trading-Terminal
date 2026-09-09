@@ -656,6 +656,7 @@ function App() {
 
   const [isHotkeysOpen, setIsHotkeysOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [exchangeConnectionsRequest, setExchangeConnectionsRequest] = useState(0);
   const [hasMountedSettingsPanel, setHasMountedSettingsPanel] = useState(false);
   const [settingsPanelWidth, setSettingsPanelWidth] = useState(readStoredSettingsPanelWidth);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
@@ -992,6 +993,13 @@ function App() {
         onZoomOut={marketData.zoomOut}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((open) => !open)}
+        onManageBinance={() => {
+          if (desktopCredentials.isDesktop) desktopCredentials.openSetup("binance");
+          else {
+            setExchangeConnectionsRequest((request) => request + 1);
+            setIsSettingsOpen(true);
+          }
+        }}
         isOrdersOpen={isOrdersOpen}
         onToggleOrders={() => setIsOrdersOpen((open) => !open)}
         backendConnection={backendConnection}
@@ -1158,6 +1166,7 @@ function App() {
           >
             <SettingsPanel
               isOpen={isSettingsOpen}
+              exchangeConnectionsRequest={exchangeConnectionsRequest}
               onClose={() => setIsSettingsOpen(false)}
               width={settingsPanelWidth}
               onWidthChange={handleSettingsPanelWidthChange}
