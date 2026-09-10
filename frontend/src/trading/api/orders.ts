@@ -421,3 +421,38 @@ export async function cancelConditionalOrder(symbol: string, algoId: string): Pr
     return parseTradingResponse<unknown>(response);
   });
 }
+
+export async function getFullStopLoss(
+  symbol: string,
+  side: OrderSide,
+): Promise<import("../stopLoss").SavedStop | null> {
+  const response = await tradingApiFetch(
+    `${TRADING_API_BASE_URL}/api/orders/algo/${encodeURIComponent(symbol.toUpperCase())}`,
+    { headers: tradingApiHeaders() },
+  );
+  const orders = await parseTradingResponse<Array<Record<string, unknown>>>(response);
+  if (!Array.isArray(orders)) throw new Error("Invalid live stop response");
+  const matches = orders.filter(
+    (order) =>
+      order.symbol === symbol.toUpperCase() &&
+      order.side === side &&
+      order.orderType === "STOP_MARKET" &&
+      (order.closePosition === true || order.closePosition === "true") &&
+      (!order.positionSide || order.positionSide === "BOTH"),
+  );
+  if (matches.length > 1) throw new Error("Multiple full-position stops found");
+  const order = matches[0];
+  if (!order) return null;
+  if (
+    typeof order.algoId !== "string" ||
+    !/^[1-9][0-9]*$/.test(order.algoId) ||
+    !(Number(order.triggerPrice) > 0)
+  )
+    throw new Error("Invalid live stop response");
+  return {
+    symbol: symbol.toUpperCase(),
+    side,
+    algoId: order.algoId,
+    triggerPrice: Number(order.triggerPrice),
+  };
+}

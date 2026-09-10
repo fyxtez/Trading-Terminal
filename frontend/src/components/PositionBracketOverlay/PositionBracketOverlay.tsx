@@ -18,7 +18,11 @@ import {
   getPositions,
   type OpenPosition,
 } from "../../trading/api/positions";
-import { cancelConditionalOrder, placeFullStopLoss } from "../../trading/api/orders";
+import {
+  cancelConditionalOrder,
+  placeFullStopLoss,
+  getFullStopLoss,
+} from "../../trading/api/orders";
 import { loadSavedStop, saveStop, type SavedStop } from "../../trading/stopLoss";
 import type { TradeMarker, TradeSide, TradeToastState } from "../../trading/types";
 import {
@@ -359,6 +363,27 @@ export default function PositionBracketOverlay({
   fullTakeProfitOrderIdRef.current = fullTakeProfitOrderId;
   optimisticTakeProfitRef.current = optimisticTakeProfit;
   optimisticStopLossRef.current = optimisticStopLoss;
+
+  // Reconcile display-only storage from the exchange when entering a position
+  // or after an order action, including a failed replacement/rollback.
+  useEffect(() => {
+    if (!position || isSubmitting) return;
+    let disposed = false;
+    const side = position.side === "LONG" ? "SELL" : "BUY";
+    void getFullStopLoss(symbol, side)
+      .then((stop) => {
+        if (disposed) return;
+        savedStopRef.current = stop;
+        setSavedStop(stop);
+        saveStop(stop, symbol);
+      })
+      .catch(() => {
+        // A failed read is not evidence that protection disappeared.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [symbol, position?.side, isSubmitting]);
 
   // A stop created by another workflow (notably AUTO MARKET) is persisted
   // through trading/stopLoss.ts and followed by a trading-state-changed event.
@@ -1165,20 +1190,8 @@ export default function PositionBracketOverlay({
         window.setTimeout(() => window.dispatchEvent(new Event("orders-state-changed")), 350);
         window.setTimeout(() => window.dispatchEvent(new Event("orders-state-changed")), 900);
       } else {
-        // This same path handles both a brand-new stop-loss placement
-        // (savedStop is null, so there's nothing to cancel) and moving an
-        // existing one (savedStop already set - cancel it first, Binance
-        // doesn't support amending a conditional order's trigger price in
-        // place).
-        const oldStop = savedStopRef.current;
-        if (oldStop?.algoId) {
-          try {
-            await cancelConditionalOrder(oldStop.symbol, oldStop.algoId);
-          } catch {
-            // Continue: Binance may already have removed/triggered it.
-          }
-        }
-
+        // The backend resolves and replaces the live Binance stop under its
+        // trade lock. Local storage is only a display cache, never cancellation authority.
         const closeSide = currentPosition.side === "LONG" ? "SELL" : "BUY";
         const response = await placeFullStopLoss({
           symbol: currentPosition.symbol,

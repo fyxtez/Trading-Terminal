@@ -761,6 +761,10 @@ impl BinanceClient {
         .await
     }
 
+    pub async fn open_algo_orders(&self, symbol: &str) -> AppResult<Vec<Value>> {
+        self.signed(Method::GET, "/fapi/v1/openAlgoOrders", vec![("symbol".into(), normalize_symbol(symbol)?)]).await
+    }
+
     pub async fn cancel_algo_order(&self, symbol: &str, algo_id: i64) -> AppResult<Value> {
         if algo_id <= 0 {
             return Err(AppError::Invalid("algo_id must be > 0".into()));
@@ -1268,7 +1272,7 @@ fn validate_conditional_quantity_shape(
     Ok(())
 }
 
-fn validate_id(value: &str) -> AppResult<String> {
+pub(crate) fn validate_id(value: &str) -> AppResult<String> {
     let value = value.trim();
     if value.is_empty()
         || value.len() > 36

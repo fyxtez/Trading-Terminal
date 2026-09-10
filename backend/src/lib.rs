@@ -15,6 +15,7 @@ mod position_risk_state;
 mod runtime_config;
 mod secure_store;
 mod sizing_store;
+mod stop_loss_workflow;
 mod symbol_registry;
 #[cfg(feature = "testnet-drills")]
 pub mod testnet_drill;

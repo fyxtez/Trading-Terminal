@@ -164,6 +164,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/orders/market", post(market_order))
         .route("/api/orders/limit", post(limit_order))
         .route("/api/orders/stop-market", post(stop_market))
+        .route("/api/orders/algo/{symbol}", get(open_algo_orders))
         .route("/api/orders/take-profit-market", post(take_profit_market))
         .route(
             "/api/orders/algo/{symbol}/{algo_id}",
@@ -1033,19 +1034,9 @@ async fn stop_market(
     // the validation above also reads Binance's contract price. Force CONTRACT_PRICE
     // here so an older client cannot accidentally submit MARK_PRICE and create a stop
     // that visibly trades through its chart level before Binance triggers it.
-    let response = state
-        .binance
-        .conditional_order(
-            &symbol,
-            close_side,
-            "STOP_MARKET",
-            trigger_price,
-            None,
-            true,
-            "CONTRACT_PRICE",
-            Some(&client_algo_id),
-        )
-        .await?;
+    let response = crate::stop_loss_workflow::replace_full_stop(
+        &state.binance, &symbol, close_side, trigger_price, &client_algo_id,
+    ).await?;
 
     let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
         reason: format!("full stop loss created for {symbol}"),
@@ -1058,6 +1049,11 @@ async fn stop_market(
         "close_position": true,
         "algo": response,
     })))
+}
+
+async fn open_algo_orders(State(state): State<AppState>, Path(symbol): Path<String>) -> AppResult<Json<Value>> {
+    let symbol = normalize_symbol(&symbol)?;
+    Ok(Json(json!(state.binance.open_algo_orders(&symbol).await?)))
 }
 
 async fn cancel_algo_order(
