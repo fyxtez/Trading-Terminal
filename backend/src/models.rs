@@ -26,18 +26,13 @@ impl OrderSide {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MarginSizingConfig {
     pub margin_pct: f64,
-    pub leverage_safety: f64,
     pub max_leverage: u32,
 }
 
 impl MarginSizingConfig {
-    pub fn new(margin_pct: f64, leverage_safety: f64, max_leverage: u32) -> Result<Self, String> {
+    pub fn new(margin_pct: f64, max_leverage: u32) -> Result<Self, String> {
         if !margin_pct.is_finite() || margin_pct <= 0.0 || margin_pct > 1.0 {
             return Err("margin_pct must be finite and in (0, 1]".into());
-        }
-
-        if !(leverage_safety.is_finite() && 0.0 < leverage_safety && leverage_safety <= 1.0) {
-            return Err("leverage_safety must be finite and in (0, 1]".into());
         }
 
         if max_leverage == 0 {
@@ -46,7 +41,6 @@ impl MarginSizingConfig {
 
         Ok(Self {
             margin_pct,
-            leverage_safety,
             max_leverage,
         })
     }
@@ -102,15 +96,20 @@ mod tests {
 
     #[test]
     fn sizing_policy_accepts_only_bounded_finite_values() {
-        assert!(MarginSizingConfig::new(0.02, 0.9, 50).is_ok());
+        assert!(MarginSizingConfig::new(0.02, 50).is_ok());
 
         for invalid_margin in [0.0, -0.01, 1.01, f64::NAN, f64::INFINITY] {
-            assert!(MarginSizingConfig::new(invalid_margin, 0.9, 50).is_err());
+            assert!(MarginSizingConfig::new(invalid_margin, 50).is_err());
         }
-        for invalid_safety in [0.0, -0.1, 1.01, f64::NAN, f64::INFINITY] {
-            assert!(MarginSizingConfig::new(0.02, invalid_safety, 50).is_err());
-        }
-        assert!(MarginSizingConfig::new(0.02, 0.9, 0).is_err());
+        assert!(MarginSizingConfig::new(0.02, 0).is_err());
+    }
+
+    #[test]
+    fn legacy_sizing_loads_but_removed_multiplier_is_not_serialized() {
+        let legacy = serde_json::json!({"margin_pct":0.02,"max_leverage":50,"leverage_safety":0.3});
+        let config: MarginSizingConfig = serde_json::from_value(legacy).unwrap();
+        let validated = MarginSizingConfig::new(config.margin_pct, config.max_leverage).unwrap();
+        assert_eq!(serde_json::to_value(validated).unwrap(), serde_json::json!({"margin_pct":0.02,"max_leverage":50}));
     }
 
     #[test]

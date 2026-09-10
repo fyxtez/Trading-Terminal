@@ -397,10 +397,9 @@ async fn wait_for_browser_shutdown(mut receiver: watch::Receiver<bool>) {
 
 fn load_sizing_config() -> AppResult<MarginSizingConfig> {
     let margin_pct = env_parse("SIZING_MARGIN_PCT", 0.01)?;
-    let leverage_safety = env_parse("SIZING_LEVERAGE_SAFETY", 0.98)?;
     let max_leverage = env_parse("SIZING_MAX_LEVERAGE", 120_u32)?;
 
-    MarginSizingConfig::new(margin_pct, leverage_safety, max_leverage).map_err(AppError::Config)
+    MarginSizingConfig::new(margin_pct, max_leverage).map_err(AppError::Config)
 }
 
 fn env_parse<T>(name: &str, default: T) -> AppResult<T>

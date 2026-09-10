@@ -10,7 +10,6 @@ import { tradingApiFetch, tradingApiHeaders } from "./http";
 
 export type SizingConfig = {
   margin_pct: number;
-  leverage_safety: number;
   max_leverage: number;
 };
 
@@ -46,20 +45,14 @@ function validateSizing(value: unknown): SizingConfig {
 
   const body = value as Record<string, unknown>;
   const marginPct = Number(body.margin_pct);
-  const leverageSafety = Number(body.leverage_safety);
   const maxLeverage = Number(body.max_leverage);
 
-  if (
-    !Number.isFinite(marginPct) ||
-    !Number.isFinite(leverageSafety) ||
-    !Number.isFinite(maxLeverage)
-  ) {
+  if (!Number.isFinite(marginPct) || !Number.isFinite(maxLeverage)) {
     throw new Error("Backend returned invalid sizing values");
   }
 
   return {
     margin_pct: marginPct,
-    leverage_safety: leverageSafety,
     max_leverage: maxLeverage,
   };
 }

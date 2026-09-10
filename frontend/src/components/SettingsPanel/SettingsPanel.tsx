@@ -140,13 +140,6 @@ const FIELD_META: Record<
     min: 1,
     max: 50,
   },
-  leverage_safety: {
-    label: "Leverage safety",
-    description: "Safety multiplier applied to leverage",
-    step: 0.01,
-    min: 0,
-    max: 1,
-  },
   max_leverage: {
     label: "Maximum leverage",
     description: "Hard leverage cap",

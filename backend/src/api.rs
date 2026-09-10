@@ -360,7 +360,7 @@ async fn update_sizing(
     Json(req): Json<MarginSizingConfig>,
 ) -> AppResult<Json<MarginSizingConfig>> {
     let _guard = state.trade_lock.lock().await;
-    let validated = MarginSizingConfig::new(req.margin_pct, req.leverage_safety, req.max_leverage)
+    let validated = MarginSizingConfig::new(req.margin_pct, req.max_leverage)
         .map_err(AppError::Invalid)?;
 
     state.sizing_store.save(&validated).await?;
@@ -2421,9 +2421,7 @@ async fn build_auto_size_with_margin_pct(
     for _ in 0..4 {
         theoretical_max_leverage =
             1.0 / (stop_distance_pct + maint_margin_ratio + MIN_LIQUIDATION_BUFFER_PCT);
-        safe_stop_leverage = (theoretical_max_leverage * config.leverage_safety)
-            .floor()
-            .max(1.0) as u32;
+        safe_stop_leverage = theoretical_max_leverage.floor().max(1.0) as u32;
         calculated_leverage = safe_stop_leverage.min(maximum_allowed);
         leverage = requested_leverage.unwrap_or(calculated_leverage);
 

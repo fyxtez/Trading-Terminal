@@ -1,18 +1,18 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { isLocalBrowserRuntime, TRADING_API_BASE_URL } from "../config/constants";
 import { tradingApiFetch, tradingApiHeaders } from "../trading/api/http";
-import { sanitizeDrawings } from "./drawings";
+import { sanitizeDrawings, drawingContentSignature } from "./drawings";
 import type { Drawing } from "../types/drawing";
 
 type Patch = { upserts: Drawing[]; deleted: string[]; seed?: boolean };
 type Document = { revision: number; items: Record<string, Drawing | null> };
 const manual = (items: Drawing[]) => items.filter((d) => !(d.type === "horizontal" && d.orderSide));
 export function drawingPatch(before: Drawing[], after: Drawing[]): Patch {
-  const previous = new Map(manual(before).map((d) => [d.id, JSON.stringify(d)]));
+  const previous = new Map(manual(before).map((d) => [d.id, drawingContentSignature([d])]));
   const next = manual(after);
   const ids = new Set(next.map((d) => d.id));
   return {
-    upserts: next.filter((d) => previous.get(d.id) !== JSON.stringify(d)),
+    upserts: next.filter((d) => previous.get(d.id) !== drawingContentSignature([d])),
     deleted: [...previous.keys()].filter((id) => !ids.has(id)),
   };
 }

@@ -9,6 +9,7 @@ import {
   type Interval,
 } from "../config/constants";
 import {
+  drawingContentSignature,
   cloneDrawing,
   cloneDrawings,
   loadStoredDrawings,
@@ -155,7 +156,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
   const syncDrawings = (next: Drawing[], options: { syncActiveDrawingSet?: boolean } = {}) => {
     const manual = manualDrawings(next);
     const changed =
-      JSON.stringify(manual) !== JSON.stringify(manualDrawings(refs.drawingsRef.current));
+      drawingContentSignature(manual) !== drawingContentSignature(refs.drawingsRef.current);
     if (changed) publishSharedDrawings(normalizedSymbol, refs.drawingsRef.current, next);
     refs.drawingsRef.current = next;
     if (changed)
@@ -710,14 +711,12 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
       const detail = (event as CustomEvent<{ symbol: string; sender: object; drawings: Drawing[] }>)
         .detail;
       if (detail.symbol !== normalizedSymbol || detail.sender === sender.current) return;
-      const contentSignature = (drawings: Drawing[]) =>
-        JSON.stringify(
-          manualDrawings(drawings)
-            .slice()
-            .sort((a, b) => a.id.localeCompare(b.id)),
-        );
       // A server acknowledgement of our own edit must not erase local undo history.
-      if (contentSignature(refs.drawingsRef.current) === contentSignature(detail.drawings)) return;
+      if (
+        drawingContentSignature(refs.drawingsRef.current) ===
+        drawingContentSignature(detail.drawings)
+      )
+        return;
       const orders = refs.drawingsRef.current.filter(
         (drawing) => drawing.type === "horizontal" && drawing.orderSide,
       );

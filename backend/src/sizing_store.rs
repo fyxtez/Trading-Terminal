@@ -24,7 +24,6 @@ impl SizingStore {
 
                 MarginSizingConfig::new(
                     stored.margin_pct,
-                    stored.leverage_safety,
                     stored.max_leverage,
                 )
                 .map_err(AppError::Config)

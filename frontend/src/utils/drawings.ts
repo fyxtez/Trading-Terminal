@@ -211,3 +211,21 @@ export function getTextFontSize(width: number, height: number, text: string): nu
   const byWidth = width / (safeTextLength * 0.56);
   return Math.max(9, Math.min(56, byHeight, byWidth));
 }
+
+/** Compare drawing content independently of JSON object-key order on the server. */
+export function drawingContentSignature(drawings: readonly Drawing[]): string {
+  const manual = drawings.filter((d) => !(d.type === "horizontal" && d.orderSide));
+  return JSON.stringify(
+    manual.slice().sort((a, b) => a.id.localeCompare(b.id)),
+    (_key, value) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, value[key]]),
+        );
+      }
+      return value;
+    },
+  );
+}
