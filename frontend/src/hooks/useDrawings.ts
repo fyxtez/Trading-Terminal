@@ -1,3 +1,4 @@
+import { connectSharedDrawings, publishSharedDrawings } from "../utils/sharedDrawings";
 import { useEffect, useRef, useState } from "react";
 import type { Logical } from "lightweight-charts";
 import {
@@ -155,6 +156,7 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
     const manual = manualDrawings(next);
     const changed =
       JSON.stringify(manual) !== JSON.stringify(manualDrawings(refs.drawingsRef.current));
+    if (changed) publishSharedDrawings(normalizedSymbol, refs.drawingsRef.current, next);
     refs.drawingsRef.current = next;
     if (changed)
       window.dispatchEvent(
@@ -708,6 +710,14 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
       const detail = (event as CustomEvent<{ symbol: string; sender: object; drawings: Drawing[] }>)
         .detail;
       if (detail.symbol !== normalizedSymbol || detail.sender === sender.current) return;
+      const contentSignature = (drawings: Drawing[]) =>
+        JSON.stringify(
+          manualDrawings(drawings)
+            .slice()
+            .sort((a, b) => a.id.localeCompare(b.id)),
+        );
+      // A server acknowledgement of our own edit must not erase local undo history.
+      if (contentSignature(refs.drawingsRef.current) === contentSignature(detail.drawings)) return;
       const orders = refs.drawingsRef.current.filter(
         (drawing) => drawing.type === "horizontal" && drawing.orderSide,
       );
@@ -719,8 +729,22 @@ export function useDrawings(refs: ChartRefs, symbol: string) {
       refs.redoRef.current = [];
       if (!next.some((drawing) => drawing.id === refs.selectedIdRef.current)) setSelectedId(null);
     };
+    const disconnect = connectSharedDrawings(
+      normalizedSymbol,
+      refs.drawingsRef.current,
+      (drawings) => {
+        receive(
+          new CustomEvent(DRAWINGS_CHANGED_EVENT, {
+            detail: { symbol: normalizedSymbol, sender: null, drawings },
+          }),
+        );
+      },
+    );
     window.addEventListener(DRAWINGS_CHANGED_EVENT, receive);
-    return () => window.removeEventListener(DRAWINGS_CHANGED_EVENT, receive);
+    return () => {
+      disconnect();
+      window.removeEventListener(DRAWINGS_CHANGED_EVENT, receive);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedSymbol]);
 

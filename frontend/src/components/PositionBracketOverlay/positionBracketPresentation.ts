@@ -1,9 +1,6 @@
+import { captureRiskBasis, priceInR, type PositionRiskBasis } from "./positionRiskBasis";
 import type { OpenPosition } from "../../trading/api/positions";
-import {
-  STOP_LABEL_COLLISION_THRESHOLD_PX,
-  formatRMultiple,
-  priceBoundaryEpsilon,
-} from "./positionBracketModel";
+import { STOP_LABEL_COLLISION_THRESHOLD_PX, formatRMultiple } from "./positionBracketModel";
 
 export type DragKind = "TAKE_PROFIT" | "STOP_LOSS";
 
@@ -35,6 +32,7 @@ type PresentationInput = {
   isStopDraft: boolean;
   pricePrecision: number;
   controlsVisible?: boolean;
+  riskBasis?: PositionRiskBasis | null;
 };
 
 /** Pure display model for the bracket's zones, labels, and collision classes. */
@@ -49,6 +47,7 @@ export function deriveBracketPresentation({
   isStopDraft,
   pricePrecision,
   controlsVisible = true,
+  riskBasis,
 }: PresentationInput) {
   const preview =
     position && dragKind && previewPrice != null
@@ -67,12 +66,14 @@ export function deriveBracketPresentation({
     dragKind === "STOP_LOSS" && previewPrice != null ? previewPrice : displayedStopPrice;
   const rTakeProfitPrice =
     dragKind === "TAKE_PROFIT" && previewPrice != null ? previewPrice : displayedTakeProfitPrice;
-  const riskDistance =
-    position && rStopPrice != null ? Math.abs(position.entry_price - rStopPrice) : 0;
-  const takeProfitR =
-    position && rTakeProfitPrice != null && riskDistance > priceBoundaryEpsilon(pricePrecision)
-      ? Math.abs(rTakeProfitPrice - position.entry_price) / riskDistance
-      : null;
+  // Undefined retains draft-preview behavior; explicit null means the
+  // original risk of an existing trade is unknown, so do not invent it.
+  const basis =
+    riskBasis === undefined && position
+      ? captureRiskBasis(position, rStopPrice)
+      : (riskBasis ?? null);
+  const takeProfitR = position ? priceInR(position, rTakeProfitPrice, basis) : null;
+  const stopR = position ? priceInR(position, rStopPrice, basis) : null;
 
   const isStopProtectingProfit =
     position != null &&
@@ -109,6 +110,7 @@ export function deriveBracketPresentation({
   return {
     preview,
     takeProfitRLabel: formatRMultiple(takeProfitR),
+    stopRLabel: stopR != null && stopR > 0 ? `+${formatRMultiple(stopR)}` : formatRMultiple(stopR),
     isStopProtectingProfit,
     stopControlsAbove,
     stopControlsBelow,

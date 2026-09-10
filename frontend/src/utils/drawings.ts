@@ -80,7 +80,7 @@ const normalizeDrawing = (value: unknown): Drawing | null => {
   }
 };
 
-const sanitizeDrawings = (value: unknown): Drawing[] =>
+export const sanitizeDrawings = (value: unknown): Drawing[] =>
   Array.isArray(value)
     ? value.map(normalizeDrawing).filter((drawing): drawing is Drawing => drawing !== null)
     : [];

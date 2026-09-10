@@ -1,3 +1,4 @@
+import { captureRiskBasis, readRiskBasis, writeRiskBasis } from "./positionRiskBasis";
 import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import {
   useCallback,
@@ -247,6 +248,12 @@ export default function PositionBracketOverlay({
   }, [symbol]);
   const [dragKind, setDragKind] = useState<DragKind | null>(null);
   const [previewPrice, setPreviewPrice] = useState<number | null>(null);
+  const [riskState, setRiskState] = useState(() => ({ symbol, basis: readRiskBasis(symbol) }));
+  const riskBasis = riskState.symbol === symbol ? riskState.basis : null;
+  const setRiskBasis = (basis: ReturnType<typeof readRiskBasis>) => setRiskState({ symbol, basis });
+  useEffect(() => {
+    setRiskState({ symbol, basis: readRiskBasis(symbol) });
+  }, [symbol]);
   const [savedStop, setSavedStop] = useState<SavedStop | null>(() => loadSavedStop(symbol));
 
   // Optimistic placements: set the instant a TP/SL submission starts, so
@@ -363,6 +370,24 @@ export default function PositionBracketOverlay({
   fullTakeProfitOrderIdRef.current = fullTakeProfitOrderId;
   optimisticTakeProfitRef.current = optimisticTakeProfit;
   optimisticStopLossRef.current = optimisticStopLoss;
+
+  useEffect(() => {
+    if (
+      !position ||
+      position.symbol.toUpperCase() !== symbol.toUpperCase() ||
+      !savedStop ||
+      isSubmitting
+    )
+      return;
+    if (riskBasis?.side === position.side) return;
+    const stored = readRiskBasis(symbol);
+    const basis =
+      stored?.side === position.side ? stored : captureRiskBasis(position, savedStop.triggerPrice);
+    if (basis) {
+      writeRiskBasis(symbol, basis);
+      setRiskBasis(basis);
+    }
+  }, [position, savedStop, isSubmitting, riskBasis, symbol]);
 
   // Reconcile display-only storage from the exchange when entering a position
   // or after an order action, including a failed replacement/rollback.
@@ -606,6 +631,8 @@ export default function PositionBracketOverlay({
         setPosition(next);
 
         if (!next) {
+          writeRiskBasis(symbol, null);
+          setRiskBasis(null);
           entryAnchorTimeRef.current = null;
           lastKnownAnchorXRef.current = null;
           lastKnownLatestXRef.current = null;
@@ -637,6 +664,7 @@ export default function PositionBracketOverlay({
 
           if (savedStopRef.current) {
             setSavedStop(null);
+
             // this used to be `saveStop(null)` with NO symbol
             // argument - stopLoss.ts's old default parameter silently
             // fell back to DEFAULT_SYMBOL ("BTCUSDT"), so closing a
@@ -1806,6 +1834,7 @@ export default function PositionBracketOverlay({
   const {
     preview,
     takeProfitRLabel,
+    stopRLabel,
     isStopProtectingProfit,
     stopControlsAbove,
     stopControlsBelow,
@@ -1827,6 +1856,7 @@ export default function PositionBracketOverlay({
     isStopDraft,
     pricePrecision,
     controlsVisible: areEntryControlsVisible,
+    riskBasis: riskBasis?.side === position?.side ? riskBasis : isStopDraft ? undefined : null,
   });
 
   if (!position || !coordinates.ready) return null;
@@ -1877,7 +1907,16 @@ export default function PositionBracketOverlay({
             width: coordinates.paneWidth,
           }}
         >
-          <div className="position-bracket-r-multiple">{takeProfitRLabel}</div>
+          <div
+            className="position-bracket-r-multiple"
+            title={
+              riskBasis
+                ? "Target profit divided by the initial cash risk (1R). Moving SL does not change 1R."
+                : "Original risk is not recorded for this trade; R is unavailable until an initial risk is known."
+            }
+          >
+            {takeProfitRLabel}
+          </div>
         </div>
       )}
 
@@ -1895,7 +1934,12 @@ export default function PositionBracketOverlay({
             width: coordinates.paneWidth,
           }}
         >
-          <div className="position-bracket-r-multiple">-1R</div>
+          <div
+            className="position-bracket-r-multiple"
+            title="Profit or loss at SL, relative to the initial cash risk"
+          >
+            {stopRLabel}
+          </div>
         </div>
       )}
 
@@ -1925,7 +1969,7 @@ export default function PositionBracketOverlay({
             {previewPrice?.toFixed(pricePrecision)} · {Math.abs(preview.distancePct).toFixed(2)}%
           </span>
           <div className="position-bracket-r-multiple">
-            {dragKind === "TAKE_PROFIT" ? takeProfitRLabel : "-1R"}
+            {dragKind === "TAKE_PROFIT" ? takeProfitRLabel : stopRLabel}
           </div>
         </div>
       )}

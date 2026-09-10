@@ -66,7 +66,7 @@ mod catalog_routes;
 mod order_routes;
 mod system_routes;
 
-const MAX_REQUEST_BODY_BYTES: usize = 64 * 1024;
+const MAX_REQUEST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 
 use account_routes::{account, balance, position_realized_pnl};
@@ -83,6 +83,7 @@ use system_routes::{
 
 #[derive(Clone)]
 pub struct AppState {
+    pub chart_documents: crate::chart_documents::ChartDocuments,
     pub binance: BinanceClient,
     pub account_state: AccountState,
     pub position_risk_state: PositionRiskState,
@@ -150,6 +151,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/icons", get(list_icons))
         .route("/api/icons/{symbol}/image", get(get_icon_image))
+        .route("/api/chart-drawings/{symbol}", get(get_chart_drawings).put(update_chart_drawings).layer(axum::extract::DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES)))
         .route("/api/account", get(account))
         .route("/api/positions/realized-pnl", get(position_realized_pnl))
         .route("/api/balance", get(balance))
@@ -230,9 +232,7 @@ pub fn router(state: AppState) -> Router {
                 .allow_headers(Any)
                 .allow_methods(Any),
         )
-        // Trading requests are small JSON documents. Keep this explicit rather
-        // than relying on Axum's extractor default so future non-JSON routes
-        // cannot accidentally accept unbounded loopback input.
+        // Bound uploads including manual pen strokes shared between clients.
         .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES))
         // Binance calls have their own shorter client timeouts. This outer
         // deadline bounds multi-step handlers and guarantees a wedged workflow
@@ -1049,6 +1049,13 @@ async fn stop_market(
         "close_position": true,
         "algo": response,
     })))
+}
+
+async fn get_chart_drawings(State(state): State<AppState>, Path(symbol): Path<String>) -> AppResult<Json<crate::chart_documents::Document>> {
+    Ok(Json(state.chart_documents.get(&normalize_symbol(&symbol)?).await))
+}
+async fn update_chart_drawings(State(state): State<AppState>, Path(symbol): Path<String>, Json(patch): Json<crate::chart_documents::Patch>) -> AppResult<Json<crate::chart_documents::Document>> {
+    Ok(Json(state.chart_documents.patch(&normalize_symbol(&symbol)?, patch).await?))
 }
 
 async fn open_algo_orders(State(state): State<AppState>, Path(symbol): Path<String>) -> AppResult<Json<Value>> {

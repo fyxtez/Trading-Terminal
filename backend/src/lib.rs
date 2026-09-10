@@ -5,6 +5,7 @@ mod auto_market_workflow;
 mod binance;
 mod binance_stream;
 mod browser_access;
+mod chart_documents;
 mod diagnostics;
 mod error;
 mod icons;
@@ -244,7 +245,9 @@ where
         (AlertRuntime::disabled(), None)
     };
 
+    let chart_documents = chart_documents::ChartDocuments::load(runtime.sizing_config_path.with_file_name("chart-documents.json")).await?;
     let state = AppState {
+        chart_documents,
         binance: binance.clone(),
         account_state: account_state.clone(),
         position_risk_state: position_risk_state.clone(),
