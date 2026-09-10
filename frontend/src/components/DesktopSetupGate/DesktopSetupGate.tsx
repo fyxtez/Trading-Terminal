@@ -579,11 +579,14 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
               </label>
             </div>
           )}
-
-          {error && <div className="desktop-setup-error">{error}</div>}
         </div>
 
         <footer className="desktop-setup-actions">
+          {error && (
+            <div className="desktop-setup-error" role="alert">
+              {error}
+            </div>
+          )}
           {step > 0 && !editingSingleConnection ? (
             <button
               className="secondary"

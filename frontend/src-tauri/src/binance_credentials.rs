@@ -91,9 +91,16 @@ async fn rejection_message(
         .ok()
         .and_then(|body| body.code);
 
+    format_rejection(status, code, network)
+}
+
+fn format_rejection(status: StatusCode, code: Option<i64>, network: &str) -> String {
     match code {
-        Some(-2014 | -2015) => format!(
-            "Binance rejected these keys. Check the key, secret, IP restriction, and {} selection; nothing was saved.",
+        Some(-2014) => "Binance rejected the API-key format (code -2014). Copy the complete API key again, without spaces or line breaks. Nothing was saved.".into(),
+        Some(-1022) => "Binance rejected the request signature (code -1022). Check that the secret belongs to this API key. Terminal uses HMAC keys. Nothing was saved.".into(),
+        Some(-1021) => "Binance rejected the request timing (code -1021). Please retry; the verification request may have been delayed. Nothing was saved.".into(),
+        Some(-2015) => format!(
+            "Binance denied API access (code -2015). Check that this key belongs to {}, has the required permissions, and allows the public IP of the device running Terminal. Nothing was saved.",
             if network == "mainnet" {
                 "Live"
             } else {
@@ -210,9 +217,23 @@ pub async fn validate_binance_credentials(
 #[cfg(test)]
 mod tests {
     use super::{
-        BinanceApiPermissions, BinanceFuturesAccount, sign_query, validate_permission_policy,
-        validate_testnet_account,
+        BinanceApiPermissions, BinanceFuturesAccount, format_rejection, sign_query,
+        validate_permission_policy, validate_testnet_account,
     };
+
+    #[test]
+    fn distinguishes_rejection_causes_without_exposing_credentials() {
+        let status = reqwest::StatusCode::UNAUTHORIZED;
+        let format = format_rejection(status, Some(-2014), "mainnet");
+        assert!(format.contains("format (code -2014)"));
+        let access = format_rejection(status, Some(-2015), "mainnet");
+        assert!(access.contains("Live"));
+        assert!(access.contains("public IP"));
+        assert!(format_rejection(status, Some(-2015), "testnet").contains("Practice"));
+        assert!(format_rejection(status, Some(-1022), "mainnet").contains("signature"));
+        assert!(format_rejection(status, Some(-1021), "mainnet").contains("timing"));
+        assert!(format_rejection(status, None, "mainnet").contains("HTTP 401"));
+    }
 
     fn permissions() -> BinanceApiPermissions {
         BinanceApiPermissions {

@@ -9,6 +9,12 @@ describe("position zone width", () => {
       }
     }
   });
+  it("scales both edges with candles after the initial timeframe layout", () => {
+    expect(positionZoneWidthPx(null, 6, 60, 6)).toBe(220);
+    expect(positionZoneWidthPx(null, 3, 60, 6)).toBe(110);
+    expect(positionZoneWidthPx(null, 12, 60, 6)).toBe(440);
+    expect(positionZoneWidthPx(null, 3, 604800, 3)).toBe(220);
+  });
   it("preserves an explicitly resized zone's market duration", () => {
     expect(positionZoneWidthPx(3600, 6, 60)).toBe(360);
     expect(positionZoneWidthPx(3600, 12, 60)).toBe(720);

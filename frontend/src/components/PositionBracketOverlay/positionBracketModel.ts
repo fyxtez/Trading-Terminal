@@ -164,13 +164,14 @@ export function formatRMultiple(value: number | null): string {
   return `${rounded}R`;
 }
 
-/** Automatic zones use screen space; manually resized zones retain their duration. */
+/** Defaults scale with candle zoom within a timeframe; manual widths retain duration. */
 export function positionZoneWidthPx(
   rightSeconds: number | null,
   barSpacing: number,
   timeframeSeconds: number,
+  initialBarSpacing: number = barSpacing,
 ): number {
   return rightSeconds == null
-    ? DEFAULT_ZONE_RIGHT_PAD_PX
+    ? DEFAULT_ZONE_RIGHT_PAD_PX * (barSpacing / Math.max(0.01, initialBarSpacing))
     : Math.max(0, (rightSeconds / timeframeSeconds) * barSpacing);
 }

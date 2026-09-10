@@ -451,3 +451,14 @@
     padding-top: 16px;
   }
 }
+
+/* Save feedback must stay visible even when the credential fields are scrolled. */
+.desktop-setup-actions > .desktop-setup-error {
+  display: block;
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  margin-bottom: 12px;
+  max-height: 20dvh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}

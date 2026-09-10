@@ -262,6 +262,11 @@ export default function PositionBracketOverlay({
   const [zonePad, setZonePad] = useState<ZonePad>({
     rightSeconds: null,
   });
+  const defaultZoneScaleRef = useRef<{
+    interval: Interval;
+    anchorTime: UTCTimestamp | null;
+    barSpacing: number;
+  } | null>(null);
   const zonePadRef = useRef<ZonePad>(zonePad);
   zonePadRef.current = zonePad;
 
@@ -834,6 +839,24 @@ export default function PositionBracketOverlay({
       }
     }
 
+    // A position can arrive before its fill marker. The fallback candle
+    // may be a week/month boundary; replace that provisional anchor once
+    // an exact entry-price fill is available, even after a reload.
+    const entryMarker = findBestEntryMarker(currentPosition, false);
+    const savedAnchorHasFill = tradeMarkersRef.current.some(
+      (marker) =>
+        Number(marker.time) === Number(entryAnchorTimeRef.current) &&
+        marker.side === (currentPosition.side === "LONG" ? "BUY" : "SELL"),
+    );
+    if (
+      entryMarker &&
+      !savedAnchorHasFill &&
+      Number(entryMarker.time) > Number(entryAnchorTimeRef.current ?? 0) &&
+      Math.abs(entryMarker.price - currentPosition.entry_price) < 10 ** -pricePrecision
+    ) {
+      persistEntryAnchor(currentPosition, entryMarker.time as UTCTimestamp);
+    }
+
     const anchorTime = entryAnchorTimeRef.current;
     const resolvedAnchorX = anchorTime != null ? coordTimeToX(anchorTime) : null;
 
@@ -853,12 +876,26 @@ export default function PositionBracketOverlay({
     const currentIntervalSeconds = intervalSeconds[interval];
     const pad = zonePadRef.current;
 
-    // Defaults stay readable at every timeframe and zoom. Only a width the
-    // user explicitly resizes is anchored to elapsed market time.
+    // Establish a readable default for this timeframe, then scale it with
+    // the candles during zoom. Rebase on timeframe changes so a weekly
+    // duration cannot expand into thousands of minute bars.
+    if (
+      !defaultZoneScaleRef.current ||
+      defaultZoneScaleRef.current.interval !== interval ||
+      defaultZoneScaleRef.current.anchorTime !== anchorTime
+    ) {
+      defaultZoneScaleRef.current = { interval, anchorTime, barSpacing: currentBarSpacing };
+    }
     const anchoredX = anchorX;
     const rawLeft = anchoredX;
     const rawRight =
-      anchoredX + positionZoneWidthPx(pad.rightSeconds, currentBarSpacing, currentIntervalSeconds);
+      anchoredX +
+      positionZoneWidthPx(
+        pad.rightSeconds,
+        currentBarSpacing,
+        currentIntervalSeconds,
+        defaultZoneScaleRef.current.barSpacing,
+      );
 
     // Deliberately NOT clamped into [0, paneWidth]. Zooming/panning can
     // legitimately move the anchor candle off either edge of the visible
@@ -1652,7 +1689,8 @@ export default function PositionBracketOverlay({
     const currentIntervalSeconds = intervalSeconds[interval];
     const padSeconds =
       zonePadRef.current.rightSeconds ??
-      (DEFAULT_ZONE_RIGHT_PAD_PX / barSpacing) * currentIntervalSeconds;
+      (DEFAULT_ZONE_RIGHT_PAD_PX / (defaultZoneScaleRef.current?.barSpacing ?? barSpacing)) *
+        currentIntervalSeconds;
 
     edgeDragStartRef.current = {
       pointerX: event.clientX,

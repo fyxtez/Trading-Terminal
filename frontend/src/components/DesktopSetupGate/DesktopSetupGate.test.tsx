@@ -317,6 +317,9 @@ describe("DesktopSetupGate", () => {
 
     const error = await screen.findByText(/withdrawals enabled\. It was not saved/);
     expect(error).toHaveClass("desktop-setup-error");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(error.closest(".desktop-setup-actions")).not.toBeNull();
+    expect(error.closest(".desktop-setup-body")).toBeNull();
     expect(screen.getByRole("heading", { name: "Connect Binance" })).toBeVisible();
     expect(screen.queryByText("Terminal")).not.toBeInTheDocument();
   });
@@ -352,6 +355,9 @@ describe("DesktopSetupGate", () => {
 
     const error = await screen.findByText(/could not open your saved connections/);
     expect(error).toHaveClass("desktop-setup-error");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(error.closest(".desktop-setup-actions")).not.toBeNull();
+    expect(error.closest(".desktop-setup-body")).toBeNull();
     expect(screen.getByRole("heading", { name: "Connect binance" })).toBeVisible();
     expect(screen.getByText("Terminal")).toBeVisible();
     expect(canUseTradingAccount()).toBe(false);
