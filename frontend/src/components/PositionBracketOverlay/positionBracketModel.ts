@@ -163,3 +163,14 @@ export function formatRMultiple(value: number | null): string {
     .replace(/(\.\d)0$/, "$1");
   return `${rounded}R`;
 }
+
+/** Automatic zones use screen space; manually resized zones retain their duration. */
+export function positionZoneWidthPx(
+  rightSeconds: number | null,
+  barSpacing: number,
+  timeframeSeconds: number,
+): number {
+  return rightSeconds == null
+    ? DEFAULT_ZONE_RIGHT_PAD_PX
+    : Math.max(0, (rightSeconds / timeframeSeconds) * barSpacing);
+}

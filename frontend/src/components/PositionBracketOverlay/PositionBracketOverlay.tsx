@@ -31,6 +31,7 @@ import { userFacingError } from "../../utils/userFacingError";
 import {
   BREAK_EVEN_SNAP_THRESHOLD_PX,
   DEFAULT_ZONE_RIGHT_PAD_PX,
+  positionZoneWidthPx,
   ENTRY_MARKER_LOOKBACK_SECONDS,
   MESSAGE_AUTO_DISMISS_MS,
   OPTIMISTIC_TAKE_PROFIT_TIMEOUT_MS,
@@ -269,6 +270,7 @@ export default function PositionBracketOverlay({
   const edgeDragStartRef = useRef<{
     pointerX: number;
     padSeconds: number;
+    originalRightSeconds: number | null;
     barSpacing: number;
     intervalSeconds: number;
   } | null>(null);
@@ -851,26 +853,12 @@ export default function PositionBracketOverlay({
     const currentIntervalSeconds = intervalSeconds[interval];
     const pad = zonePadRef.current;
 
-    // a logical BAR count is not a stable
-    // duration when the timeframe changes. Convert the initial 220px default
-    // to elapsed seconds once, then convert seconds -> bars -> pixels using the
-    // CURRENT timeframe on every render. The same SL/TP zone therefore keeps
-    // the exact same real-world duration on 1m, 1h, 4h, etc.
-    const rightSeconds =
-      pad.rightSeconds ?? (DEFAULT_ZONE_RIGHT_PAD_PX / currentBarSpacing) * currentIntervalSeconds;
-
-    if (pad.rightSeconds == null) {
-      const initializedPad = { rightSeconds };
-      zonePadRef.current = initializedPad;
-      setZonePad(initializedPad);
-    }
-
+    // Defaults stay readable at every timeframe and zoom. Only a width the
+    // user explicitly resizes is anchored to elapsed market time.
     const anchoredX = anchorX;
-    // The left edge is always pinned exactly to the anchor now - the zone can
-    // never extend backward past the candle the trade actually opened on.
     const rawLeft = anchoredX;
-    const rightBarsOnCurrentTimeframe = rightSeconds / currentIntervalSeconds;
-    const rawRight = anchoredX + rightBarsOnCurrentTimeframe * currentBarSpacing;
+    const rawRight =
+      anchoredX + positionZoneWidthPx(pad.rightSeconds, currentBarSpacing, currentIntervalSeconds);
 
     // Deliberately NOT clamped into [0, paneWidth]. Zooming/panning can
     // legitimately move the anchor candle off either edge of the visible
@@ -1668,6 +1656,7 @@ export default function PositionBracketOverlay({
 
     edgeDragStartRef.current = {
       pointerX: event.clientX,
+      originalRightSeconds: zonePadRef.current.rightSeconds,
       padSeconds,
       barSpacing,
       intervalSeconds: currentIntervalSeconds,
@@ -1678,10 +1667,9 @@ export default function PositionBracketOverlay({
     const start = edgeDragStartRef.current;
 
     if (start) {
-      setZonePad((current) => ({
-        ...current,
-        rightSeconds: start.padSeconds,
-      }));
+      const restored = { rightSeconds: start.originalRightSeconds };
+      zonePadRef.current = restored;
+      setZonePad(restored);
     }
 
     edgeDragRef.current = null;
@@ -1787,6 +1775,7 @@ export default function PositionBracketOverlay({
     isTakeProfitDraft,
     isStopDraft,
     pricePrecision,
+    controlsVisible: areEntryControlsVisible,
   });
 
   if (!position || !coordinates.ready) return null;
@@ -1892,7 +1881,13 @@ export default function PositionBracketOverlay({
 
       {showTakeProfitDraftLine && (
         <div
-          className="position-take-profit-line draft"
+          className={`position-take-profit-line draft ${
+            Math.abs(coordinates.takeProfitY - coordinates.entryY) < 34
+              ? position?.side === "LONG"
+                ? "controls-above"
+                : "controls-below"
+              : ""
+          }`}
           style={{
             left: coordinates.paneLeft,
             top: coordinates.takeProfitY,

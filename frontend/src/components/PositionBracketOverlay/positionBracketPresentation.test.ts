@@ -73,3 +73,26 @@ describe("deriveBracketPresentation", () => {
     expect(model.showTakeProfitDraftLine).toBe(false);
   });
 });
+
+it.each([true, false])(
+  "hides zones and draft controls while keeping a real stop visible (draft=%s)",
+  (isStopDraft) => {
+    const model = deriveBracketPresentation({
+      position,
+      coordinates,
+      dragKind: null,
+      previewPrice: null,
+      displayedStopPrice: 90,
+      displayedTakeProfitPrice: 120,
+      isTakeProfitDraft: true,
+      isStopDraft,
+      pricePrecision: 1,
+      controlsVisible: false,
+    });
+    expect(model.showTakeProfitZone).toBe(false);
+    expect(model.showStopZone).toBe(false);
+    expect(model.showTakeProfitDraftLine).toBe(false);
+    expect(model.showEdgeHandles).toBe(false);
+    expect(model.showStopLine).toBe(!isStopDraft);
+  },
+);

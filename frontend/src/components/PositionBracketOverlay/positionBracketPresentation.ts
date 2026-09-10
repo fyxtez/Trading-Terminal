@@ -34,6 +34,7 @@ type PresentationInput = {
   isTakeProfitDraft: boolean;
   isStopDraft: boolean;
   pricePrecision: number;
+  controlsVisible?: boolean;
 };
 
 /** Pure display model for the bracket's zones, labels, and collision classes. */
@@ -47,6 +48,7 @@ export function deriveBracketPresentation({
   isTakeProfitDraft,
   isStopDraft,
   pricePrecision,
+  controlsVisible = true,
 }: PresentationInput) {
   const preview =
     position && dragKind && previewPrice != null
@@ -86,8 +88,9 @@ export function deriveBracketPresentation({
   const stopControlsAbove = stopControlsNearEntry && coordinates.stopY < coordinates.entryY;
   const stopControlsBelow = stopControlsNearEntry && coordinates.stopY >= coordinates.entryY;
 
-  const showTakeProfitZone = displayedTakeProfitPrice != null && dragKind !== "TAKE_PROFIT";
-  const showStopZone = displayedStopPrice != null && dragKind !== "STOP_LOSS";
+  const showTakeProfitZone =
+    controlsVisible && displayedTakeProfitPrice != null && dragKind !== "TAKE_PROFIT";
+  const showStopZone = controlsVisible && displayedStopPrice != null && dragKind !== "STOP_LOSS";
   const showTakeProfitDraftLine = isTakeProfitDraft && showTakeProfitZone;
   const showEdgeHandles = coordinates.ready && (showTakeProfitZone || showStopZone);
 
@@ -111,7 +114,8 @@ export function deriveBracketPresentation({
     stopControlsBelow,
     showTakeProfitZone,
     showStopZone,
-    showStopLine: showStopZone,
+    showStopLine:
+      displayedStopPrice != null && dragKind !== "STOP_LOSS" && (controlsVisible || !isStopDraft),
     showTakeProfitDraftLine,
     hasDraftProtection: isTakeProfitDraft || isStopDraft,
     showEdgeHandles,
