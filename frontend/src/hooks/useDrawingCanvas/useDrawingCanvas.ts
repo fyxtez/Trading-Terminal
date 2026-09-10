@@ -1,6 +1,7 @@
 import { watchPointerInterruption } from "../../utils/pointerInterruption";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -1582,6 +1583,18 @@ export function useDrawingCanvas(
   };
   const cancelPointerRef = useRef(cancelPointerInteraction);
   cancelPointerRef.current = cancelPointerInteraction;
+  useLayoutEffect(() => {
+    const drag = refs.dragRef.current;
+    if (drag && !drawingsApi.drawings.some((drawing) => drawing.id === drag.drawingId)) {
+      cancelPointerRef.current();
+    }
+    if (
+      drawingsApi.selectedId &&
+      !drawingsApi.drawings.some((drawing) => drawing.id === drawingsApi.selectedId)
+    ) {
+      drawingsApi.setSelectedId(null);
+    }
+  }, [drawingsApi.drawings, drawingsApi.selectedId]);
   useEffect(() => watchPointerInterruption(() => cancelPointerRef.current()), []);
   useEffect(() => {
     cancelPointerRef.current();

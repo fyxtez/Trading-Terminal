@@ -1,5 +1,11 @@
 import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { UTCTimestamp } from "lightweight-charts";
 import type { BoxDrawing, Drawing, HorizontalDrawing, TrendDrawing } from "../../types/drawing";
 import { modifyLimitOrder, repriceReduceOrder } from "../../trading/api/orders";
@@ -49,6 +55,39 @@ export function useArmedDrawingInteractions(
     mode: BoxHandleMode;
   } | null>(null);
   const armedBoxHandleBeforeRef = useRef<BoxDrawing | null>(null);
+
+  // Deletion (including a remote deletion) ends ownership of the pointer.
+  // Discard snapshots directly: cancelling by restoring them could revive an
+  // object that the user just deleted.
+  useLayoutEffect(() => {
+    const live = new Map(drawingsApi.drawings.map((drawing) => [drawing.id, drawing.type]));
+    if (armedTrendMove && live.get(armedTrendMove.drawingId) !== "trend") {
+      armedTrendMoveBeforeRef.current = null;
+      setArmedTrendMove(null);
+    }
+    if (armedTrendEndpoint && live.get(armedTrendEndpoint.drawingId) !== "trend") {
+      armedTrendEndpointBeforeRef.current = null;
+      setArmedTrendEndpoint(null);
+    }
+    if (armedBoxHandle && live.get(armedBoxHandle.drawingId) !== "box") {
+      armedBoxHandleBeforeRef.current = null;
+      setArmedBoxHandle(null);
+    }
+    if (armedOrderLineId && live.get(armedOrderLineId) !== "horizontal") {
+      armedOrderLineBeforeRef.current = null;
+      setArmedOrderLineId(null);
+    }
+    if (armedGroupMove && armedGroupMove.before.some((drawing) => !live.has(drawing.id))) {
+      setArmedGroupMove(null);
+    }
+  }, [
+    drawingsApi.drawings,
+    armedTrendMove,
+    armedTrendEndpoint,
+    armedBoxHandle,
+    armedOrderLineId,
+    armedGroupMove,
+  ]);
 
   const armOrderLineMove = (
     drawing: HorizontalDrawing,
