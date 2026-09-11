@@ -1,3 +1,4 @@
+import { chartPricePrecision } from "../utils/chartPricePrecision";
 import { useEffect, useRef, useState } from "react";
 import { startMarketPoll } from "../utils/marketPoll";
 import {
@@ -521,16 +522,10 @@ export function useMarketData(
           updateFutureTimeScale(latest.time as UTCTimestamp, latest.close, interval);
         }
 
-        // Apply this symbol's real tick-size precision (pricePrecision/
-        // tickSize below) for anything that needs to match Binance's
-        // actual order precision - SL/TP labels, the trade price line,
-        // etc. The chart's OWN price axis/crosshair/candle price-line
-        // display is deliberately kept separate: it uses the per-symbol
-        // cosmetic decimal count from config/constants.ts
-        // (CHART_DISPLAY_DECIMALS) instead, so e.g. BTC can show whole
-        // numbers on the axis while still trading at its real sub-dollar
-        // tick size under the hood.
-        const displayDecimals = getChartDisplayDecimals(symbol);
+        // Display must retain meaningful digits for low-price symbols, including
+        // view-only markets and periods when exchange filters are unavailable.
+        // Execution precision continues to come from the actual exchange filters.
+        const displayDecimals = chartPricePrecision(getChartDisplayDecimals(symbol), candles);
 
         refs.candleRef.current?.applyOptions({
           priceFormat: {
