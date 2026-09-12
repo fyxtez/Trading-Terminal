@@ -96,6 +96,8 @@ type ContextMenuProps = {
   onResetView: () => void;
   onToggleSplit?: () => void;
   split?: boolean;
+  chartOnly?: boolean;
+  onToggleChartOnly?: () => void;
   onDeleteAllPen: () => void;
   onDeleteAllDrawings: () => void;
   onDeleteDrawingsByTimeframe: (timeframe: Interval) => void;
@@ -136,6 +138,8 @@ export default function ContextMenu({
   onResetView,
   onToggleSplit,
   split,
+  chartOnly = false,
+  onToggleChartOnly,
   onDeleteAllPen,
   onDeleteAllDrawings,
   onDeleteDrawingsByTimeframe,
@@ -173,7 +177,18 @@ export default function ContextMenu({
       style={{ left: contextMenu.x, top: contextMenu.y }}
       onClick={(event) => event.stopPropagation()}
     >
-      {isDrawingMenu ? (
+      {chartOnly && onToggleChartOnly && (
+        <button
+          className="context-action"
+          onClick={() => {
+            onClose();
+            onToggleChartOnly();
+          }}
+        >
+          {chartOnly ? "Hide chart only" : "Show chart only"}
+        </button>
+      )}
+      {chartOnly ? null : isDrawingMenu ? (
         <>
           {isGroupDrawingMenu ? (
             <button
@@ -329,6 +344,18 @@ export default function ContextMenu({
           >
             Create crosshair marker
           </button>
+
+          {onToggleChartOnly && (
+            <button
+              className="context-action"
+              onClick={() => {
+                onClose();
+                onToggleChartOnly();
+              }}
+            >
+              {chartOnly ? "Hide chart only" : "Show chart only"}
+            </button>
+          )}
 
           <div className="context-separator" />
 

@@ -268,6 +268,28 @@
   min-height: 46px;
 }
 
+/* Keep charts and account synchronization mounted while changing only the view. */
+.terminal-workspace:has(.chart-only) > .terminal-topbar,
+.terminal-workspace:has(.chart-only) > .shared-positions-dock,
+.chart-workspaces:has(.chart-only) > .chart-divider,
+.chart-workspaces:has(.chart-only) > .chart-workspace-pane:not(:has(.chart-only)),
+.chart-only > :not(.app-main),
+.chart-only > .app-main > :not(.workspace),
+.chart-only .workspace > :not(.chart-wrap),
+.chart-only .chart-wrap > :not(.chart) {
+  display: none !important;
+}
+
+.chart-workspaces:has(.chart-only) {
+  display: flex;
+}
+
+.chart-only > .app-main {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr);
+  transition: none;
+}
+
 @media (max-width: 720px) {
   .terminal-topbar {
     min-height: 50px;

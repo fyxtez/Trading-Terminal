@@ -103,6 +103,7 @@ function ChartWorkspacePane({
   moveLabel,
   onMoveTab,
 }: ChartWorkspacePaneProps) {
+  const [chartOnly, setChartOnly] = useState(false);
   const desktopCredentials = useDesktopCredentials();
   const refs = useChartRefs();
   const coord = useCoordinateMapping(refs);
@@ -988,9 +989,33 @@ function ChartWorkspacePane({
   });
   useLayoutEffect(() => () => positionsStore.remove(paneId), [positionsStore, paneId]);
 
-  useHotkeys(refs, drawingsApi, priceAlertsApi, tradeMenuApi, chartTabs, active);
+  const toggleChartOnly = () => {
+    drawingsApi.setTool("cursor");
+    drawingsApi.setSelectedId(null);
+    drawingsApi.setContextMenu(null);
+    tradeMenuApi.closeTradeMenu();
+    setIsHotkeysOpen(false);
+    drawingCanvas.closeReduceOrderEditor();
+    drawingCanvas.cancelTextEditing();
+    setChartOnly((value) => !value);
+  };
+  useEffect(() => {
+    if (!chartOnly) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setChartOnly(false);
+        drawingsApi.setContextMenu(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [chartOnly, drawingsApi.setContextMenu]);
+
+  useHotkeys(refs, drawingsApi, priceAlertsApi, tradeMenuApi, chartTabs, active && !chartOnly);
 
   const hasDismissibleMobileLayer = Boolean(
+    chartOnly ||
     isHotkeysOpen ||
     drawingsApi.contextMenu ||
     tradeMenuApi.tradeMenu ||
@@ -1009,6 +1034,7 @@ function ChartWorkspacePane({
     else if (tradeMenuApi.autoMarketDraft) tradeMenuApi.cancelAutoMarket();
     else if (drawingCanvas.reduceOrderEditor) drawingCanvas.closeReduceOrderEditor();
     else if (drawingCanvas.editingText) drawingCanvas.cancelTextEditing();
+    else if (chartOnly) setChartOnly(false);
     else if (!isToolbarCollapsed) setIsToolbarCollapsed(true);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isOrdersOpen) setIsOrdersOpen(false);
@@ -1018,7 +1044,7 @@ function ChartWorkspacePane({
 
   return (
     <div
-      className="app"
+      className={`app ${chartOnly ? "chart-only" : ""}`}
       style={
         {
           "--settings-panel-width": `${settingsPanelWidth}px`,
@@ -1180,8 +1206,8 @@ function ChartWorkspacePane({
             tradeToast={tradeMenuApi.tradeToast}
             onSetTradeToast={tradeMenuApi.setTradeToast}
             tool={drawingsApi.tool}
-            isHoveringDrawing={drawingCanvas.isHoveringDrawing}
-            isHoveringHorizontalDrawing={drawingCanvas.isHoveringHorizontalDrawing}
+            isHoveringDrawing={!chartOnly && drawingCanvas.isHoveringDrawing}
+            isHoveringHorizontalDrawing={!chartOnly && drawingCanvas.isHoveringHorizontalDrawing}
             isChartLoading={marketData.isChartLoading}
             marketDataError={marketData.marketDataError}
             onRetryMarketData={marketData.retryMarketData}
@@ -1204,14 +1230,28 @@ function ChartWorkspacePane({
             onSaveDrawingSet={drawingsApi.saveCurrentDrawingSet}
             isToolbarCollapsed={isToolbarCollapsed}
             onShowToolbar={() => setIsToolbarCollapsed(false)}
-            isDrawingInteractionActive={drawingCanvas.isDrawingInteractionActive}
-            onPointerDownCapture={drawingCanvas.handlePointerDownCapture}
-            onPointerMoveCapture={drawingCanvas.handlePointerMoveCapture}
-            onPointerUpCapture={drawingCanvas.handlePointerUpCapture}
-            onPointerLeave={drawingCanvas.handlePointerLeave}
-            onContextMenuCapture={drawingCanvas.handleContextMenuCapture}
-            onDoubleClick={drawingCanvas.handleChartDoubleClick}
-            onMobileDoubleTap={drawingCanvas.handleChartDoubleTap}
+            isDrawingInteractionActive={!chartOnly && drawingCanvas.isDrawingInteractionActive}
+            onPointerDownCapture={chartOnly ? () => {} : drawingCanvas.handlePointerDownCapture}
+            onPointerMoveCapture={chartOnly ? () => {} : drawingCanvas.handlePointerMoveCapture}
+            onPointerUpCapture={chartOnly ? () => {} : drawingCanvas.handlePointerUpCapture}
+            onPointerLeave={chartOnly ? () => {} : drawingCanvas.handlePointerLeave}
+            onContextMenuCapture={
+              chartOnly
+                ? (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    drawingsApi.setContextMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                      drawingId: null,
+                      price: null,
+                      time: null,
+                    });
+                  }
+                : drawingCanvas.handleContextMenuCapture
+            }
+            onDoubleClick={chartOnly ? () => {} : drawingCanvas.handleChartDoubleClick}
+            onMobileDoubleTap={chartOnly ? () => {} : drawingCanvas.handleChartDoubleTap}
           />
         </div>
 
@@ -1311,6 +1351,8 @@ function ChartWorkspacePane({
 
       {drawingsApi.contextMenu && (
         <ContextMenu
+          chartOnly={chartOnly}
+          onToggleChartOnly={toggleChartOnly}
           onToggleSplit={onToggleSplit ? toggleWorkspaceSplit : undefined}
           split={split}
           contextMenu={drawingsApi.contextMenu}
