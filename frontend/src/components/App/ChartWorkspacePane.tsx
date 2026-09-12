@@ -24,7 +24,7 @@ import { getLocalZoneLabel } from "../../utils/time";
 import { getSymbolInfo } from "../../config/symbols";
 import { deleteSymbol } from "../../trading/api/symbols";
 import { clearSymbolLocalMetadata } from "../../utils/symbolMetadata";
-import { parseReduceMetadata } from "../../trading/reduceMetadata";
+import { getLiveReduceMetadata, parseReduceMetadata } from "../../trading/reduceMetadata";
 import { useChartRefs } from "../../hooks/useChartRefs";
 import { useCoordinateMapping } from "../../hooks/useCoordinateMapping";
 import { useDrawings } from "../../hooks/useDrawings";
@@ -490,11 +490,13 @@ function ChartWorkspacePane({
           orderId: order.orderId,
           clientOrderId: order.clientOrderId,
           orderSymbol: order.symbol,
-          orderQuantity: Number(order.origQty),
+          orderQuantity: Math.max(0, Number(order.origQty) - Number(order.executedQty || 0)),
           timeInForce: order.timeInForce,
           orderIntent,
           orderReducePct: reduceMetadata.reducePct,
           orderRemainingPct: reduceMetadata.remainingPct,
+          orderDisplayReduce: orderIntent === "REDUCE"
+            ? getLiveReduceMetadata(order, openOrdersApi.orders, positionPnl) : undefined,
           orderPricePending: stillPending,
           // openOrders does not expose leverage/liquidation for a
           // resting order. Preserve the estimate and its visibility state from
@@ -532,6 +534,8 @@ function ChartWorkspacePane({
           current.orderIntent === next.orderIntent &&
           current.orderReducePct === next.orderReducePct &&
           current.orderRemainingPct === next.orderRemainingPct &&
+          current.orderDisplayReduce?.reducePct === next.orderDisplayReduce?.reducePct &&
+          current.orderDisplayReduce?.remainingPct === next.orderDisplayReduce?.remainingPct &&
           current.orderPricePending === next.orderPricePending &&
           current.estimatedLiquidationPrice === next.estimatedLiquidationPrice &&
           current.estimatedLiquidationHidden === next.estimatedLiquidationHidden
@@ -541,7 +545,7 @@ function ChartWorkspacePane({
     if (!unchanged) {
       drawingsApi.syncDrawings(nextDrawings);
     }
-  }, [openOrdersApi.orders]);
+  }, [openOrdersApi.orders, positionPnl?.symbol, positionPnl?.side, positionPnl?.quantity]);
 
   useEffect(() => {
     if (!drawingsApi.isHydrated) return;
@@ -1128,6 +1132,7 @@ function ChartWorkspacePane({
             temporaryTradePrice={tradeMenuApi.tradeMenu?.selectedPrice ?? null}
             pricePrecision={marketData.pricePrecision}
             fullTakeProfitPrice={fullTakeProfitPrice}
+            openOrders={openOrdersApi.error ? null : openOrdersApi.orders}
             fullTakeProfitOrderId={fullTakeProfitOrderId}
             coordTimeToX={coord.timeToX}
             highlightedOrderIdRef={refs.highlightedOrderIdRef}

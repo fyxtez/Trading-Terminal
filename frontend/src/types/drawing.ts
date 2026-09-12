@@ -57,6 +57,8 @@ export type HorizontalDrawing = {
   orderIntent?: "ENTRY" | "ADD" | "REDUCE";
   orderReducePct?: number;
   orderRemainingPct?: number;
+  /** Live display only; historical orderReducePct remains the sizing instruction. */
+  orderDisplayReduce?: { reducePct?: number; remainingPct?: number };
   orderPricePending?: boolean;
   orderChasing?: boolean;
   /** projected isolated liquidation while this entry LIMIT is resting. */

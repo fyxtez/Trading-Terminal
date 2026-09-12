@@ -22,6 +22,7 @@ const CHART_PNL_SELF_HEAL_POLL_MS = 4_000;
 
 export type ChartPositionPnl = {
   symbol: string;
+  quantity: number;
   side: "LONG" | "SHORT";
   unrealizedPnl: number;
   realizedPnl: number | null;
@@ -90,6 +91,7 @@ export function useChartPositionPnl(symbol: string): {
 
         setPositionPnl({
           symbol: position.symbol,
+          quantity: position.quantity,
           side: position.side,
           unrealizedPnl: position.unrealized_pnl,
           // keep lifecycle realized PNL separate from the live mark-price

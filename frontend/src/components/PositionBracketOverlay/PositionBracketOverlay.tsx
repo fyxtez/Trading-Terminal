@@ -1,3 +1,5 @@
+import { finalTakeProfitRemainder } from "./finalTakeProfit";
+import type { OpenOrder } from "../../trading/api/orders";
 import { captureRiskBasis, readRiskBasis, writeRiskBasis } from "./positionRiskBasis";
 import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import {
@@ -95,6 +97,7 @@ type PositionBracketOverlayProps = {
    * button once one already exists.
    */
   fullTakeProfitPrice: number | null;
+  openOrders: OpenOrder[] | null;
   /**
    * Real Binance orderId of the confirmed full-TP order, if any. Clicking
    * that order's row in PositionsPanel's Open Orders tab sets
@@ -188,6 +191,7 @@ export default function PositionBracketOverlay({
   lastDataTimeRef,
   marketPriceRef,
   fullTakeProfitPrice,
+  openOrders,
   fullTakeProfitOrderId,
   coordTimeToX,
   highlightedOrderIdRef,
@@ -1206,7 +1210,7 @@ export default function PositionBracketOverlay({
         setMessage(null);
         onToast({
           kind: "success",
-          message: `Full TP set @ ${price.toFixed(pricePrecision)}`,
+          message: `Final TP for remaining size set @ ${price.toFixed(pricePrecision)}`,
         });
 
         // The order acknowledgement can arrive slightly before Binance's
@@ -1860,6 +1864,10 @@ export default function PositionBracketOverlay({
   });
 
   if (!position || !coordinates.ready) return null;
+  const remainingPct = openOrders ? finalTakeProfitRemainder(position, openOrders) : null;
+  const draftTpRemainderLabel = remainingPct == null ? "REMAINDER" : `${Number(remainingPct.toFixed(1))}% LEFT`;
+  const draftTpHint =
+    "Not submitted. Click, move to your target price, then click again to place a reduce-only limit for the unreserved remainder. It appears in Open Orders after confirmation.";
 
   return (
     <div
@@ -1965,7 +1973,7 @@ export default function PositionBracketOverlay({
           }}
         >
           <span style={{ top: preview.labelTop - 11 }}>
-            {dragKind === "TAKE_PROFIT" ? "FULL TP" : "STOP LOSS"}{" "}
+            {dragKind === "TAKE_PROFIT" ? "PLACE FINAL TP" : "STOP LOSS"}{" "}
             {previewPrice?.toFixed(pricePrecision)} · {Math.abs(preview.distancePct).toFixed(2)}%
           </span>
           <div className="position-bracket-r-multiple">
@@ -1974,7 +1982,7 @@ export default function PositionBracketOverlay({
         </div>
       )}
 
-      {showTakeProfitDraftLine && (
+      {showTakeProfitDraftLine && remainingPct !== 0 && (
         <div
           className={`position-take-profit-line draft ${
             Math.abs(coordinates.takeProfitY - coordinates.entryY) < 34
@@ -1992,14 +2000,19 @@ export default function PositionBracketOverlay({
           <div
             className="position-take-profit-grab"
             onPointerDown={beginMoveTakeProfitDraft}
-            title="Click, move the mouse, then click again to place full take profit"
+            title={draftTpHint}
           />
-          <span
-            onPointerDown={beginMoveTakeProfitDraft}
-            title="Click, move the mouse, then click again to place full take profit"
-          >
+          <span onPointerDown={beginMoveTakeProfitDraft} title={draftTpHint}>
             TP FULL · {displayedTakeProfitPrice!.toFixed(pricePrecision)}
           </span>
+          <div className="position-take-profit-draft-actions">
+            <button type="button" onPointerDown={beginMoveTakeProfitDraft} title={draftTpHint}>
+              SET FINAL TP
+            </button>
+            <button type="button" onPointerDown={beginMoveTakeProfitDraft} title={draftTpHint}>
+              {draftTpRemainderLabel}
+            </button>
+          </div>
         </div>
       )}
 

@@ -4,7 +4,7 @@ import type { OpenPosition } from "../../trading/api/positions";
 import type { OpenOrder, UpdateReduceOrderResponse } from "../../trading/api/orders";
 import { getCachedSymbolFilters } from "../../trading/api/exchangeInfo";
 import type { SavedStop } from "../../trading/stopLoss";
-import { parseReduceMetadata } from "../../trading/reduceMetadata";
+import { getLiveReduceMetadata, parseReduceMetadata } from "../../trading/reduceMetadata";
 
 // clientOrderId prefix used for the synthetic Open-Orders row that
 // represents a locally-tracked full stop-loss (a Binance conditional
@@ -374,14 +374,14 @@ export function OpenOrderRow({
   const reduceDetailText = useMemo(() => {
     if (!isReduceLimit) return null;
 
-    const meta = parseReduceMetadata(order.clientOrderId);
-    const quantityText = quantityFormatter.format(Number(order.origQty));
+    const meta = getLiveReduceMetadata(order, allOrders, position);
+    const quantityText = quantityFormatter.format(Math.max(0, Number(order.origQty) - Number(order.executedQty || 0)));
     const asset = baseAsset(order.symbol);
     const pctText = meta.reducePct != null ? `${meta.reducePct}%` : "REDUCE";
     const leftText = meta.remainingPct == null ? "" : ` · LEFT ${Math.max(0, meta.remainingPct)}%`;
 
     return `${pctText} · ${quantityText}${asset ? ` ${asset}` : ""}${leftText}`;
-  }, [isReduceLimit, order.clientOrderId, order.origQty, order.symbol]);
+  }, [isReduceLimit, order, allOrders, position]);
 
   return (
     <>

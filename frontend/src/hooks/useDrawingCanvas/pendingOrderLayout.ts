@@ -48,10 +48,10 @@ export function getPendingOrderLabelText(
     return drawing.price.toFixed(pricePrecision);
   }
 
-  const pct = drawing.orderReducePct;
+  const pct = drawing.orderDisplayReduce?.reducePct;
   const quantity = formatOrderQuantity(drawing.orderQuantity);
   const asset = baseAsset(drawing.orderSymbol);
-  const remainingPct = drawing.orderRemainingPct;
+  const remainingPct = drawing.orderDisplayReduce?.remainingPct;
   const left = remainingPct == null ? "" : ` · LEFT ${Math.max(0, remainingPct)}%`;
   const pctText = pct == null ? "TP" : `TP ${pct}%`;
   const quantityText = quantity ? ` · ${quantity}${asset ? ` ${asset}` : ""}` : "";

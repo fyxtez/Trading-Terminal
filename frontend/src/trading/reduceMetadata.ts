@@ -10,10 +10,42 @@
  *   fe-red-<reducePct>-l<remainingPct>-...   (current)
  *   fe-red-<reducePct>-...                   (legacy, no remainingPct)
  */
+import type { OpenOrder } from "./api/orders";
+import type { OpenPosition } from "./api/positions";
+
 export type ReduceMetadata = {
   reducePct?: number;
   remainingPct?: number;
 };
+
+/** Display percentages use the current position rather than historical sizing
+ * instructions. LEFT assumes limit TPs fill in price order. */
+export function getLiveReduceMetadata(
+  order: OpenOrder,
+  orders: OpenOrder[],
+  position: Pick<OpenPosition, "symbol" | "side" | "quantity"> | null | undefined,
+): ReduceMetadata {
+  if (!position || position.symbol.toUpperCase() !== order.symbol.toUpperCase()) return {};
+  const quantity = Math.abs(position.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) return {};
+  const side = position.side === "LONG" ? "SELL" : "BUY";
+  const targets = orders.filter((item) =>
+    item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
+    item.side === side && item.reduceOnly &&
+    (item.type === "LIMIT" || item.origType === "LIMIT"),
+  ).sort((a, b) => (Number(a.price) - Number(b.price)) * (side === "SELL" ? 1 : -1)
+    || a.orderId.localeCompare(b.orderId));
+  const index = targets.findIndex((item) => item.orderId === order.orderId);
+  if (index < 0) return {};
+  const sizes = targets.slice(0, index + 1).map((item) =>
+    Math.max(0, Number(item.origQty) - Number(item.executedQty || 0)));
+  if (sizes.some((size) => !Number.isFinite(size))) return {};
+  const percent = (size: number) => Number((size / quantity * 100).toFixed(1));
+  return {
+    reducePct: percent(sizes[index]),
+    remainingPct: percent(Math.max(0, quantity - sizes.reduce((sum, size) => sum + size, 0))),
+  };
+}
 
 export function parseReduceMetadata(clientOrderId?: string | null): ReduceMetadata {
   if (!clientOrderId) return {};

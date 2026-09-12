@@ -1,3 +1,4 @@
+import type { OpenOrder } from "../../trading/api/orders";
 import { isEventInChartWorkspace } from "../../utils/chartWorkspaceEvents";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
@@ -69,6 +70,7 @@ type ChartPanelProps = {
   pricePrecision: number;
   /** Price of the confirmed 100%-reduce (full take-profit) limit order, if any. */
   fullTakeProfitPrice: number | null;
+  openOrders: OpenOrder[] | null;
   /**
    * Real Binance orderId of the confirmed full-TP order, if any - see the
    * comment on this same prop in PositionBracketOverlay.tsx for why it's
@@ -274,6 +276,7 @@ export default function ChartPanel({
   temporaryTradePrice,
   pricePrecision,
   fullTakeProfitPrice,
+  openOrders,
   fullTakeProfitOrderId,
   coordTimeToX,
   highlightedOrderIdRef,
@@ -848,6 +851,7 @@ export default function ChartPanel({
         lastDataTimeRef={lastDataTimeRef}
         marketPriceRef={liveMarketPriceRef}
         fullTakeProfitPrice={fullTakeProfitPrice}
+        openOrders={openOrders}
         fullTakeProfitOrderId={fullTakeProfitOrderId}
         coordTimeToX={coordTimeToX}
         highlightedOrderIdRef={highlightedOrderIdRef}
