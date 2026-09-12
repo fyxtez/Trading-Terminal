@@ -375,7 +375,9 @@ export function OpenOrderRow({
     if (!isReduceLimit) return null;
 
     const meta = getLiveReduceMetadata(order, allOrders, position);
-    const quantityText = quantityFormatter.format(Math.max(0, Number(order.origQty) - Number(order.executedQty || 0)));
+    const quantityText = quantityFormatter.format(
+      Math.max(0, Number(order.origQty) - Number(order.executedQty || 0)),
+    );
     const asset = baseAsset(order.symbol);
     const pctText = meta.reducePct != null ? `${meta.reducePct}%` : "REDUCE";
     const leftText = meta.remainingPct == null ? "" : ` · LEFT ${Math.max(0, meta.remainingPct)}%`;

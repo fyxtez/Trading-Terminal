@@ -1865,7 +1865,8 @@ export default function PositionBracketOverlay({
 
   if (!position || !coordinates.ready) return null;
   const remainingPct = openOrders ? finalTakeProfitRemainder(position, openOrders) : null;
-  const draftTpRemainderLabel = remainingPct == null ? "REMAINDER" : `${Number(remainingPct.toFixed(1))}% LEFT`;
+  const draftTpRemainderLabel =
+    remainingPct == null ? "REMAINDER" : `${Number(remainingPct.toFixed(1))}% LEFT`;
   const draftTpHint =
     "Not submitted. Click, move to your target price, then click again to place a reduce-only limit for the unreserved remainder. It appears in Open Orders after confirmation.";
 

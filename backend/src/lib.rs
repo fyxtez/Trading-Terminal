@@ -245,7 +245,12 @@ where
         (AlertRuntime::disabled(), None)
     };
 
-    let chart_documents = chart_documents::ChartDocuments::load(runtime.sizing_config_path.with_file_name("chart-documents.json")).await?;
+    let chart_documents = chart_documents::ChartDocuments::load(
+        runtime
+            .sizing_config_path
+            .with_file_name("chart-documents.json"),
+    )
+    .await?;
     let state = AppState {
         chart_documents,
         binance: binance.clone(),

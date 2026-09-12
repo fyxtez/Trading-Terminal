@@ -151,7 +151,12 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/icons", get(list_icons))
         .route("/api/icons/{symbol}/image", get(get_icon_image))
-        .route("/api/chart-drawings/{symbol}", get(get_chart_drawings).put(update_chart_drawings).layer(axum::extract::DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES)))
+        .route(
+            "/api/chart-drawings/{symbol}",
+            get(get_chart_drawings)
+                .put(update_chart_drawings)
+                .layer(axum::extract::DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES)),
+        )
         .route("/api/account", get(account))
         .route("/api/positions/realized-pnl", get(position_realized_pnl))
         .route("/api/balance", get(balance))
@@ -360,8 +365,8 @@ async fn update_sizing(
     Json(req): Json<MarginSizingConfig>,
 ) -> AppResult<Json<MarginSizingConfig>> {
     let _guard = state.trade_lock.lock().await;
-    let validated = MarginSizingConfig::new(req.margin_pct, req.max_leverage)
-        .map_err(AppError::Invalid)?;
+    let validated =
+        MarginSizingConfig::new(req.margin_pct, req.max_leverage).map_err(AppError::Invalid)?;
 
     state.sizing_store.save(&validated).await?;
     *state.sizing.write().await = validated.clone();
@@ -1035,8 +1040,13 @@ async fn stop_market(
     // here so an older client cannot accidentally submit MARK_PRICE and create a stop
     // that visibly trades through its chart level before Binance triggers it.
     let response = crate::stop_loss_workflow::replace_full_stop(
-        &state.binance, &symbol, close_side, trigger_price, &client_algo_id,
-    ).await?;
+        &state.binance,
+        &symbol,
+        close_side,
+        trigger_price,
+        &client_algo_id,
+    )
+    .await?;
 
     let _ = state.trading_events.send(TradingEvent::SnapshotRequired {
         reason: format!("full stop loss created for {symbol}"),
@@ -1051,14 +1061,31 @@ async fn stop_market(
     })))
 }
 
-async fn get_chart_drawings(State(state): State<AppState>, Path(symbol): Path<String>) -> AppResult<Json<crate::chart_documents::Document>> {
-    Ok(Json(state.chart_documents.get(&normalize_symbol(&symbol)?).await))
+async fn get_chart_drawings(
+    State(state): State<AppState>,
+    Path(symbol): Path<String>,
+) -> AppResult<Json<crate::chart_documents::Document>> {
+    Ok(Json(
+        state.chart_documents.get(&normalize_symbol(&symbol)?).await,
+    ))
 }
-async fn update_chart_drawings(State(state): State<AppState>, Path(symbol): Path<String>, Json(patch): Json<crate::chart_documents::Patch>) -> AppResult<Json<crate::chart_documents::Document>> {
-    Ok(Json(state.chart_documents.patch(&normalize_symbol(&symbol)?, patch).await?))
+async fn update_chart_drawings(
+    State(state): State<AppState>,
+    Path(symbol): Path<String>,
+    Json(patch): Json<crate::chart_documents::Patch>,
+) -> AppResult<Json<crate::chart_documents::Document>> {
+    Ok(Json(
+        state
+            .chart_documents
+            .patch(&normalize_symbol(&symbol)?, patch)
+            .await?,
+    ))
 }
 
-async fn open_algo_orders(State(state): State<AppState>, Path(symbol): Path<String>) -> AppResult<Json<Value>> {
+async fn open_algo_orders(
+    State(state): State<AppState>,
+    Path(symbol): Path<String>,
+) -> AppResult<Json<Value>> {
     let symbol = normalize_symbol(&symbol)?;
     Ok(Json(json!(state.binance.open_algo_orders(&symbol).await?)))
 }

@@ -495,8 +495,10 @@ function ChartWorkspacePane({
           orderIntent,
           orderReducePct: reduceMetadata.reducePct,
           orderRemainingPct: reduceMetadata.remainingPct,
-          orderDisplayReduce: orderIntent === "REDUCE"
-            ? getLiveReduceMetadata(order, openOrdersApi.orders, positionPnl) : undefined,
+          orderDisplayReduce:
+            orderIntent === "REDUCE"
+              ? getLiveReduceMetadata(order, openOrdersApi.orders, positionPnl)
+              : undefined,
           orderPricePending: stillPending,
           // openOrders does not expose leverage/liquidation for a
           // resting order. Preserve the estimate and its visibility state from

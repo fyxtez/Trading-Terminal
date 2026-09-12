@@ -29,18 +29,26 @@ export function getLiveReduceMetadata(
   const quantity = Math.abs(position.quantity);
   if (!Number.isFinite(quantity) || quantity <= 0) return {};
   const side = position.side === "LONG" ? "SELL" : "BUY";
-  const targets = orders.filter((item) =>
-    item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
-    item.side === side && item.reduceOnly &&
-    (item.type === "LIMIT" || item.origType === "LIMIT"),
-  ).sort((a, b) => (Number(a.price) - Number(b.price)) * (side === "SELL" ? 1 : -1)
-    || a.orderId.localeCompare(b.orderId));
+  const targets = orders
+    .filter(
+      (item) =>
+        item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
+        item.side === side &&
+        item.reduceOnly &&
+        (item.type === "LIMIT" || item.origType === "LIMIT"),
+    )
+    .sort(
+      (a, b) =>
+        (Number(a.price) - Number(b.price)) * (side === "SELL" ? 1 : -1) ||
+        a.orderId.localeCompare(b.orderId),
+    );
   const index = targets.findIndex((item) => item.orderId === order.orderId);
   if (index < 0) return {};
-  const sizes = targets.slice(0, index + 1).map((item) =>
-    Math.max(0, Number(item.origQty) - Number(item.executedQty || 0)));
+  const sizes = targets
+    .slice(0, index + 1)
+    .map((item) => Math.max(0, Number(item.origQty) - Number(item.executedQty || 0)));
   if (sizes.some((size) => !Number.isFinite(size))) return {};
-  const percent = (size: number) => Number((size / quantity * 100).toFixed(1));
+  const percent = (size: number) => Number(((size / quantity) * 100).toFixed(1));
   return {
     reducePct: percent(sizes[index]),
     remainingPct: percent(Math.max(0, quantity - sizes.reduce((sum, size) => sum + size, 0))),

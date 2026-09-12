@@ -762,7 +762,12 @@ impl BinanceClient {
     }
 
     pub async fn open_algo_orders(&self, symbol: &str) -> AppResult<Vec<Value>> {
-        self.signed(Method::GET, "/fapi/v1/openAlgoOrders", vec![("symbol".into(), normalize_symbol(symbol)?)]).await
+        self.signed(
+            Method::GET,
+            "/fapi/v1/openAlgoOrders",
+            vec![("symbol".into(), normalize_symbol(symbol)?)],
+        )
+        .await
     }
 
     pub async fn cancel_algo_order(&self, symbol: &str, algo_id: i64) -> AppResult<Value> {

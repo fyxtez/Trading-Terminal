@@ -22,11 +22,8 @@ impl SizingStore {
             Ok(contents) => {
                 let stored: MarginSizingConfig = serde_json::from_str(&contents)?;
 
-                MarginSizingConfig::new(
-                    stored.margin_pct,
-                    stored.max_leverage,
-                )
-                .map_err(AppError::Config)
+                MarginSizingConfig::new(stored.margin_pct, stored.max_leverage)
+                    .map_err(AppError::Config)
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(fallback),
             Err(error) => Err(AppError::Io(error)),

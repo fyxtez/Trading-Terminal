@@ -109,7 +109,10 @@ mod tests {
         let legacy = serde_json::json!({"margin_pct":0.02,"max_leverage":50,"leverage_safety":0.3});
         let config: MarginSizingConfig = serde_json::from_value(legacy).unwrap();
         let validated = MarginSizingConfig::new(config.margin_pct, config.max_leverage).unwrap();
-        assert_eq!(serde_json::to_value(validated).unwrap(), serde_json::json!({"margin_pct":0.02,"max_leverage":50}));
+        assert_eq!(
+            serde_json::to_value(validated).unwrap(),
+            serde_json::json!({"margin_pct":0.02,"max_leverage":50})
+        );
     }
 
     #[test]
