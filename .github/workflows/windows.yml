@@ -31,22 +31,22 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
       - name: Prepare build version
-        run: node frontend/scripts/version.mjs prepare
+        run: node frontend/scripts/ci/run.mjs node frontend/scripts/version.mjs prepare
       - name: Frontend tests on Windows
-        run: npm --prefix frontend run test:ci
+        run: node frontend/scripts/ci/run.mjs npm --prefix frontend run test:ci
       - name: Backend tests on Windows
-        run: cargo test --manifest-path backend/Cargo.toml --locked --all-features
+        run: node frontend/scripts/ci/run.mjs cargo test --manifest-path backend/Cargo.toml --locked --all-features
       - name: Build NSIS installer with real sidecar
         env:
           VITE_TRADING_API_TOKEN: ci-token-must-not-enter-desktop-assets
-        run: npm --prefix frontend run desktop:build
+        run: node frontend/scripts/ci/run.mjs npm --prefix frontend run desktop:build
       - name: Verify native assets contain no development capability
         shell: pwsh
         run: |
           $hits = Get-ChildItem frontend/dist -Recurse -File | Select-String -SimpleMatch 'ci-token-must-not-enter-desktop-assets'
           if ($hits) { throw 'Native assets contain a development capability' }
       - name: Test shell and native credential store
-        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --locked
+        run: node frontend/scripts/ci/run.mjs cargo test --manifest-path frontend/src-tauri/Cargo.toml --locked
       - name: Install built package
         shell: pwsh
         run: |
@@ -60,7 +60,7 @@ jobs:
           "FYXTEZ_INSTALLED_EXE=$executable" >> $env:GITHUB_ENV
           npm install --prefix "$env:RUNNER_TEMP/fyxtez-smoke" playwright-core@1.58.2
       - name: Launch installed app and exercise local runtime
-        run: node frontend/scripts/ci/windows-smoke.mjs "$env:FYXTEZ_INSTALLED_EXE"
+        run: node frontend/scripts/ci/run.mjs node frontend/scripts/ci/windows-smoke.mjs "$env:FYXTEZ_INSTALLED_EXE"
       - name: Hash installer
         shell: pwsh
         run: |

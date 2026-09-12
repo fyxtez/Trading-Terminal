@@ -220,7 +220,7 @@ function packageBounds(source) {
 
 function lockPackageVersion(source, packageName) {
   const pattern = new RegExp(
-    `^\\[\\[package\\]\\]\\nname = "${escapeRegExp(packageName)}"\\nversion = "([^"]+)"$`,
+    `^\\[\\[package\\]\\]\\r?\\nname = "${escapeRegExp(packageName)}"\\r?\\nversion = "([^"]+)"\\r?$`,
     "gm",
   );
   const matches = [...source.matchAll(pattern)];
@@ -230,7 +230,7 @@ function lockPackageVersion(source, packageName) {
 
 function replaceLockPackageVersion(source, packageName, version) {
   const pattern = new RegExp(
-    `(^\\[\\[package\\]\\]\\nname = "${escapeRegExp(packageName)}"\\nversion = ")[^"]+("$)`,
+    `(^\\[\\[package\\]\\]\\r?\\nname = "${escapeRegExp(packageName)}"\\r?\\nversion = ")[^"]+("\\r?$)`,
     "gm",
   );
   const matches = [...source.matchAll(pattern)];
