@@ -294,8 +294,10 @@ public service or forward its loopback ports. CI produces verified, signed/attes
 Linux `.deb`/AppImage and Android arm64 APK/AAB artifacts. Android remains a
 direct-distribution preview, and the first public release remains gated on the
 clean-machine acceptance procedure in [docs/RELEASING.md](docs/RELEASING.md).
-Windows and macOS are not yet verified release targets, and v1 intentionally
-has no automatic updater.
+Windows has a dedicated installer and CI smoke workflow; see the
+[Windows desktop preview](docs/WINDOWS.md) for build instructions and test scope.
+macOS is not yet a verified release target, and v1 intentionally has no automatic
+updater.
 
 ## Additional documentation
 

@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.fyxtez.terminal",
   "build": {
-    "beforeDevCommand": "bash scripts/desktop-dev-server.sh",
+    "beforeDevCommand": "node scripts/native-build.mjs dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "bash scripts/build-desktop-frontend.sh && bash scripts/prepare-sidecar.sh release",
+    "beforeBuildCommand": "node scripts/native-build.mjs desktop",
     "frontendDist": "../dist"
   },
   "app": {

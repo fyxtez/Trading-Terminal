@@ -10,7 +10,7 @@ use crate::error::{AppError, AppResult};
 
 const MIN_SERVICE_TOKEN_LENGTH: usize = 32;
 const MAX_BOOTSTRAP_BYTES: u64 = 16 * 1024;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub const DESKTOP_BROWSER_PORT: u16 = 8658;
 
 #[derive(Debug)]
@@ -159,13 +159,13 @@ fn browser_config(
     match (browser_port, browser_ui_dir) {
         (None, None) => Ok(None),
         (Some(port), Some(ui_dir)) => {
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(not(any(target_os = "linux", target_os = "windows")))]
             {
                 let _ = (port, ui_dir);
                 return Ok(None);
             }
 
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 if port != DESKTOP_BROWSER_PORT {
                     return Err(AppError::Config(format!(
@@ -236,7 +236,7 @@ fn validate_token(token: &str) -> AppResult<()> {
 mod tests {
     use std::{net::SocketAddr, path::PathBuf};
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     use super::DESKTOP_BROWSER_PORT;
     use super::{RuntimeConfig, browser_config, validate_token};
 
@@ -288,9 +288,9 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[test]
-    fn linux_browser_bootstrap_uses_the_stable_loopback_origin() {
+    fn desktop_browser_bootstrap_uses_the_stable_loopback_origin() {
         let browser = browser_config(
             Some(DESKTOP_BROWSER_PORT),
             Some(PathBuf::from("browser-ui")),

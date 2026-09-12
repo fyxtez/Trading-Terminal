@@ -101,14 +101,14 @@ export function buildSettingsSearchModel(
   const showBalanceCard = matches("Available balance", "USDT futures wallet balance");
   // Keep the section discoverable in browser mode as well. The browser cannot
   // access the native credential store, so its rendered section explains that
-  // Binance setup belongs in the installed Linux/Android app instead of simply
+  // Binance setup belongs in the installed Linux/Windows/Android app instead of simply
   // hiding the only place a user would expect to find it.
   const showExchangeConnections = matches(
     "Exchange Connections Binance account API key",
     EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "ntfy Telegram notifications" : undefined,
   );
   const showBrowserAccess = matches(
-    "Browser access open in browser terminal normal browser Linux background same computer",
+    "Browser access open in browser terminal normal browser Linux Windows background same computer",
     runtimeMode === "local-browser" ? "connected secure browser installed app" : undefined,
   );
   const showDiagnostics = matches(

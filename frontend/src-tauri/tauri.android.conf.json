@@ -1,7 +1,7 @@
 {
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "bash scripts/build-native-frontend.sh"
+    "beforeBuildCommand": "node scripts/native-build.mjs frontend"
   },
   "bundle": {
     "externalBin": [],

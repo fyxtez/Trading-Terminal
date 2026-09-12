@@ -285,3 +285,25 @@ pub(crate) mod tests {
         assert_eq!(store.value("key").as_deref(), Some("old-key"));
     }
 }
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    use super::*;
+    #[test]
+    fn native_credentials_round_trip_without_using_binance_keys() {
+        let name = format!("ci-credential-{}", std::process::id());
+        let store = PlatformCredentialStore;
+        store.write(&name, "synthetic-ci-value").unwrap();
+        assert_eq!(
+            store.read(&name).unwrap().as_deref().map(|s| s.as_str()),
+            Some("synthetic-ci-value")
+        );
+        store.write(&name, "synthetic-ci-updated").unwrap();
+        assert_eq!(
+            store.read(&name).unwrap().as_deref().map(|s| s.as_str()),
+            Some("synthetic-ci-updated")
+        );
+        store.delete(&name).unwrap();
+        assert!(store.read(&name).unwrap().is_none());
+    }
+}

@@ -2,7 +2,7 @@
 mod backend_supervisor;
 mod backup;
 mod binance_credentials;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod browser_access;
 mod credential_store;
 #[cfg(mobile)]
@@ -34,13 +34,13 @@ const EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED: bool = false;
 #[derive(Default)]
 struct BackupOperationLock(Mutex<()>);
 
-#[cfg(target_os = "linux")]
-struct LinuxLifecycleState {
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+struct DesktopLifecycleState {
     tray_available: bool,
 }
 
-#[cfg(target_os = "linux")]
-impl LinuxLifecycleState {
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+impl DesktopLifecycleState {
     fn new(tray_available: bool) -> Self {
         Self { tray_available }
     }
@@ -50,7 +50,7 @@ impl LinuxLifecycleState {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BrowserAccessStatus {
@@ -62,7 +62,7 @@ struct BrowserAccessStatus {
     unavailable_reason: Option<String>,
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 fn unsupported_browser_access_status() -> BrowserAccessStatus {
     BrowserAccessStatus {
         supported: false,
@@ -71,7 +71,8 @@ fn unsupported_browser_access_status() -> BrowserAccessStatus {
         browser_url: None,
         active_sessions: 0,
         unavailable_reason: Some(
-            "Browser access is currently available only in the installed Linux app".into(),
+            "Browser access is currently available only in the installed Linux or Windows app"
+                .into(),
         ),
     }
 }
@@ -389,7 +390,7 @@ async fn restart_backend(
     supervisor.restart().await
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 #[tauri::command]
 async fn browser_access_status(
     supervisor: State<'_, BackendSupervisor>,
@@ -397,13 +398,13 @@ async fn browser_access_status(
     browser_access::status(supervisor.inner()).await
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 #[tauri::command]
 fn browser_access_status() -> BrowserAccessStatus {
     unsupported_browser_access_status()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 #[tauri::command]
 async fn enable_browser_access(
     supervisor: State<'_, BackendSupervisor>,
@@ -411,13 +412,13 @@ async fn enable_browser_access(
     browser_access::enable(supervisor.inner()).await
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 #[tauri::command]
 fn enable_browser_access() -> BrowserAccessStatus {
     unsupported_browser_access_status()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 #[tauri::command]
 async fn open_browser_terminal(
     app: tauri::AppHandle,
@@ -426,13 +427,13 @@ async fn open_browser_terminal(
     browser_access::open_in_default_browser(&app, supervisor.inner()).await
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 #[tauri::command]
 fn open_browser_terminal() -> Result<BrowserAccessStatus, String> {
-    Err("Browser access is currently available only in the installed Linux app".into())
+    Err("Browser access is currently available only in the installed Linux or Windows app".into())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 #[tauri::command]
 async fn disable_browser_access(
     supervisor: State<'_, BackendSupervisor>,
@@ -440,7 +441,7 @@ async fn disable_browser_access(
     browser_access::disable(supervisor.inner()).await
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 #[tauri::command]
 fn disable_browser_access() -> BrowserAccessStatus {
     unsupported_browser_access_status()
@@ -578,7 +579,7 @@ fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -587,8 +588,8 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn setup_linux_tray(app: &tauri::App) -> tauri::Result<()> {
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn setup_desktop_tray(app: &tauri::App) -> tauri::Result<()> {
     use tauri::{menu::MenuBuilder, tray::TrayIconBuilder};
 
     const OPEN_APP: &str = "open-app";
@@ -761,9 +762,9 @@ pub fn run() {
             app.manage(supervisor);
             app.manage(BackupOperationLock::default());
 
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
-                let tray_available = match setup_linux_tray(app) {
+                let tray_available = match setup_desktop_tray(app) {
                     Ok(()) => true,
                     Err(error) => {
                         // Without a tray, closing the window must remain a real
@@ -774,7 +775,7 @@ pub fn run() {
                         false
                     }
                 };
-                app.manage(LinuxLifecycleState::new(tray_available));
+                app.manage(DesktopLifecycleState::new(tray_available));
             }
 
             Ok(())
@@ -799,7 +800,7 @@ pub fn run() {
         .expect("error while building Fyxtez Terminal desktop");
 
     app.run(|app, event| {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let tauri::RunEvent::WindowEvent {
             label,
             event: tauri::WindowEvent::CloseRequested { api, .. },
@@ -807,7 +808,7 @@ pub fn run() {
         } = &event
             && label == "main"
         {
-            let lifecycle = app.state::<LinuxLifecycleState>();
+            let lifecycle = app.state::<DesktopLifecycleState>();
             if lifecycle.can_hide_on_close() {
                 api.prevent_close();
                 if let Some(window) = app.get_webview_window("main")
@@ -829,8 +830,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(target_os = "linux")]
-    use super::LinuxLifecycleState;
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    use super::DesktopLifecycleState;
     use super::{
         BINANCE_NETWORK, credential_status_from, disconnect_binance_from,
         normalize_ntfy_destination, validate_http_url, validate_secret, validate_telegram_chat_id,
@@ -842,13 +843,13 @@ mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[test]
     fn close_hides_when_tray_is_available_independent_of_browser_access() {
-        let with_tray = LinuxLifecycleState::new(true);
+        let with_tray = DesktopLifecycleState::new(true);
         assert!(with_tray.can_hide_on_close());
 
-        let without_tray = LinuxLifecycleState::new(false);
+        let without_tray = DesktopLifecycleState::new(false);
         assert!(!without_tray.can_hide_on_close());
     }
 

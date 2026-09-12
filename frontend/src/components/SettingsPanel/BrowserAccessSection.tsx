@@ -148,8 +148,8 @@ export default function BrowserAccessSection({
                 <b>INSTALLED APP REQUIRED</b>
               </div>
               <p>
-                Install and open Terminal on Linux, then enable Browser access there. This public
-                browser remains chart-only.
+                Install and open Terminal on Linux or Windows, then enable Browser access there.
+                This public browser remains chart-only.
               </p>
             </>
           ) : !status ? (
@@ -234,7 +234,7 @@ export default function BrowserAccessSection({
               <p>
                 {status.supported
                   ? "Browser access could not start. Terminal itself remains available in this window."
-                  : "Browser access is available in the Linux app. Keep using the installed Android app on this device."}
+                  : "Browser access is available in the Linux and Windows apps. Keep using the installed Android app on this device."}
               </p>
               {status.unavailableReason && (
                 <small>

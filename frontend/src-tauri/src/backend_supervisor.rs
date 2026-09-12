@@ -604,7 +604,7 @@ fn reserve_loopback_port() -> Result<u16, String> {
         .map_err(|error| format!("cannot inspect reserved loopback port: {error}"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn resolve_browser_ui_dir<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist");
@@ -630,7 +630,7 @@ fn resolve_browser_ui_dir<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
     Some(candidate.canonicalize().unwrap_or(candidate))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 fn resolve_browser_ui_dir<R: Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
     None
 }

@@ -175,8 +175,8 @@ export function ExchangeConnectionsSection({
               <b>INSTALLED APP ONLY</b>
             </div>
             <p>
-              This browser window is for charts only. Open the installed Linux or Android app, then
-              use Settings → Exchange Connections to connect Binance and trade.
+              This browser window is for charts only. Open the installed Linux, Windows or Android
+              app, then use Settings → Exchange Connections to connect Binance and trade.
             </p>
           </div>
         ))}
