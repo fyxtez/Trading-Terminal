@@ -14,6 +14,7 @@ import {
   runFinancialMutation,
 } from "./financialMutation";
 import { tradingApiFetch, tradingApiHeaders } from "./http";
+import { SnapshotCache, snapshotResponseError } from "./snapshotCache";
 
 export type PositionSide = "LONG" | "SHORT";
 
@@ -166,154 +167,86 @@ function mapPosition(position: AccountPosition): OpenPosition | null {
   };
 }
 
-/*
- * usePositions.ts, useChartPositionPnl.ts, and
- * PositionBracketOverlay.tsx each run their own independent 4-second
- * self-heal poll against this same endpoint, unsynchronized with each
- * other (each starts whenever its own component happened to mount). At
- * the old 1-second TTL, those three staggered timers mostly missed this
- * cache and fired close to 3x the intended request rate. Widening it to
- * 3.5s means the passive self-heal polls now actually share one
- * request most of the time. Event-driven refreshes (the ones that fire
- * right after an action - closing a position, etc. - and need to
- * confirm the real state right now) explicitly pass force=true from
- * their own call sites specifically to bypass this cache, so this
- * widening only affects the passive background polling, not anything
- * that needs a guaranteed-fresh answer.
- */
-const POSITIONS_CACHE_TTL_MS = 3_500;
-const REALIZED_PNL_CACHE_TTL_MS = 15_000;
-let cachedPositions: OpenPosition[] | null = null;
-let cachedPositionsAt = 0;
-let positionsInFlight: Promise<OpenPosition[]> | null = null;
-let cachedRealizedPnl: RealizedPnlResponse | null = null;
-let cachedRealizedPnlAt = 0;
-let realizedPnlInFlight: Promise<RealizedPnlResponse | null> | null = null;
-let realizedPnlRetryAfter = 0;
+const positionsCache = new SnapshotCache<OpenPosition[]>(3_500);
+const realizedPnlCache = new SnapshotCache<{ key: string; payload: RealizedPnlResponse }>(60_000);
 
 async function getRealizedPositionPnl(
-  signal?: AbortSignal,
-  force = false,
+  positions: OpenPosition[],
 ): Promise<RealizedPnlResponse | null> {
-  const now = Date.now();
-  // an older/not-yet-restarted backend returns 404 for the new endpoint.
-  // Back off instead of filling DevTools and server logs every four seconds.
-  if (now < realizedPnlRetryAfter) return null;
-  if (!force && cachedRealizedPnl && now - cachedRealizedPnlAt < REALIZED_PNL_CACHE_TTL_MS) {
-    return cachedRealizedPnl;
+  if (!positions.length) {
+    realizedPnlCache.invalidate();
+    return null;
   }
-  if (!signal && realizedPnlInFlight) return realizedPnlInFlight;
-
-  // userTrades is materially heavier than account state. Cache this
-  // enrichment independently so the 4s position self-heal does not repeatedly
-  // reconstruct unchanged lifecycles; forced trade events still bypass it.
-  const request = (async () => {
-    try {
+  // Price/PNL ticks do not change a position's fill history. Refresh that
+  // expensive enrichment when exposure changes, or once a minute as a backup.
+  const key = positions
+    .map(
+      (position) =>
+        `${position.symbol}:${position.side}:${position.quantity}:${position.entry_price}`,
+    )
+    .sort()
+    .join("|");
+  if (realizedPnlCache.peek()?.key !== key) realizedPnlCache.invalidate();
+  try {
+    const result = await realizedPnlCache.get(async () => {
       const response = await tradingApiFetch(
         `${TRADING_API_BASE_URL}${POSITION_REALIZED_PNL_ENDPOINT}`,
-        {
-          method: "GET",
-          headers: getHeaders(),
-          signal,
-          cache: "no-store",
-        },
+        { method: "GET", headers: getHeaders(), cache: "no-store" },
       );
-      if (!response.ok) {
-        realizedPnlRetryAfter = Date.now() + (response.status === 404 ? 60_000 : 15_000);
-        return null;
-      }
-      realizedPnlRetryAfter = 0;
-      const payload = (await response.json()) as RealizedPnlResponse;
-      cachedRealizedPnl = payload;
-      cachedRealizedPnlAt = Date.now();
-      return payload;
-    } catch {
-      return null;
-    }
-  })();
-
-  if (signal) return request;
-  realizedPnlInFlight = request;
-  try {
-    return await request;
-  } finally {
-    if (realizedPnlInFlight === request) realizedPnlInFlight = null;
+      if (!response.ok) throw snapshotResponseError(response, await readError(response));
+      return { key, payload: (await response.json()) as RealizedPnlResponse };
+    });
+    return result.payload;
+  } catch {
+    // History is display-only. Failure must not hide a live position.
+    return null;
   }
 }
 
 export function invalidatePositionsCache(): void {
-  cachedPositions = null;
-  cachedPositionsAt = 0;
-  // fills that changed position size may also have realized PNL, so the
-  // lifecycle cache must be invalidated together with the account snapshot.
-  cachedRealizedPnl = null;
-  cachedRealizedPnlAt = 0;
+  positionsCache.invalidate();
+  realizedPnlCache.invalidate();
 }
 
 export async function getPositions(signal?: AbortSignal, force = false): Promise<OpenPosition[]> {
   if (!canUseTradingAccount()) return [];
+  return positionsCache.get(
+    async () => {
+      const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${ACCOUNT_ENDPOINT}`, {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
+      });
+      if (!response.ok) throw snapshotResponseError(response, await readError(response));
+      const account = (await response.json()) as AccountResponse;
+      const positions = (account.positions ?? [])
+        .map(mapPosition)
+        .filter((position): position is OpenPosition => position !== null);
 
-  const now = Date.now();
-
-  if (!force && cachedPositions !== null && now - cachedPositionsAt < POSITIONS_CACHE_TTL_MS) {
-    return cachedPositions;
-  }
-
-  // Every mounted consumer reads the same account endpoint. Share one request
-  // instead of allowing the chart badge, bracket overlay, panel, and App to
-  // create parallel /api/account calls for the same browser event.
-  if (!signal && positionsInFlight) {
-    return positionsInFlight;
-  }
-
-  const request = (async () => {
-    // enrichment is shared and cosmetic; one component unmounting must
-    // not abort the realized request used by every other positions consumer.
-    const realizedRequest = getRealizedPositionPnl(undefined, force);
-    const response = await tradingApiFetch(`${TRADING_API_BASE_URL}${ACCOUNT_ENDPOINT}`, {
-      method: "GET",
-      headers: getHeaders(),
-      signal,
-      // account/position state is safety-critical live exchange state. Even
-      // when our own small JS cache is explicitly bypassed, the browser/proxy
-      // must never satisfy this request from an HTTP cache.
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error(await readError(response));
-    const account = (await response.json()) as AccountResponse;
-    const positions = (account.positions ?? [])
-      .map(mapPosition)
-      .filter((position): position is OpenPosition => position !== null);
-
-    // realized PNL is enrichment, not a prerequisite for safety-critical
-    // position rendering. A history failure leaves `—` instead of hiding rows.
-    const realized = await realizedRequest;
-    if (realized) {
-      for (const position of positions) {
-        const match = (realized.positions ?? []).find(
-          (item) =>
-            item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
-            (item.position_side === "BOTH" || item.position_side === position.side),
-        );
-        if (match?.complete && match.realized_pnl !== null && Number.isFinite(match.realized_pnl)) {
-          position.realized_pnl = match.realized_pnl;
+      // Do not issue another positionRisk/history request when the account
+      // read failed or confirmed that the account is flat.
+      const realized = await getRealizedPositionPnl(positions);
+      if (realized) {
+        for (const position of positions) {
+          const match = (realized.positions ?? []).find(
+            (item) =>
+              item.symbol.toUpperCase() === position.symbol.toUpperCase() &&
+              (item.position_side === "BOTH" || item.position_side === position.side),
+          );
+          if (
+            match?.complete &&
+            match.realized_pnl !== null &&
+            Number.isFinite(match.realized_pnl)
+          ) {
+            position.realized_pnl = match.realized_pnl;
+          }
         }
       }
-    }
-
-    cachedPositions = positions;
-    cachedPositionsAt = Date.now();
-    return positions;
-  })();
-
-  if (signal) return request;
-
-  positionsInFlight = request;
-  try {
-    return await request;
-  } finally {
-    if (positionsInFlight === request) positionsInFlight = null;
-  }
+      return positions;
+    },
+    force,
+    signal,
+  );
 }
 
 export async function executePositionIntent(

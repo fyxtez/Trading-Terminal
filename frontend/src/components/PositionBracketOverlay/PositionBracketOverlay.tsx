@@ -702,36 +702,22 @@ export default function PositionBracketOverlay({
   useEffect(() => {
     void refreshPosition(true);
 
-    let refreshTimers: number[] = [];
-
-    const clearRefreshTimers = () => {
-      refreshTimers.forEach((timer) => window.clearTimeout(timer));
-      refreshTimers = [];
-    };
-
+    let refreshTimer: number | null = null;
     const handleTradingStateChanged = () => {
-      clearRefreshTimers();
-
-      // one debounced read could land after account_state contained the
-      // new fill but before the separate positionRisk refresh supplied its
-      // liquidationPrice. Nothing retried until the 4-second safety poll, so
-      // the position appeared immediately while its red boundary arrived
-      // 2-3 seconds later. This short event-driven reconciliation burst covers
-      // that normal two-cache propagation window without increasing steady
-      // background polling once the order has settled.
-      [0, 180, 500, 1_000].forEach((delay) => {
-        refreshTimers.push(
-          window.setTimeout(() => {
-            void refreshPosition(true);
-          }, delay),
-        );
-      });
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      // /api/account fetches account and liquidation data together. One
+      // debounced read shares that fresh snapshot with the PNL badge/panel;
+      // four forced reads also repeated expensive fill-history enrichment.
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void refreshPosition(true);
+      }, 100);
     };
 
     window.addEventListener("account-state-changed", handleTradingStateChanged);
 
     return () => {
-      clearRefreshTimers();
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.removeEventListener("account-state-changed", handleTradingStateChanged);
     };
   }, [refreshPosition]);

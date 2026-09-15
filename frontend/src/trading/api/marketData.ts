@@ -7,6 +7,7 @@ import {
   type SymbolConfig,
 } from "../../config/constants";
 import { tradingApiFetch } from "./http";
+import { fetchBinanceKlineData, MarketDataError } from "./binanceMarketData";
 
 const BINANCE_KLINE_LIMIT = 1500;
 const MEXC_KLINE_LIMIT = 2000;
@@ -175,12 +176,7 @@ async function fetchBinanceKlines(
         params.set("endTime", String(endTime));
       }
 
-      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!response.ok) throw new Error(`Binance kline request failed: ${response.status}`);
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
+      return fetchBinanceKlineData(params);
     }),
   );
 
@@ -268,12 +264,7 @@ export async function fetchOlderKlines(
     limit: String(Math.min(limit, BINANCE_KLINE_LIMIT)),
     endTime: String(endTimeMs),
   });
-  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`Binance kline request failed: ${response.status}`);
-  const data = await response.json();
-  if (!Array.isArray(data)) return [];
+  const data = await fetchBinanceKlineData(params);
 
   return normalizeCandles(
     data.map((kline: unknown[]): CandlestickData => ({
@@ -314,21 +305,26 @@ export async function fetchLatestKline(
     interval: selectedInterval,
     limit: "1",
   });
-  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
-    signal: signal ?? AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`Latest Binance kline request failed: ${response.status}`);
-  const data = await response.json();
-  if (!Array.isArray(data) || !data[0]) return null;
+  const data = await fetchBinanceKlineData(params, signal);
+  if (!data[0]) throw new MarketDataError("Binance returned no prices. Retrying automatically.");
   const kline = data[0];
 
-  return {
+  const candle = {
     time: Math.floor(Number(kline[0]) / 1000) as UTCTimestamp,
     open: Number(kline[1]),
     high: Number(kline[2]),
     low: Number(kline[3]),
     close: Number(kline[4]),
   };
+  if (
+    !Number.isFinite(Number(candle.time)) ||
+    ![candle.open, candle.high, candle.low, candle.close].every(
+      (value) => Number.isFinite(value) && value > 0,
+    )
+  ) {
+    throw new MarketDataError("Binance sent invalid price data. Retrying automatically.");
+  }
+  return candle;
 }
 
 export function mergeLatestCandle(

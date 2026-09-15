@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelOrder as cancelBinanceOrder,
   getOpenOrders,
+  watchOpenOrdersSymbol,
   chaseLimitOrder as chaseBinanceLimitOrder,
   updateReduceOrder as updateBinanceReduceOrder,
   type OpenOrder,
@@ -32,6 +33,7 @@ const OPEN_ORDERS_SELF_HEAL_POLL_MS = 4_000;
 export function useOpenOrders(
   symbol: string | null,
   onMarketOrderFilled?: (fill: MarketOrderFill) => void,
+  watchedSymbol?: string,
 ) {
   const [orders, setOrders] = useState<OpenOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +41,10 @@ export function useOpenOrders(
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [chasingOrderId, setChasingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (watchedSymbol) return watchOpenOrdersSymbol(watchedSymbol);
+  }, [watchedSymbol]);
 
   const mountedRef = useRef(true);
   const requestIdRef = useRef(0);
@@ -105,10 +111,9 @@ export function useOpenOrders(
     };
   }, [refresh]);
 
-  // Self-heal poll - see the big comment above. Independent of the
-  // event-driven refresh; guarantees open orders can never drift out of
-  // sync for more than one poll interval regardless of whether any push
-  // notification along the chain was missed.
+  // Visible symbols and existing orders reconcile every four seconds.
+  // getOpenOrders also discovers orders on other symbols every 30 seconds;
+  // exchange events above force an immediate account-wide reconciliation.
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       void refresh();

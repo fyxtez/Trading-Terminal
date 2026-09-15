@@ -52,6 +52,7 @@ describe("background polling", () => {
   it("releases timed-out requests and ignores late completion from the previous request", async () => {
     const signals: AbortSignal[] = [];
     const resolve: Array<() => void> = [];
+    const onError = vi.fn();
     const loop = startMarketPoll(
       (signal) => {
         signals.push(signal);
@@ -59,15 +60,55 @@ describe("background polling", () => {
       },
       1000,
       2000,
+      onError,
     );
     cleanup.push(loop.stop);
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(2000);
     expect(signals[0].aborted).toBe(true);
+    expect(onError).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ name: "TimeoutError" }),
+    );
+    await vi.advanceTimersByTimeAsync(2000);
     expect(signals).toHaveLength(2);
     resolve[0]();
     await Promise.resolve();
     await loop.poll();
     expect(signals).toHaveLength(2);
+  });
+
+  it("backs off after failures, honors exchange cooldowns, and recovers automatically", async () => {
+    const onError = vi.fn();
+    const callback = vi.fn().mockRejectedValueOnce({ retryAt: Date.now() + 10_000 });
+    const loop = startMarketPoll(callback, 1000, 15_000, onError);
+    cleanup.push(loop.stop);
+    await vi.advanceTimersByTimeAsync(9000);
+    await loop.poll();
+    window.dispatchEvent(new Event("online"));
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    callback.mockResolvedValue(undefined);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(callback).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(callback).toHaveBeenCalledTimes(3);
+  });
+
+  it("increases the delay for repeated connection failures and cancels retries on stop", async () => {
+    const callback = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const loop = startMarketPoll(callback, 1000, 15_000, vi.fn());
+    cleanup.push(loop.stop);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(callback).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(callback).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(callback).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(callback).toHaveBeenCalledTimes(3);
+    loop.stop();
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(callback).toHaveBeenCalledTimes(3);
   });
 });
 

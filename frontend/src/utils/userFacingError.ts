@@ -16,6 +16,11 @@ export function userFacingError(
   const message = raw.trim().replace(/^Invalid request:\s*/i, "");
 
   if (!message) return fallback;
+  // Binance may append "request ip" to access rejections. Explain the code
+  // before the technical-detail filter hides the actionable reason.
+  if (/^Binance API error -2015:/i.test(message)) {
+    return "Binance denied API access (-2015). Check your key's Futures permissions, allowed IP addresses, and Live/Practice network in Settings.";
+  }
   if (SAVED_CONNECTION_ERROR_PATTERN.test(message)) {
     return "Terminal could not open your saved connections. Unlock your device and try again.";
   }

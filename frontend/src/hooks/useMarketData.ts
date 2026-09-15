@@ -26,6 +26,7 @@ import type { ChartRefs } from "./useChartRefs";
 import type { ConnectionState } from "./useTradingStream";
 import { formatSymbolPair } from "../config/symbols";
 import { userFacingError } from "../utils/userFacingError";
+import { MarketDataError } from "../trading/api/binanceMarketData";
 import {
   loadSavedInterval,
   loadSavedViewport,
@@ -53,6 +54,14 @@ import {
  * kline request every couple of seconds is nowhere close to a concern.
  */
 const LIVE_POLL_INTERVAL_MS = 1_000;
+
+function marketDataFailureMessage(error: unknown, fallback: string): string {
+  if (error instanceof MarketDataError) return error.message;
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return "Price updates took too long. Reconnecting automatically.";
+  }
+  return userFacingError(error, fallback);
+}
 
 /**
  * Scroll-triggered history backfill (see backfillOlderCandles below):
@@ -110,6 +119,7 @@ export function useMarketData(
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [marketDataError, setMarketDataError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const liveRetryRef = useRef<(() => Promise<void>) | null>(null);
 
   // The active symbol's real tick size / decimal precision, from
   // Binance's exchangeInfo. Exposed so anything drawing a price label
@@ -298,6 +308,8 @@ export function useMarketData(
     refs.candleRef.current?.setData([]);
     refs.futureScaleRef.current?.setData([]);
     let livePolling: ReturnType<typeof startMarketPoll> | null = null;
+    let initialRetryTimer: number | null = null;
+    let initialRetryDelayMs = LIVE_POLL_INTERVAL_MS;
     /*
      * the fixed
      * LIVE_POLL_INTERVAL_MS timer below only happens to notice a new
@@ -711,35 +723,50 @@ export function useMarketData(
         // function - via the outer `let pollLive` declared alongside it -
         // to fire one extra poll timed right at each candle's expected
         // close instead of waiting on this fixed interval alone.
-        livePolling = startMarketPoll(async (signal) => {
-          if (cancelled || myEpoch !== refs.epochRef.current) return;
-
-          try {
+        livePolling = startMarketPoll(
+          async (signal) => {
+            if (cancelled || myEpoch !== refs.epochRef.current) return;
             const candle = await fetchLatestKline(interval, symbol, signal);
 
-            if (signal.aborted || cancelled || myEpoch !== refs.epochRef.current || !candle) {
+            if (signal.aborted || cancelled || myEpoch !== refs.epochRef.current) {
               return;
             }
+            if (!candle) throw new Error("No recent prices are available. Retrying automatically.");
 
             applyCandleUpdate(candle);
             setMarketConnection("connected");
             setMarketDataError(null);
-          } catch (error) {
-            if (signal.aborted || cancelled || myEpoch !== refs.epochRef.current) return;
+          },
+          LIVE_POLL_INTERVAL_MS,
+          15_000,
+          (error) => {
+            if (cancelled || myEpoch !== refs.epochRef.current) return;
 
             console.warn("[market-poll] failed", error);
             setMarketConnection("disconnected");
-            setMarketDataError(userFacingError(error, "Live prices are temporarily unavailable."));
-          }
-        }, LIVE_POLL_INTERVAL_MS);
+            setMarketDataError(
+              marketDataFailureMessage(error, "Live prices are temporarily unavailable."),
+            );
+          },
+        );
         pollLive = livePolling.poll;
+        liveRetryRef.current = pollLive;
       } catch (error) {
         if (cancelled || myEpoch !== refs.epochRef.current) return;
         refs.chartReadyRef.current = false;
         setIsChartLoading(false);
         setMarketConnection("disconnected");
-        setMarketDataError(userFacingError(error, "Terminal could not load this chart."));
+        setMarketDataError(marketDataFailureMessage(error, "Terminal could not load this chart."));
         console.error("Failed to load chart", error);
+        initialRetryDelayMs = Math.min(initialRetryDelayMs * 2, 30_000);
+        const retryAt = error instanceof MarketDataError ? (error.retryAt ?? 0) : 0;
+        initialRetryTimer = window.setTimeout(
+          () => {
+            initialRetryTimer = null;
+            if (!cancelled && myEpoch === refs.epochRef.current) void load();
+          },
+          Math.max(initialRetryDelayMs, retryAt - Date.now()),
+        );
       }
     }
 
@@ -834,6 +861,8 @@ export function useMarketData(
       }
 
       livePolling?.stop();
+      liveRetryRef.current = null;
+      if (initialRetryTimer !== null) window.clearTimeout(initialRetryTimer);
 
       if (boundaryPokeTimer !== null) {
         window.clearTimeout(boundaryPokeTimer);
@@ -902,7 +931,12 @@ export function useMarketData(
     pricePrecisionRef,
     tickSize,
     marketConnection,
-    retryMarketData: () => setReloadKey((current) => current + 1),
+    retryMarketData: () => {
+      // A delayed quote needs a live update, not another 5,000-candle history
+      // download that clears the chart and spends more of the shared IP limit.
+      if (liveRetryRef.current) void liveRetryRef.current();
+      else setReloadKey((current) => current + 1);
+    },
     changeInterval,
     zoomIn,
     zoomOut,

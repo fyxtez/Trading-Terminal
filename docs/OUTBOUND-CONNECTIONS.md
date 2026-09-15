@@ -19,6 +19,35 @@ removes every product entry point: their native command is not registered and
 the backend alert worker is not started. Current builds therefore make no ntfy
 or Telegram requests.
 
+## Binance polling budget
+
+Within each frontend window, chart panes and the positions panel share account
+and open-order reads, including in-flight reads whose original component has
+unmounted. Account state retains a 3.5-second display cache and a four-second
+fallback poll. Exposure-changing backend actions still validate fresh exchange
+state before placing orders.
+
+- Open orders on visible symbols and symbols with existing orders reconcile
+  every four seconds. A global sweep discovers other symbols every 30 seconds;
+  order events and explicit forced refreshes request a global sweep immediately.
+  If the user stream is unavailable, a new order on an unobserved symbol can
+  therefore take up to the next global sweep (about 32 seconds with this timer)
+  to appear. Failed symbol reads retain the previous display and report failure.
+- Realized-PNL history is skipped when the account read fails or the account is
+  flat. Successful history is reused for up to a minute, with early invalidation
+  when position size/entry changes or a position mutation invalidates the cache.
+- Failed snapshot reads back off from four seconds to one minute. API access
+  rejections pause account readers for a minute; changing the saved connection
+  resets that pause. Price and snapshot readers share the outgoing-IP cooldown
+  for Binance rate-limit responses. Public price readers honor `Retry-After`;
+  older backend error responses without that header use a conservative fallback.
+
+The fake-clock regression test in `snapshotPolling.test.ts` covers 15 polling
+ticks over one minute, one watched symbol, a flat account, and multiple readers.
+It produces two global order reads and 13 symbol reads: **93 request-weight
+units**, compared with **600** for 15 global reads. These are calculated weights
+for that scenario, not a measurement of total traffic from the user's IP.
+
 ## Invariants
 
 - Exchange secrets come only from the OS credential manager.

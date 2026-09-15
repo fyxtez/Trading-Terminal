@@ -269,11 +269,18 @@ function ChartWorkspacePane({
     }
   };
 
-  // Fetch account-wide orders once. The chart derives its symbol-specific
-  // subset locally instead of issuing a second Binance openOrders request.
-  const allOpenOrdersApi = useOpenOrders(null, (fill) => {
-    addLocallyConfirmedMarketMarker(fill);
-  });
+  const currentSymbolConfig = getSymbolConfig(currentSymbol);
+  // Share the account-wide list, while cheap symbol polls keep this chart
+  // current. View-only MEXC/unconfirmed symbols cannot be queried on Binance.
+  const allOpenOrdersApi = useOpenOrders(
+    null,
+    (fill) => {
+      addLocallyConfirmedMarketMarker(fill);
+    },
+    currentSymbolConfig.source === "binance" && currentSymbolConfig.executionEnabled
+      ? currentSymbolConfig.sourceSymbol
+      : undefined,
+  );
   const openOrdersApi = {
     ...allOpenOrdersApi,
     orders: allOpenOrdersApi.orders.filter(
@@ -405,8 +412,6 @@ function ChartWorkspacePane({
   });
 
   const diagnostics = { ...runtime.diagnostics, marketConnection: marketData.marketConnection };
-
-  const currentSymbolConfig = getSymbolConfig(currentSymbol);
 
   const tradeMenuApi = useTradeMenu(
     currentSymbol,

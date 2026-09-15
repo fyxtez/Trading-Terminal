@@ -24,6 +24,7 @@ import {
   runFinancialMutation,
 } from "./financialMutation";
 import { tradingApiFetch, tradingApiHeaders } from "./http";
+import { SnapshotCache, snapshotResponseError } from "./snapshotCache";
 
 function mutationHeaders(intentId: string, includeJson = false): Record<string, string> {
   return tradingApiHeaders({
@@ -236,27 +237,53 @@ export type OpenOrder = {
   reduceOnly: boolean;
 };
 
-/**
- * Fetches open orders. Pass a symbol to get just that symbol's orders
- * (used for the chart's own order-line rendering, which only ever cares
- * about the symbol currently on screen); omit it to get every open order
- * across the whole account (used by PositionsPanel's Open Orders tab,
- * which - like the Positions tab - should reflect the whole account, not
- * just whichever symbol happens to be selected on the chart right now).
- */
-/*
- * same reasoning as POSITIONS_CACHE_TTL_MS in
- * positions.ts - widened from 1.5s so the self-heal poll in
- * useOpenOrders.ts (every 4s) actually benefits from this cache instead
- * of mostly missing it. Event-driven refreshes still pass force=true to
- * bypass this explicitly when they need a guaranteed-fresh answer.
- */
 const OPEN_ORDERS_CACHE_TTL_MS = 3_500;
-const openOrdersCache = new Map<string, { at: number; orders: OpenOrder[] }>();
-const openOrdersInFlight = new Map<string, Promise<OpenOrder[]>>();
+const ALL_ORDERS_RECONCILE_MS = 30_000;
+type OrdersSnapshot = { orders: OpenOrder[]; reconciledAt: number };
+const openOrdersCache = new Map<string, SnapshotCache<OrdersSnapshot>>();
+const watchedSymbols = new Map<string, number>();
+
+// Each pane registers its visible symbol. Empty symbols still need a cheap
+// poll so an order placed outside the terminal appears promptly on its chart.
+export function watchOpenOrdersSymbol(symbol: string): () => void {
+  const key = symbol.toUpperCase();
+  watchedSymbols.set(key, (watchedSymbols.get(key) ?? 0) + 1);
+  return () => {
+    const count = (watchedSymbols.get(key) ?? 1) - 1;
+    if (count > 0) watchedSymbols.set(key, count);
+    else watchedSymbols.delete(key);
+  };
+}
 
 export function invalidateOpenOrdersCache(): void {
-  openOrdersCache.clear();
+  for (const cache of openOrdersCache.values()) cache.invalidate();
+}
+
+async function fetchOpenOrders(symbol?: string): Promise<OpenOrder[]> {
+  const url = symbol
+    ? `${TRADING_API_BASE_URL}/api/orders/open?symbol=${encodeURIComponent(symbol)}`
+    : `${TRADING_API_BASE_URL}/api/orders/open`;
+  const response = await tradingApiFetch(url, { method: "GET", cache: "no-store" });
+  // Preserve large order IDs while also retaining Binance's rate/access error.
+  const text = await response.text();
+  if (!response.ok) {
+    let message = text;
+    try {
+      const body = JSON.parse(text);
+      if (typeof body?.error === "string") message = body.error;
+    } catch {
+      // A proxy may return plain text or HTML for a rate-limit rejection.
+    }
+    throw snapshotResponseError(
+      response,
+      message || `Request failed with status ${response.status}`,
+    );
+  }
+  const body = parseOrderJsonText(text);
+  if (!Array.isArray(body)) throw new Error("Binance sent invalid open orders.");
+  return (body as OpenOrder[]).filter(
+    (order) => order.status === "NEW" || order.status === "PARTIALLY_FILLED",
+  );
 }
 
 export async function getOpenOrders(
@@ -265,48 +292,43 @@ export async function getOpenOrders(
   force = false,
 ): Promise<OpenOrder[]> {
   if (!canUseTradingAccount()) return [];
-
   const normalizedSymbol = symbol?.toUpperCase();
   const key = normalizedSymbol ?? "*";
-  const cached = openOrdersCache.get(key);
-
-  if (!force && cached && Date.now() - cached.at < OPEN_ORDERS_CACHE_TTL_MS) {
-    return cached.orders;
+  let cache = openOrdersCache.get(key);
+  if (!cache) {
+    cache = new SnapshotCache<OrdersSnapshot>(OPEN_ORDERS_CACHE_TTL_MS);
+    openOrdersCache.set(key, cache);
   }
-
-  // Never allow several React consumers/events to stack identical Binance
-  // open-order requests while an earlier one is still pending.
-  if (!signal) {
-    const existing = openOrdersInFlight.get(key);
-    if (existing) return existing;
-  }
-
-  const request = (async () => {
-    const url = normalizedSymbol
-      ? `${TRADING_API_BASE_URL}/api/orders/open?symbol=${encodeURIComponent(normalizedSymbol)}`
-      : `${TRADING_API_BASE_URL}/api/orders/open`;
-
-    const response = await tradingApiFetch(url, {
-      method: "GET",
-      signal,
-    });
-
-    const orders = (await parseTradingResponse<OpenOrder[]>(response)).filter(
-      (order) => order.status === "NEW" || order.status === "PARTIALLY_FILLED",
-    );
-
-    openOrdersCache.set(key, { at: Date.now(), orders });
-    return orders;
-  })();
-
-  if (signal) return request;
-
-  openOrdersInFlight.set(key, request);
-  try {
-    return await request;
-  } finally {
-    if (openOrdersInFlight.get(key) === request) openOrdersInFlight.delete(key);
-  }
+  const reader = cache;
+  const snapshot = await reader.get(
+    async () => {
+      if (normalizedSymbol) {
+        return { orders: await fetchOpenOrders(normalizedSymbol), reconciledAt: 0 };
+      }
+      const previous = reader.peek();
+      const symbols = new Set([
+        ...watchedSymbols.keys(),
+        ...(previous?.orders.map((order) => order.symbol.toUpperCase()) ?? []),
+      ]);
+      // A global read costs 40 weight units versus 1 per symbol. Keep the
+      // four-second check for visible/existing orders; discover other symbols
+      // every 30 seconds and immediately on order events or explicit refresh.
+      if (
+        force ||
+        !previous ||
+        Date.now() - previous.reconciledAt >= ALL_ORDERS_RECONCILE_MS ||
+        symbols.size >= 40
+      ) {
+        const orders = await fetchOpenOrders();
+        return { orders, reconciledAt: Date.now() };
+      }
+      const orders = await Promise.all([...symbols].map((item) => getOpenOrders(item)));
+      return { orders: orders.flat(), reconciledAt: previous.reconciledAt };
+    },
+    force,
+    signal,
+  );
+  return snapshot.orders;
 }
 
 export type UpdateReduceOrderResponse = {

@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { userFacingError } from "./userFacingError";
 
 describe("userFacingError", () => {
+  it.each([
+    "Binance API error -2015: Invalid API-key, IP, or permissions for action, request ip: 203.0.113.10",
+    "Binance API error -2015: Invalid API-key, IP, or permissions for action.",
+  ])("explains Binance access rejection before filtering technical details: %s", (message) => {
+    expect(userFacingError(new Error(message), "Terminal could not place this order.")).toBe(
+      "Binance denied API access (-2015). Check your key's Futures permissions, allowed IP addresses, and Live/Practice network in Settings.",
+    );
+  });
+
   it("shows missing Practice prices without hiding validation guidance", () => {
     const guidance =
       "Binance Practice has no usable last-traded price for PUMPUSDT. Try again when a quote is available.";
