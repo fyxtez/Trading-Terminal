@@ -1,4 +1,6 @@
 import { getBinanceCooldown, recordBinanceCooldown } from "./binanceRateLimit";
+import { isRemoteBackend, TRADING_API_BASE_URL } from "../../config/constants";
+import { tradingApiFetch } from "./http";
 
 export class MarketDataError extends Error {
   constructor(
@@ -27,9 +29,14 @@ export async function fetchBinanceKlineData(
 
   let response: Response;
   try {
-    response = await fetch(`https://fapi.binance.com/fapi/v1/klines?${params}`, {
-      signal: signal ?? AbortSignal.timeout(15_000),
-    });
+    response = await (isRemoteBackend() ? tradingApiFetch : fetch)(
+      isRemoteBackend()
+        ? `${TRADING_API_BASE_URL}/api/market-data/binance/klines?${params}`
+        : `https://fapi.binance.com/fapi/v1/klines?${params}`,
+      {
+        signal: signal ?? AbortSignal.timeout(15_000),
+      },
+    );
   } catch (error) {
     if (signal?.aborted || (error instanceof DOMException && error.name === "TimeoutError")) {
       throw error;

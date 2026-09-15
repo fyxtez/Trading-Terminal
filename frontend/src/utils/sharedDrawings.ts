@@ -1,5 +1,9 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { isLocalBrowserRuntime, TRADING_API_BASE_URL } from "../config/constants";
+import {
+  isBrowserSessionRuntime,
+  TRADING_API_BASE_URL,
+  scopedStorageKey,
+} from "../config/constants";
 import { tradingApiFetch, tradingApiHeaders } from "../trading/api/http";
 import { sanitizeDrawings, drawingContentSignature } from "./drawings";
 import type { Drawing } from "../types/drawing";
@@ -38,7 +42,7 @@ class SharedDocument {
     }
   }
   get queueKey() {
-    return `fyxtez:drawing-sync-pending:${this.symbol}`;
+    return scopedStorageKey(`fyxtez:drawing-sync-pending:${this.symbol}`);
   }
   persist() {
     try {
@@ -112,7 +116,7 @@ export function connectSharedDrawings(
   initial: Drawing[],
   receive: (drawings: Drawing[]) => void,
 ) {
-  if (!isTauri() && !isLocalBrowserRuntime()) return () => {};
+  if (!isTauri() && !isBrowserSessionRuntime()) return () => {};
   let document = documents.get(symbol);
   if (!document) {
     document = new SharedDocument(symbol, initial);

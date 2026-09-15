@@ -1,3 +1,4 @@
+import { isRemoteBackend } from "../../config/constants";
 import { createPortal } from "react-dom";
 import {
   lazy,
@@ -1077,7 +1078,8 @@ function ChartWorkspacePane({
             isSettingsOpen={isSettingsOpen}
             onToggleSettings={() => setIsSettingsOpen((open) => !open)}
             onManageBinance={() => {
-              if (desktopCredentials.isDesktop) desktopCredentials.openSetup("binance");
+              if (desktopCredentials.isDesktop && !isRemoteBackend())
+                desktopCredentials.openSetup("binance");
               else {
                 setExchangeConnectionsRequest((request) => request + 1);
                 setIsSettingsOpen(true);

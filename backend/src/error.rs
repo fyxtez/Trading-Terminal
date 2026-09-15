@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("Binance API error {code}: {message}")]
     Binance { code: i64, message: String },
 
+    #[error("Binance rate limit; retry in {retry_after} seconds")]
+    RateLimited { status: u16, retry_after: u64 },
+
     #[error("Invalid request: {0}")]
     Invalid(String),
 
@@ -49,6 +52,20 @@ struct ErrorBody {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        if let Self::RateLimited {
+            status,
+            retry_after,
+        } = &self
+        {
+            return (
+                StatusCode::from_u16(*status).unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                [("retry-after", retry_after.to_string())],
+                Json(ErrorBody {
+                    error: self.to_string(),
+                }),
+            )
+                .into_response();
+        }
         let classification = ErrorClassification {
             duplicate_request: matches!(&self, Self::Conflict(_))
                 || matches!(
@@ -80,6 +97,7 @@ impl IntoResponse for AppError {
             // that only read the body (see parseTradingResponse on the
             // frontend) are unaffected by this status code change.
             Self::Binance { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::Http(_) | Self::Json(_) => StatusCode::BAD_GATEWAY,
             Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,

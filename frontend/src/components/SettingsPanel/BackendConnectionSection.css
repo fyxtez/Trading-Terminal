@@ -1,0 +1,40 @@
+.backend-connection-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+.backend-connection-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.backend-connection-section input,
+.backend-connection-section select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #303b48;
+  border-radius: 6px;
+  color: #e4e8ee;
+  background: #141a22;
+  box-sizing: border-box;
+}
+.backend-connection-section p {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca9b9;
+  line-height: 1.5;
+}
+.backend-connection-section p[role="alert"] {
+  color: #ff879c;
+}
+.backend-connection-section button {
+  padding: 10px 14px;
+  border: 1px solid #375e76;
+  border-radius: 6px;
+  color: #e4e8ee;
+  background: #1b3547;
+  cursor: pointer;
+}

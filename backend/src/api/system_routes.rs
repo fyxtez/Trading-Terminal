@@ -102,7 +102,11 @@ pub(super) async fn authorize(
     let expected = format!("Bearer {}", state.service_token);
 
     let auth = if supplied == Some(expected.as_str()) {
-        RequestAuth::Native
+        if state.remote_host {
+            RequestAuth::Remote
+        } else {
+            RequestAuth::Native
+        }
     } else {
         let browser_auth = state
             .browser_access
@@ -110,8 +114,8 @@ pub(super) async fn authorize(
             .await?;
         RequestAuth::Browser(browser_auth)
     };
-    if matches!(auth, RequestAuth::Browser(_))
-        && (path.starts_with("/api/browser-access/") || path.starts_with("/api/desktop/"))
+    if (path.starts_with("/api/desktop/") && !matches!(auth, RequestAuth::Native))
+        || (path.starts_with("/api/browser-access/") && matches!(auth, RequestAuth::Browser(_)))
     {
         return Err(AppError::Unauthorized);
     }

@@ -1,5 +1,11 @@
+import { getBackendScope, isRemoteBackend } from "../../config/constants";
+
 const retryIntents = new Map<string, string>();
 const inFlight = new Map<string, Promise<unknown>>();
+
+function persistedIntentKey(fingerprint: string): string {
+  return `fyxtez:financial-intent:${getBackendScope()}:${fingerprint}`;
+}
 
 export function newFinancialIntentId(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -35,13 +41,19 @@ export function runFinancialMutation<T>(
   const active = inFlight.get(fingerprint);
   if (active) return active as Promise<T>;
 
-  const retained = retryIntents.get(fingerprint);
+  const persistentKey = isRemoteBackend() ? persistedIntentKey(fingerprint) : null;
+  const retained =
+    retryIntents.get(fingerprint) ?? (persistentKey ? localStorage.getItem(persistentKey) : null);
   const intentId = retained ?? newFinancialIntentId();
+  // Persist before dispatch so a client restart can retry the original intent.
+  // Storage failure prevents dispatch instead of losing the recovery identity.
+  if (persistentKey) localStorage.setItem(persistentKey, intentId);
   retryIntents.set(fingerprint, intentId);
 
   const request = execute(intentId)
     .then((result) => {
       retryIntents.delete(fingerprint);
+      if (persistentKey) localStorage.removeItem(persistentKey);
       return result;
     })
     .finally(() => {
@@ -53,7 +65,7 @@ export function runFinancialMutation<T>(
 }
 
 export function financialMutationFingerprint(endpoint: string, payload?: unknown): string {
-  return payload === undefined ? endpoint : `${endpoint}:${JSON.stringify(payload)}`;
+  return `${getBackendScope()}:${payload === undefined ? endpoint : `${endpoint}:${JSON.stringify(payload)}`}`;
 }
 
 /**
@@ -62,6 +74,13 @@ export function financialMutationFingerprint(endpoint: string, payload?: unknown
  * UUID; the resolved UUID itself remains non-executable on the backend.
  */
 export function forgetFinancialIntent(intentId: string): void {
+  if (isRemoteBackend()) {
+    const prefix = `fyxtez:financial-intent:${getBackendScope()}:`;
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(prefix) && localStorage.getItem(key) === intentId)
+        localStorage.removeItem(key);
+    }
+  }
   for (const [fingerprint, retainedIntentId] of retryIntents) {
     if (retainedIntentId === intentId) retryIntents.delete(fingerprint);
   }

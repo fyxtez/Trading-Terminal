@@ -9,12 +9,14 @@ mod chart_documents;
 mod diagnostics;
 mod error;
 mod icons;
+mod market_data;
 mod models;
 mod operation_safety;
 mod order_mutation_workflow;
 mod position_risk_state;
 mod runtime_config;
 mod secure_store;
+mod server_session;
 mod sizing_store;
 mod stop_loss_workflow;
 mod symbol_registry;
@@ -76,7 +78,16 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let browser_runtime = runtime.browser;
-    let browser_access = if let Some(browser) = &browser_runtime {
+    let server_browser = runtime.server_browser;
+    let browser_access = if let Some(browser) = &server_browser {
+        BrowserAccessState::persistent_server(
+            &browser.origin,
+            runtime
+                .symbol_registry_path
+                .with_file_name("server-browser-sessions.json"),
+        )
+        .await?
+    } else if let Some(browser) = &browser_runtime {
         BrowserAccessState::persistent(
             browser.address,
             runtime
@@ -252,6 +263,9 @@ where
     )
     .await?;
     let state = AppState {
+        market_data: market_data::MarketDataCache::default(),
+        backend_id: server_session::backend_id(&runtime.operation_journal_path)?,
+        remote_host: !runtime.use_secure_network,
         chart_documents,
         binance: binance.clone(),
         account_state: account_state.clone(),
@@ -360,7 +374,19 @@ where
         "Fyxtez backend API started"
     );
 
-    let server_result = axum::serve(listener, router(state))
+    let app_router = if let Some(browser) = server_browser {
+        let ui_dir = std::fs::canonicalize(&browser.ui_dir)?;
+        if !ui_dir.join("index.html").is_file() {
+            return Err(AppError::Config(
+                "Server browser files are unavailable".into(),
+            ));
+        }
+        browser_access.mark_available().await;
+        browser_router(state, ui_dir)
+    } else {
+        router(state)
+    };
+    let server_result = axum::serve(listener, app_router)
         .with_graceful_shutdown(shutdown)
         .await
         .map_err(|error| AppError::Config(format!("server error: {error}")));

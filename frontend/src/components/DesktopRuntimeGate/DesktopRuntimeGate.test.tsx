@@ -8,6 +8,8 @@ const runtime = vi.hoisted(() => ({ mode: "native" as "native" | "local-browser"
 const browserSession = vi.hoisted(() => ({ proof: null as string | null }));
 
 vi.mock("../../config/constants", () => ({
+  isRemoteBackend: () => false,
+  TRADING_API_BASE_URL: "http://127.0.0.1:8657",
   LocalBrowserSessionError: class LocalBrowserSessionError extends Error {},
   initializeTradingApiBaseUrl: vi.fn(),
   retryTradingRuntime: vi.fn(),

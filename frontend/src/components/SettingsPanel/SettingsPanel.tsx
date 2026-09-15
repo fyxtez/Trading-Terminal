@@ -21,6 +21,7 @@ import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import DiagnosticsSection from "./DiagnosticsSection";
 import DataBackupSection from "./DataBackupSection";
 import BrowserAccessSection from "./BrowserAccessSection";
+import BackendConnectionSection from "./BackendConnectionSection";
 import { buildSettingsSearchModel } from "./settingsSearch";
 import {
   SETTINGS_SECTIONS,
@@ -1002,6 +1003,7 @@ export default function SettingsPanel({
               <span>All settings</span>
             </button>
           )}
+          {showExchangeConnections && <BackendConnectionSection />}
           {showExchangeConnections && (
             <ExchangeConnectionsSection
               credentials={desktopCredentials}

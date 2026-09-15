@@ -83,6 +83,9 @@ use system_routes::{
 
 #[derive(Clone)]
 pub struct AppState {
+    pub(crate) market_data: crate::market_data::MarketDataCache,
+    pub backend_id: String,
+    pub remote_host: bool,
     pub chart_documents: crate::chart_documents::ChartDocuments,
     pub binance: BinanceClient,
     pub account_state: AccountState,
@@ -124,8 +127,24 @@ fn request_authoritative_refresh_parts(
 }
 
 pub fn router(state: AppState) -> Router {
+    let mut allowed_origins = vec![
+        HeaderValue::from_static("http://localhost:5173"),
+        HeaderValue::from_static("http://127.0.0.1:5173"),
+        HeaderValue::from_static("http://127.0.0.1:8658"),
+        HeaderValue::from_static("tauri://localhost"),
+        HeaderValue::from_static("http://tauri.localhost"),
+        HeaderValue::from_static("https://tauri.localhost"),
+    ];
+    if let Some(origin) = state
+        .browser_access
+        .origin()
+        .and_then(|origin| HeaderValue::from_str(origin).ok())
+    {
+        allowed_origins.push(origin);
+    }
     let router = Router::new()
         .route("/health", get(health))
+        .route("/api/session", get(crate::server_session::session))
         .route("/api/browser-access/status", get(browser_access_status))
         .route("/api/browser-access/enable", post(enable_browser_access))
         .route("/api/browser-access/disable", post(disable_browser_access))
@@ -144,6 +163,14 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/binance/time", get(server_time))
         .route("/api/market-data/mexc/klines", get(mexc_klines))
+        .route(
+            "/api/market-data/binance/klines",
+            get(crate::market_data::klines),
+        )
+        .route(
+            "/api/market-data/binance/exchange-info",
+            get(crate::market_data::exchange_info),
+        )
         .route("/api/symbols", get(list_symbols).post(add_symbol))
         .route(
             "/api/symbols/{symbol}",
@@ -226,15 +253,9 @@ pub fn router(state: AppState) -> Router {
         ))
         .layer(
             CorsLayer::new()
-                .allow_origin(AllowOrigin::list([
-                    HeaderValue::from_static("http://localhost:5173"),
-                    HeaderValue::from_static("http://127.0.0.1:5173"),
-                    HeaderValue::from_static("http://127.0.0.1:8658"),
-                    HeaderValue::from_static("tauri://localhost"),
-                    HeaderValue::from_static("http://tauri.localhost"),
-                    HeaderValue::from_static("https://tauri.localhost"),
-                ]))
+                .allow_origin(AllowOrigin::list(allowed_origins))
                 .allow_headers(Any)
+                .expose_headers([HeaderName::from_static("retry-after")])
                 .allow_methods(Any),
         )
         // Bound uploads including manual pen strokes shared between clients.
@@ -282,7 +303,7 @@ async fn browser_security_headers(request: axum::extract::Request, next: Next) -
         ("pragma", "no-cache"),
         (
             "content-security-policy",
-            "default-src 'self'; connect-src 'self' ws://127.0.0.1:8658 https://fapi.binance.com https://testnet.binancefuture.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://stream.binancefuture.com wss://contract.mexc.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            "default-src 'self'; connect-src 'self' ws://127.0.0.1:8658 wss://terminal.fyxtez.com https://fapi.binance.com https://testnet.binancefuture.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://stream.binancefuture.com wss://contract.mexc.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
         ),
     ] {
         response.headers_mut().insert(

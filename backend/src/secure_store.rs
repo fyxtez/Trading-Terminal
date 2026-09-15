@@ -20,6 +20,46 @@ pub(crate) trait SecretReader {
 
 pub(crate) struct PlatformSecretReader;
 
+/// A headless host supplies a private JSON file instead of a desktop keyring.
+pub(crate) struct FileSecretReader(std::collections::HashMap<String, Zeroizing<String>>);
+
+impl FileSecretReader {
+    pub(crate) fn load(path: &std::path::Path) -> Result<Self, String> {
+        let metadata =
+            std::fs::metadata(path).map_err(|_| "Cannot read server credentials file")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o077 != 0 {
+                return Err("Server credentials file must be accessible only to its owner".into());
+            }
+        }
+        if !metadata.is_file() || metadata.len() > 16 * 1024 {
+            return Err("Invalid server credentials file".into());
+        }
+        let bytes =
+            Zeroizing::new(std::fs::read(path).map_err(|_| "Cannot read server credentials file")?);
+        let values: std::collections::HashMap<String, String> = serde_json::from_slice(&bytes)
+            .map_err(|_| "Server credentials file must contain a JSON object of strings")?;
+        Ok(Self(
+            values
+                .into_iter()
+                .map(|(key, value)| (key, Zeroizing::new(value)))
+                .collect(),
+        ))
+    }
+}
+
+impl SecretReader for FileSecretReader {
+    fn read(&self, name: &str) -> Result<Option<Zeroizing<String>>, String> {
+        Ok(self
+            .0
+            .get(name)
+            .filter(|value| !value.trim().is_empty())
+            .cloned())
+    }
+}
+
 impl SecretReader for PlatformSecretReader {
     fn read(&self, name: &str) -> Result<Option<Zeroizing<String>>, String> {
         read_platform(name)
@@ -71,6 +111,35 @@ mod tests {
     use std::{collections::HashMap, sync::Mutex};
 
     use super::*;
+
+    #[test]
+    fn server_file_reads_a_complete_pair_and_rejects_exposed_permissions() {
+        use std::io::Write;
+        let path =
+            std::env::temp_dir().join(format!("fyxtez-secret-reader-{}", uuid::Uuid::new_v4()));
+        let mut options = std::fs::OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&path).unwrap();
+        file.write_all(br#"{"binance-api-key":"example-key","binance-api-secret":"example-secret","binance-network":"testnet"}"#).unwrap();
+        let reader = FileSecretReader::load(&path).unwrap();
+        assert!(
+            read_pair_from(&reader, BINANCE_API_KEY, BINANCE_API_SECRET)
+                .unwrap()
+                .is_some()
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+            assert!(FileSecretReader::load(&path).is_err());
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 
     struct MockReader {
         values: Mutex<HashMap<String, Option<String>>>,

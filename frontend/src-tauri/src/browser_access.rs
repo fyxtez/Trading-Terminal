@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
 
-use crate::backend_supervisor::{BROWSER_ACCESS_PORT, BackendSupervisor};
+use crate::{backend_connection::BackendSupervisor, backend_supervisor::BROWSER_ACCESS_PORT};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
 const MIN_TICKET_LENGTH: usize = 32;
@@ -78,7 +78,12 @@ pub async fn open_in_default_browser(
     let open_result = async {
         let launch: BrowserLaunch =
             request(supervisor, Method::POST, "/api/browser-access/launch").await?;
-        let url = validate_launch_url(&launch.url)?;
+        let url = if supervisor.is_remote() {
+            let runtime = supervisor.runtime_info().await?;
+            validate_remote_launch_url(&launch.url, &runtime.api_base_url)?
+        } else {
+            validate_launch_url(&launch.url)?
+        };
 
         #[allow(deprecated)]
         app.shell()
@@ -192,13 +197,68 @@ fn validate_launch_url(value: &str) -> Result<Url, String> {
     }
 }
 
+fn validate_remote_launch_url(value: &str, selected_origin: &str) -> Result<Url, String> {
+    let url = Url::parse(value).map_err(|_| "Fyxtez returned an invalid browser launch address")?;
+    let selected = Url::parse(selected_origin).map_err(|_| "Selected server URL is invalid")?;
+    let ticket = url
+        .fragment()
+        .and_then(|value| value.strip_prefix("browser-ticket="));
+    if url.scheme() == "https"
+        && url.origin() == selected.origin()
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.path() == "/"
+        && url.query().is_none()
+        && ticket.is_some_and(|ticket| {
+            ticket.len() == 64
+                && ticket.bytes().all(|b| b.is_ascii_hexdigit())
+                && value
+                    == format!(
+                        "{}/#browser-ticket={ticket}",
+                        selected.origin().ascii_serialization()
+                    )
+        })
+    {
+        Ok(url)
+    } else {
+        Err("Fyxtez returned an unsafe browser launch address".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use reqwest::StatusCode;
 
-    use super::{browser_access_http_error, safe_browser_access_error, validate_launch_url};
+    use super::{
+        browser_access_http_error, safe_browser_access_error, validate_launch_url,
+        validate_remote_launch_url,
+    };
 
     const TICKET: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn remote_launch_stays_on_the_selected_https_server() {
+        let origin = "https://terminal.fyxtez.com";
+        assert!(
+            validate_remote_launch_url(&format!("{origin}/#browser-ticket={TICKET}"), origin)
+                .is_ok()
+        );
+        for value in [
+            format!("https://example.com/#browser-ticket={TICKET}"),
+            format!("http://terminal.fyxtez.com/#browser-ticket={TICKET}"),
+            format!("{origin}:8443/#browser-ticket={TICKET}"),
+            format!("https://user@terminal.fyxtez.com/#browser-ticket={TICKET}"),
+            format!("{origin}/api/#browser-ticket={TICKET}"),
+            format!("{origin}/?redirect=other#browser-ticket={TICKET}"),
+            format!("{origin}/#browser-ticket=short"),
+            format!("{origin}/#browser-ticket={TICKET}&other=1"),
+        ] {
+            assert!(
+                validate_remote_launch_url(&value, origin).is_err(),
+                "{value}"
+            );
+        }
+    }
 
     #[test]
     fn accepts_only_the_fixed_loopback_launch_origin() {

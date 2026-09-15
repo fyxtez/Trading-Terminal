@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getTradingRuntimeMode } from "../../config/constants";
+import { getTradingRuntimeMode, isRemoteBackend } from "../../config/constants";
 import { userFacingError } from "../../utils/userFacingError";
 
 type BrowserAccessStatus = {
@@ -50,6 +50,7 @@ export default function BrowserAccessSection({
   onToggle,
 }: BrowserAccessSectionProps) {
   const runtimeMode = getTradingRuntimeMode();
+  const remote = isRemoteBackend() || runtimeMode === "remote-browser";
   const expanded = forceExpanded || isExpanded;
   const [status, setStatus] = useState<BrowserAccessStatus | null>(
     runtimeMode === "native" ? null : unavailableStatus,
@@ -115,7 +116,13 @@ export default function BrowserAccessSection({
       <div className="settings-section-heading settings-section-heading-with-action">
         <div>
           <h3>Browser access</h3>
-          {expanded && <p>Use this terminal in your normal browser on the same computer.</p>}
+          {expanded && (
+            <p>
+              {remote
+                ? "Use your private server in your normal browser."
+                : "Use this terminal in your normal browser on the same computer."}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -129,7 +136,21 @@ export default function BrowserAccessSection({
 
       {expanded && (
         <div className="settings-browser-access-card">
-          {runtimeMode === "local-browser" ? (
+          {runtimeMode === "remote-browser" ? (
+            <>
+              <div className="settings-browser-access-status enabled">
+                <span>PRIVATE SERVER</span>
+                <b>CONNECTED</b>
+              </div>
+              <p>
+                This browser connects directly to your private server. It stays available when the
+                Linux app is closed.
+              </p>
+              <small>
+                Manage browser access in the installed app. Binance keys stay on the server.
+              </small>
+            </>
+          ) : runtimeMode === "local-browser" ? (
             <>
               <div className="settings-browser-access-status enabled">
                 <span>THIS BROWSER</span>
@@ -157,7 +178,7 @@ export default function BrowserAccessSection({
           ) : status.supported && status.available ? (
             <>
               <div className={`settings-browser-access-status ${status.enabled ? "enabled" : ""}`}>
-                <span>THIS COMPUTER</span>
+                <span>{remote ? "PRIVATE SERVER" : "THIS COMPUTER"}</span>
                 <b>
                   {status.enabled
                     ? `ON${
@@ -169,11 +190,19 @@ export default function BrowserAccessSection({
                 </b>
               </div>
               <p>
-                {status.enabled
-                  ? "Closing this window keeps Terminal available in the background. Quit the app to stop it completely."
-                  : "Turn this on to open the full terminal in your normal browser. It works only on this computer."}
+                {remote
+                  ? status.enabled
+                    ? "Your browser stays connected when you close the desktop app."
+                    : "Open the full terminal in your browser, connected to your private server."
+                  : status.enabled
+                    ? "Closing this window keeps Terminal available in the background. Quit the app to stop it completely."
+                    : "Turn this on to open the full terminal in your normal browser. It works only on this computer."}
               </p>
-              <small>Your Binance keys stay in the protected storage of this computer.</small>
+              <small>
+                {remote
+                  ? "Your Binance keys stay on the server."
+                  : "Your Binance keys stay in the protected storage of this computer."}
+              </small>
               <div className="settings-browser-access-actions">
                 {status.enabled ? (
                   <>

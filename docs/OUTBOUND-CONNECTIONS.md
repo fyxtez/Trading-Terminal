@@ -1,11 +1,15 @@
 # Outbound connections and failure policy
 
-The supported desktop product binds its own API only to loopback. It still
-makes the following outbound connections. Adding a provider or changing a host
+Local mode binds its own API only to loopback. Private-server mode connects the
+native app to `https://terminal.fyxtez.com`, where a separate service listens on
+loopback behind Nginx. See [deployment instructions](../deploy/README.md).
+The selected backend makes the following outbound connections. Adding a provider or changing a host
 requires a CSP, timeout, redirect and redaction review.
 
 | Purpose | Destination | Data sent | Boundary and failure behavior |
 | --- | --- | --- | --- |
+| Native app to private backend | `terminal.fyxtez.com` over HTTPS/WSS | Owner access token for HTTP; one-use ticket for the trading WebSocket; account, chart and trading requests | Native handshake pins server identity and API version; the access token is stored in the OS keyring, requests reject other origins and redirects; reconnect never switches to Local |
+| Browser to private backend | `terminal.fyxtez.com` over HTTPS/WSS | One-use launch ticket, then HttpOnly session cookie plus separate browser proof; trading WebSocket uses a one-use ticket | No owner token or Binance credentials in browser JavaScript; exact Host/Origin checks, redirects rejected, server/account/network workspace scope; disabling browser access revokes sessions and streams |
 | Binance USD-M REST | `fapi.binance.com`, `demo-fapi.binance.com` | Public queries or signed account/order requests | 5 s connect, 20 s total; redirects disabled so API key/signature material cannot move to another host; exposure increases fail closed |
 | Binance API-key validation | `api.binance.com`, `demo-fapi.binance.com` | Signed validation before native credential storage | 5 s connect, 15 s total; redirects disabled; Mainnet rejects withdrawal-enabled, non-readable or non-Futures keys, while Testnet requires an authenticated Futures account with trading access; invalid or unverifiable keys are not stored |
 | Binance market/user streams | Binance Futures `wss` hosts selected by network | Public subscriptions or a temporary listen key | 20 s connection bound; bounded reconnect; REST reconciliation after reconnect; stream state is not authoritative |
@@ -50,7 +54,9 @@ for that scenario, not a measurement of total traffic from the user's IP.
 
 ## Invariants
 
-- Exchange secrets come only from the OS credential manager.
+- Local exchange secrets come from the OS credential manager. The standalone
+  server uses root-provisioned systemd credentials and an owner-only volatile
+  copy of the Binance configuration; remote clients receive no Binance secrets.
 - Signed Binance URLs are never written to the audit journal or diagnostics.
   Diagnostic URL sanitization retains only scheme and authority. Dormant legacy
   notification credentials are not read.

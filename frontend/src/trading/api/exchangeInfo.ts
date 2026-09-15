@@ -83,6 +83,9 @@ type ExchangeInfoResponse = {
  * anyway - no reason to re-download it per symbol), then look up the
  * SPECIFIC symbol being asked about by its own `symbol` field.
  */
+import { isRemoteBackend, TRADING_API_BASE_URL } from "../../config/constants";
+import { tradingApiFetch } from "./http";
+
 let exchangeInfoPromise: Promise<ExchangeInfoResponse> | null = null;
 
 async function fetchExchangeInfo(): Promise<ExchangeInfoResponse> {
@@ -90,7 +93,11 @@ async function fetchExchangeInfo(): Promise<ExchangeInfoResponse> {
     return exchangeInfoPromise;
   }
 
-  exchangeInfoPromise = fetch("https://fapi.binance.com/fapi/v1/exchangeInfo")
+  exchangeInfoPromise = (
+    isRemoteBackend()
+      ? tradingApiFetch(`${TRADING_API_BASE_URL}/api/market-data/binance/exchange-info`)
+      : fetch("https://fapi.binance.com/fapi/v1/exchangeInfo")
+  )
     .then((response) => {
       if (!response.ok) {
         throw new Error(`exchangeInfo request failed: ${response.status}`);

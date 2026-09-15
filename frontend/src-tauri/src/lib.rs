@@ -1,3 +1,4 @@
+mod backend_connection;
 #[cfg(desktop)]
 mod backend_supervisor;
 mod backup;
@@ -8,10 +9,9 @@ mod credential_store;
 #[cfg(mobile)]
 mod mobile_backend;
 
-#[cfg(desktop)]
-use backend_supervisor::{BackendSupervisor, DesktopRuntimeInfo};
-#[cfg(mobile)]
-use mobile_backend::{BackendSupervisor, DesktopRuntimeInfo};
+use backend_connection::{
+    BackendSupervisor, DesktopRuntimeInfo, backend_connection_settings, save_backend_connection,
+};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tauri::{Manager, State};
@@ -200,8 +200,10 @@ fn remove(name: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn credential_status() -> Result<CredentialStatus, String> {
-    credential_status_from(&PlatformCredentialStore)
+async fn credential_status(
+    supervisor: State<'_, BackendSupervisor>,
+) -> Result<CredentialStatus, String> {
+    supervisor.credential_status().await
 }
 
 fn credential_status_from<S: CredentialStore>(store: &S) -> Result<CredentialStatus, String> {
@@ -241,6 +243,7 @@ async fn save_credentials(
     input: CredentialInput,
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
+    supervisor.ensure_local()?;
     let mut restart_required = false;
     if !EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
         && (input.ntfy_url.is_some()
@@ -314,7 +317,7 @@ async fn save_credentials(
     if input.telegram_chat_id.is_some() {
         store_optional("telegram-chat-id", normalized_telegram_chat_id.as_deref())?;
     }
-    let status = credential_status()?;
+    let status = credential_status_from(&PlatformCredentialStore)?;
     if restart_required {
         supervisor.request_restart()?;
     }
@@ -332,6 +335,7 @@ fn store_optional(name: &str, value: Option<&str>) -> Result<(), String> {
 async fn disconnect_binance(
     supervisor: State<'_, BackendSupervisor>,
 ) -> Result<CredentialStatus, String> {
+    supervisor.ensure_local()?;
     disconnect_binance_from(&PlatformCredentialStore, || async {
         supervisor.restart().await.map(|_| ())
     })
@@ -619,7 +623,12 @@ fn setup_desktop_tray(app: &tauri::App) -> tauri::Result<()> {
                     browser_access::open_in_default_browser(&app, supervisor.inner()).await
                 {
                     eprintln!("[fyxtez-browser] {error}");
-                    show_main_window(&app);
+                    use tauri_plugin_dialog::DialogExt;
+                    app.dialog()
+                        .message(error)
+                        .title("Could not open browser")
+                        .kind(tauri_plugin_dialog::MessageDialogKind::Error)
+                        .show(|_| {});
                 }
             });
         }
@@ -781,6 +790,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            backend_connection_settings,
+            save_backend_connection,
             desktop_runtime,
             restart_backend,
             browser_access_status,

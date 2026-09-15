@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import BrowserAccessSection from "./BrowserAccessSection";
 
 const invokeMock = vi.hoisted(() => vi.fn());
-const runtime = vi.hoisted(() => ({ mode: "native" as "native" | "local-browser" }));
+const runtime = vi.hoisted(() => ({
+  mode: "native" as "native" | "local-browser" | "remote-browser",
+  remote: false,
+}));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("../../config/constants", () => ({
   getTradingRuntimeMode: () => runtime.mode,
+  isRemoteBackend: () => runtime.remote,
 }));
 
 const nativeStatus = {
@@ -22,6 +26,7 @@ const nativeStatus = {
 describe("BrowserAccessSection", () => {
   beforeEach(() => {
     runtime.mode = "native";
+    runtime.remote = false;
     invokeMock.mockReset();
     invokeMock.mockImplementation((command: string) => {
       if (command === "browser_access_status") return Promise.resolve(nativeStatus);
@@ -74,6 +79,23 @@ describe("BrowserAccessSection", () => {
     expect(await screen.findByText("UNAVAILABLE")).toBeVisible();
     expect(screen.queryByText("LINUX ONLY")).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("could not check browser access");
+  });
+
+  it("opens the private server browser from the installed app", async () => {
+    runtime.remote = true;
+    render(<BrowserAccessSection isExpanded onToggle={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "ENABLE & OPEN" }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("open_browser_terminal"));
+    expect(screen.getByText(/connected to your private server/i)).toBeVisible();
+  });
+
+  it("shows server browser status without trying native commands", () => {
+    runtime.mode = "remote-browser";
+    runtime.remote = true;
+    render(<BrowserAccessSection isExpanded onToggle={vi.fn()} />);
+    expect(screen.getByText(/stays available when the Linux app is closed/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "TURN OFF" })).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it("hides browser access on Android and other unsupported native platforms", async () => {

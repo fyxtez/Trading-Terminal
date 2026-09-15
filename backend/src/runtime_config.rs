@@ -20,6 +20,12 @@ pub struct BrowserRuntimeConfig {
 }
 
 #[derive(Debug)]
+pub struct ServerBrowserConfig {
+    pub origin: String,
+    pub ui_dir: PathBuf,
+}
+
+#[derive(Debug)]
 pub struct RuntimeConfig {
     pub address: SocketAddr,
     pub service_token: String,
@@ -31,6 +37,7 @@ pub struct RuntimeConfig {
     pub use_secure_network: bool,
     pub parent_process_guard: bool,
     pub browser: Option<BrowserRuntimeConfig>,
+    pub server_browser: Option<ServerBrowserConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,12 +98,18 @@ impl RuntimeConfig {
             use_secure_network: true,
             parent_process_guard: true,
             browser,
+            server_browser: None,
         })
     }
 
     fn from_environment() -> AppResult<Self> {
-        let service_token = std::env::var("SERVICE_API_TOKEN")
-            .map_err(|_| AppError::Config("SERVICE_API_TOKEN must be set".into()))?;
+        let service_token = if let Some(path) = std::env::var_os("SERVICE_API_TOKEN_FILE") {
+            std::fs::read_to_string(path)?.trim().to_owned()
+        } else {
+            std::env::var("SERVICE_API_TOKEN").map_err(|_| {
+                AppError::Config("SERVICE_API_TOKEN_FILE or SERVICE_API_TOKEN must be set".into())
+            })?
+        };
         validate_token(&service_token)?;
 
         let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".into());
@@ -121,6 +134,7 @@ impl RuntimeConfig {
             use_secure_network: false,
             parent_process_guard: false,
             browser: None,
+            server_browser: server_browser_config()?,
         })
     }
 
@@ -148,8 +162,46 @@ impl RuntimeConfig {
             use_secure_network: true,
             parent_process_guard: false,
             browser: None,
+            server_browser: None,
         })
     }
+}
+
+fn server_browser_config() -> AppResult<Option<ServerBrowserConfig>> {
+    match (
+        std::env::var("SERVER_BROWSER_ORIGIN").ok(),
+        std::env::var_os("SERVER_BROWSER_UI_DIR"),
+    ) {
+        (None, None) => Ok(None),
+        (Some(origin), Some(ui_dir)) => {
+            let origin = validate_server_browser_origin(&origin)?;
+            Ok(Some(ServerBrowserConfig {
+                origin,
+                ui_dir: PathBuf::from(ui_dir),
+            }))
+        }
+        _ => Err(AppError::Config(
+            "SERVER_BROWSER_ORIGIN and SERVER_BROWSER_UI_DIR must be set together".into(),
+        )),
+    }
+}
+
+pub(crate) fn validate_server_browser_origin(value: &str) -> AppResult<String> {
+    let url = url::Url::parse(value)
+        .map_err(|_| AppError::Config("Invalid server browser origin".into()))?;
+    if url.scheme() != "https"
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(AppError::Config(
+            "Server browser origin must be an HTTPS origin without a path or credentials".into(),
+        ));
+    }
+    Ok(url.origin().ascii_serialization())
 }
 
 fn browser_config(
@@ -238,7 +290,24 @@ mod tests {
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     use super::DESKTOP_BROWSER_PORT;
-    use super::{RuntimeConfig, browser_config, validate_token};
+    use super::{RuntimeConfig, browser_config, validate_server_browser_origin, validate_token};
+
+    #[test]
+    fn hosted_browser_requires_an_https_origin() {
+        assert_eq!(
+            validate_server_browser_origin("https://terminal.fyxtez.com/").unwrap(),
+            "https://terminal.fyxtez.com"
+        );
+        for origin in [
+            "http://terminal.fyxtez.com",
+            "https://user@terminal.fyxtez.com",
+            "https://terminal.fyxtez.com/api",
+            "https://terminal.fyxtez.com/?token=secret",
+            "https://terminal.fyxtez.com/#ticket",
+        ] {
+            assert!(validate_server_browser_origin(origin).is_err(), "{origin}");
+        }
+    }
 
     #[test]
     fn rejects_short_service_tokens() {

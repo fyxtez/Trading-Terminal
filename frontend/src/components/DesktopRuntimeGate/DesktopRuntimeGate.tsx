@@ -12,6 +12,7 @@ import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { userFacingError } from "../../utils/userFacingError";
 import { LOCAL_BROWSER_SESSION_ENDED_EVENT } from "../../trading/api/http";
 import "./DesktopRuntimeGate.css";
+import BackendConnectionSection from "../SettingsPanel/BackendConnectionSection";
 
 type RuntimeState =
   | { kind: "starting" }
@@ -35,7 +36,9 @@ function errorMessage(reason: unknown, browserAccess = false): string {
 function failedRuntimeState(reason: unknown): RuntimeState {
   const runtimeMode = getTradingRuntimeMode();
   const browserAccess =
-    reason instanceof LocalBrowserSessionError || runtimeMode === "local-browser";
+    reason instanceof LocalBrowserSessionError ||
+    runtimeMode === "local-browser" ||
+    runtimeMode === "remote-browser";
 
   return {
     kind: "failed",
@@ -45,7 +48,9 @@ function failedRuntimeState(reason: unknown): RuntimeState {
     // still holds its half of the active session. Once that proof is gone, a
     // fresh one-use launch ticket must come from the installed app.
     retryAvailable:
-      !browserAccess || (runtimeMode === "local-browser" && getLocalBrowserSessionProof() !== null),
+      !browserAccess ||
+      ((runtimeMode === "local-browser" || runtimeMode === "remote-browser") &&
+        getLocalBrowserSessionProof() !== null),
   };
 }
 
@@ -71,7 +76,11 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
   }, []);
 
   useEffect(() => {
-    if (state.kind !== "ready" || getTradingRuntimeMode() !== "local-browser") return;
+    if (
+      state.kind !== "ready" ||
+      !["local-browser", "remote-browser"].includes(getTradingRuntimeMode())
+    )
+      return;
 
     let current = true;
     const checkSession = () => {
@@ -121,8 +130,10 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
   }
 
   const localBrowser =
-    getTradingRuntimeMode() === "local-browser" || (state.kind === "failed" && state.browserAccess);
+    ["local-browser", "remote-browser"].includes(getTradingRuntimeMode()) ||
+    (state.kind === "failed" && state.browserAccess);
   const canRetry = state.kind === "failed" && state.retryAvailable;
+  const remoteBrowser = getTradingRuntimeMode() === "remote-browser";
 
   return (
     <main className="desktop-runtime-gate">
@@ -144,7 +155,9 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
           <>
             <p>
               {localBrowser
-                ? "Confirming the secure connection to Terminal on this computer."
+                ? remoteBrowser
+                  ? "Connecting securely to your private Terminal server."
+                  : "Confirming the secure connection to Terminal on this computer."
                 : "Loading everything you need to use the terminal."}
             </p>
             <LoadingIndicator
@@ -158,9 +171,13 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
             <p>{state.message}</p>
             {localBrowser && (
               <p className="desktop-runtime-gate-guidance">
-                {canRetry
-                  ? "Make sure the installed Terminal app is still open, then check again. Your Binance keys remain protected on this computer."
-                  : "Return to the installed Terminal app and choose Open in Browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
+                {remoteBrowser
+                  ? canRetry
+                    ? "Check your internet connection, then try again. Your trading backend continues running on the server."
+                    : "In the installed Terminal app, choose Open in Browser to authorize this browser. Binance keys stay on your server."
+                  : canRetry
+                    ? "Make sure the installed Terminal app is still open, then check again. Your Binance keys remain protected on this computer."
+                    : "Return to the installed Terminal app and choose Open in Browser. For your security, this page cannot reconnect by itself. Your Binance keys remain protected on this computer."}
               </p>
             )}
           </>
@@ -170,6 +187,7 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
             {localBrowser ? "CHECK AGAIN" : "TRY AGAIN"}
           </button>
         )}
+        {state.kind === "failed" && <BackendConnectionSection />}
       </section>
     </main>
   );

@@ -34,6 +34,7 @@ pub(crate) struct BrowserSessionAuth {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RequestAuth {
     Native,
+    Remote,
     Browser(BrowserSessionAuth),
 }
 
@@ -165,6 +166,27 @@ impl BrowserAccessState {
         }
         state.persistence_path = Some(path);
         Ok(state)
+    }
+
+    pub(crate) async fn persistent_server(origin: &str, path: PathBuf) -> AppResult<Self> {
+        let origin = crate::runtime_config::validate_server_browser_origin(origin)?;
+        let url = url::Url::parse(&origin)
+            .map_err(|_| AppError::Config("Invalid browser origin".into()))?;
+        let mut state =
+            Self::persistent("127.0.0.1:8658".parse().expect("loopback address"), path).await?;
+        state.host = Some(url[url::Position::BeforeHost..url::Position::AfterPort].to_owned());
+        state.origin = Some(origin);
+        Ok(state)
+    }
+
+    pub(crate) fn origin(&self) -> Option<&str> {
+        self.origin.as_deref()
+    }
+
+    fn is_remote(&self) -> bool {
+        self.origin
+            .as_ref()
+            .is_some_and(|origin| origin.starts_with("https://"))
     }
 
     fn persist(&self, inner: &BrowserAccessInner) -> AppResult<()> {
@@ -500,9 +522,10 @@ pub(crate) async fn redeem_browser_session(
             "fyxtez_browser_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
         ),
     );
-    response
-        .headers_mut()
-        .append(header::SET_COOKIE, browser_session_cookie(&session)?);
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        browser_session_cookie(&session, state.browser_access.is_remote())?,
+    );
     Ok(response)
 }
 
@@ -535,7 +558,11 @@ fn no_store_json<T: Serialize>(value: T) -> Response {
 fn session_response(state: &AppState, expires_in_ms: u64) -> BrowserSessionResponse {
     let configured = state.binance.is_configured();
     BrowserSessionResponse {
-        mode: "local-browser",
+        mode: if state.browser_access.is_remote() {
+            "remote-browser"
+        } else {
+            "local-browser"
+        },
         authenticated: true,
         binance_configured: configured,
         binance_network: if !configured {
@@ -599,9 +626,9 @@ fn secret_hash(secret: &str) -> [u8; 32] {
     Sha256::digest(secret.as_bytes()).into()
 }
 
-fn browser_session_cookie(session: &str) -> AppResult<HeaderValue> {
+fn browser_session_cookie(session: &str, secure: bool) -> AppResult<HeaderValue> {
     HeaderValue::from_str(&format!(
-        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={SESSION_TTL_SECONDS}"
+        "{BROWSER_SESSION_COOKIE}={session}; HttpOnly; SameSite=Strict; Path=/api; Max-Age={SESSION_TTL_SECONDS}{}", if secure { "; Secure" } else { "" }
     ))
     .map_err(|_| AppError::Config("cannot create browser session cookie".into()))
 }
@@ -686,6 +713,7 @@ mod tests {
     fn browser_cookie_is_scoped_to_the_api_path() {
         let cookie = browser_session_cookie(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            false,
         )
         .unwrap();
         let cookie = cookie.to_str().unwrap();
@@ -693,6 +721,87 @@ mod tests {
         assert!(cookie.contains("Max-Age=2592000"));
         assert!(!cookie.contains("Expires="));
         assert!(!cookie.contains("Path=/;"));
+    }
+
+    #[tokio::test]
+    async fn hosted_browser_uses_secure_cookie_and_rejects_other_origins() {
+        let directory = std::env::temp_dir().join(format!(
+            "terminal-remote-browser-{}",
+            super::random_secret().unwrap()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sessions.json");
+        let origin = "https://terminal.fyxtez.com";
+        let state = BrowserAccessState::persistent_server(origin, path.clone())
+            .await
+            .unwrap();
+        state.mark_available().await;
+        state.enable().await.unwrap();
+        let launch = state.issue_launch_ticket().await.unwrap();
+        assert!(
+            launch
+                .url
+                .starts_with(&format!("{origin}/#browser-ticket="))
+        );
+        let ticket = launch.url.split("#browser-ticket=").nth(1).unwrap();
+        let (session, proof, _) = state.redeem(ticket, None).await.unwrap();
+        assert!(state.redeem(ticket, None).await.is_err());
+        let cookie = browser_session_cookie(&session, state.is_remote()).unwrap();
+        let cookie = cookie.to_str().unwrap();
+        for attribute in ["; Secure", "; HttpOnly", "; SameSite=Strict", "; Path=/api"] {
+            assert!(cookie.contains(attribute), "{attribute}");
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_static("terminal.fyxtez.com"),
+        );
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://terminal.fyxtez.com"),
+        );
+        add_session_auth(&mut headers, &session, &proof);
+        assert!(
+            state
+                .authenticate_cookie(&headers, &Method::POST)
+                .await
+                .is_ok()
+        );
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://example.com"),
+        );
+        assert!(
+            state
+                .authenticate_cookie(&headers, &Method::POST)
+                .await
+                .is_err()
+        );
+        headers.remove(header::ORIGIN);
+        assert!(
+            state
+                .authenticate_cookie(&headers, &Method::POST)
+                .await
+                .is_err()
+        );
+        let restarted = BrowserAccessState::persistent_server(origin, path)
+            .await
+            .unwrap();
+        restarted.mark_available().await;
+        assert!(
+            restarted
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_ok()
+        );
+        headers.remove(BROWSER_PROOF_HEADER);
+        assert!(
+            restarted
+                .authenticate_cookie(&headers, &Method::GET)
+                .await
+                .is_err()
+        );
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]

@@ -4,7 +4,8 @@ import {
   getLocalBrowserSessionProof,
   getTradingRuntimeMode,
   invalidateLocalBrowserSession,
-  isDedicatedBrowserOrigin,
+  isTrustedBrowserOrigin,
+  isBrowserSessionRuntime,
   type TradingRuntimeMode,
 } from "../../config/constants";
 
@@ -22,11 +23,20 @@ export async function tradingApiFetch(
 ): Promise<Response> {
   const runtimeMode: TradingRuntimeMode = getTradingRuntimeMode();
   const headers = new Headers(init.headers);
+  if (runtimeMode === "native") {
+    const target = new URL(
+      input instanceof Request ? input.url : input.toString(),
+      `${TRADING_API_BASE_URL}/`,
+    );
+    if (target.origin !== new URL(TRADING_API_BASE_URL).origin) {
+      throw new Error("Terminal blocked a request outside the selected server.");
+    }
+  }
   if (TRADING_API_TOKEN && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${TRADING_API_TOKEN}`);
   }
 
-  if (runtimeMode === "local-browser") {
+  if (isBrowserSessionRuntime(runtimeMode)) {
     let requestOrigin: string;
     try {
       const requestUrl =
@@ -39,11 +49,11 @@ export async function tradingApiFetch(
     }
 
     const selectedOrigin = new URL(TRADING_API_BASE_URL).origin;
-    if (!isDedicatedBrowserOrigin(selectedOrigin) || requestOrigin !== selectedOrigin) {
+    if (!isTrustedBrowserOrigin(selectedOrigin) || requestOrigin !== selectedOrigin) {
       // Never attach the page-session capability to Binance, a hosted UI, or
       // any other origin if a caller accidentally hands this wrapper an
       // external URL.
-      throw new Error("Terminal blocked a browser request outside this computer.");
+      throw new Error("Terminal blocked a browser request outside the selected connection.");
     }
 
     const proof = getLocalBrowserSessionProof();
@@ -71,11 +81,12 @@ export async function tradingApiFetch(
     ...init,
     signal,
     headers,
-    credentials: runtimeMode === "local-browser" ? "include" : init.credentials,
-    redirect: runtimeMode === "local-browser" ? "error" : init.redirect,
+    credentials: isBrowserSessionRuntime(runtimeMode) ? "include" : init.credentials,
+    redirect:
+      isBrowserSessionRuntime(runtimeMode) || runtimeMode === "native" ? "error" : init.redirect,
   });
 
-  if (runtimeMode === "local-browser" && response.status === 401) {
+  if (isBrowserSessionRuntime(runtimeMode) && response.status === 401) {
     invalidateLocalBrowserSession();
     window.dispatchEvent(new Event(LOCAL_BROWSER_SESSION_ENDED_EVENT));
   }

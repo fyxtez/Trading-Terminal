@@ -17,6 +17,7 @@ import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features
 import { userFacingError } from "../../utils/userFacingError";
 import {
   getLocalBrowserSession,
+  isRemoteBackend,
   getTradingRuntimeMode,
   LOCAL_BROWSER_SESSION_CHANGED_EVENT,
   type LocalBrowserSession,
@@ -105,7 +106,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
   );
   const [loaded, setLoaded] = useState(!desktop);
   const [showSetup, setShowSetup] = useState(
-    () => desktop && localStorage.getItem(DESKTOP_ONBOARDING_KEY) !== "true",
+    () => desktop && !isRemoteBackend() && localStorage.getItem(DESKTOP_ONBOARDING_KEY) !== "true",
   );
   const [targetConnection, setTargetConnection] = useState<DesktopConnection | null>(null);
   const [step, setStep] = useState(0);
@@ -128,6 +129,7 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
 
   const openSetup = useCallback(
     (connection?: DesktopConnection) => {
+      if (isRemoteBackend()) return;
       setTargetConnection(connection ?? null);
       setStep(0);
       setValues({
@@ -191,13 +193,13 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
         // Binance editor so recovery guidance is visible even after onboarding.
         setTargetConnection("binance");
         setStep(0);
-        setShowSetup(true);
+        setShowSetup(!isRemoteBackend());
       })
       .finally(() => setLoaded(true));
   }, [desktop]);
 
   useEffect(() => {
-    if (runtimeMode !== "local-browser") {
+    if (runtimeMode !== "local-browser" && runtimeMode !== "remote-browser") {
       if (!desktop) setDesktopCredentialStatus(emptyStatus);
       return;
     }
@@ -240,7 +242,10 @@ export default function DesktopSetupGate({ children }: { children: ReactNode }) 
       isDesktop: desktop,
       runtimeMode,
       canTrade:
-        (runtimeMode === "native" || runtimeMode === "local-browser") && status.binanceConfigured,
+        (runtimeMode === "native" ||
+          runtimeMode === "local-browser" ||
+          runtimeMode === "remote-browser") &&
+        status.binanceConfigured,
       status,
       openSetup,
       disconnectBinance,

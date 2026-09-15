@@ -67,12 +67,28 @@ pub struct BinanceClient {
     testnet: bool,
     reference_data: Arc<RwLock<ReferenceDataCache>>,
     server_time_offset_ms: Arc<AtomicI64>,
+    credentials_file: Option<std::path::PathBuf>,
+    rate_limit: Arc<std::sync::Mutex<Option<(Instant, u16)>>>,
 }
 
 impl BinanceClient {
     pub fn from_secure_store(desktop_sidecar: bool) -> AppResult<Self> {
+        let credentials_file = if desktop_sidecar {
+            None
+        } else {
+            std::env::var_os("BINANCE_CREDENTIALS_FILE").map(std::path::PathBuf::from)
+        };
         let (testnet, credentials) = if desktop_sidecar {
             load_desktop_configuration(&PlatformSecretReader)?
+        } else if let Some(path) = &credentials_file {
+            let reader = secure_store::FileSecretReader::load(path).map_err(AppError::Config)?;
+            let configuration = load_desktop_configuration(&reader)?;
+            if !configuration.0 && !env_bool("ALLOW_MAINNET", false)? {
+                return Err(AppError::Config(
+                    "Server Mainnet requires ALLOW_MAINNET=true".into(),
+                ));
+            }
+            configuration
         } else {
             let testnet = env_bool("BINANCE_TESTNET", true)?;
             if !testnet && !env_bool("ALLOW_MAINNET", false)? {
@@ -104,11 +120,22 @@ impl BinanceClient {
             testnet,
             reference_data: Arc::new(RwLock::new(ReferenceDataCache::default())),
             server_time_offset_ms: Arc::new(AtomicI64::new(0)),
+            credentials_file,
+            rate_limit: Arc::new(std::sync::Mutex::new(None)),
         })
     }
 
     pub fn is_testnet(&self) -> bool {
         self.testnet
+    }
+
+    pub fn account_scope(&self) -> String {
+        let credentials = self.credentials.read().ok();
+        crate::server_session::opaque_scope(
+            credentials
+                .as_ref()
+                .and_then(|value| value.as_ref().map(|pair| pair.api_key.as_str())),
+        )
     }
 
     pub fn is_configured(&self) -> bool {
@@ -151,6 +178,11 @@ impl BinanceClient {
     }
 
     pub fn reload_secure_credentials(&self) -> AppResult<bool> {
+        if self.credentials_file.is_some() {
+            return Err(AppError::Config(
+                "Restart the server service to replace server credentials".into(),
+            ));
+        }
         let next = load_secure_credentials()?;
         let mut current = self
             .credentials
@@ -939,6 +971,7 @@ impl BinanceClient {
         endpoint: &str,
         params: Vec<(String, String)>,
     ) -> AppResult<T> {
+        self.check_rate_limit()?;
         let query = encode(&params);
         let url = if query.is_empty() {
             format!("{}{}", self.base_url, endpoint)
@@ -946,6 +979,64 @@ impl BinanceClient {
             format!("{}{}?{}", self.base_url, endpoint, query)
         };
         let response = self.http.request(method, url).send().await?;
+        self.read_response(response).await
+    }
+
+    /// Charts retain the existing Mainnet market feed even in Practice mode.
+    pub(crate) async fn market_data(
+        &self,
+        endpoint: &str,
+        params: Vec<(String, String)>,
+    ) -> AppResult<Value> {
+        self.check_rate_limit()?;
+        let response = self
+            .http
+            .get(format!("{MAINNET_BASE}/fapi/v1/{endpoint}"))
+            .query(&params)
+            .send()
+            .await?;
+        self.read_response(response).await
+    }
+
+    fn check_rate_limit(&self) -> AppResult<()> {
+        if let Some((until, status)) = *self
+            .rate_limit
+            .lock()
+            .map_err(|_| AppError::Config("Rate limit state unavailable".into()))?
+            && until > Instant::now()
+        {
+            return Err(AppError::RateLimited {
+                status,
+                retry_after: until.saturating_duration_since(Instant::now()).as_secs() + 1,
+            });
+        }
+        Ok(())
+    }
+
+    async fn read_response<T: DeserializeOwned>(
+        &self,
+        response: reqwest::Response,
+    ) -> AppResult<T> {
+        let status = response.status().as_u16();
+        if matches!(status, 418 | 429) {
+            let retry_after = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(if status == 418 { 120 } else { 60 })
+                .clamp(1, 86400);
+            let until = Instant::now() + Duration::from_secs(retry_after);
+            if let Ok(mut pause) = self.rate_limit.lock()
+                && pause.is_none_or(|(previous, _)| previous < until)
+            {
+                *pause = Some((until, status));
+            }
+            return Err(AppError::RateLimited {
+                status,
+                retry_after,
+            });
+        }
         parse_response(response).await
     }
 
@@ -979,6 +1070,7 @@ impl BinanceClient {
         endpoint: &str,
         mut params: Vec<(String, String)>,
     ) -> AppResult<T> {
+        self.check_rate_limit()?;
         let credentials = self.credentials()?;
         params.push(("recvWindow".into(), RECV_WINDOW.into()));
         params.push(("timestamp".into(), self.signed_timestamp_ms()?.to_string()));
@@ -997,7 +1089,7 @@ impl BinanceClient {
             .send()
             .await?;
 
-        parse_response(response).await
+        self.read_response(response).await
     }
 
     fn credentials(&self) -> AppResult<BinanceCredentials> {

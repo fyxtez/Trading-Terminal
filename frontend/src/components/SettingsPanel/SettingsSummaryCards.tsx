@@ -3,6 +3,7 @@ import type { DesktopCredentialsContextValue } from "../DesktopSetupGate/Desktop
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
 import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
 import { userFacingError } from "../../utils/userFacingError";
+import { isRemoteBackend, TRADING_API_BASE_URL } from "../../config/constants";
 
 type ExchangeConnectionsSectionProps = {
   credentials: DesktopCredentialsContextValue;
@@ -66,7 +67,16 @@ export function ExchangeConnectionsSection({
         )}
       </div>
       {(forceExpanded || isExpanded) &&
-        (credentials.isDesktop ? (
+        (isRemoteBackend() ? (
+          <div className="settings-browser-connection-note">
+            <b>
+              PRIVATE SERVER ·{" "}
+              {credentials.status.binanceNetwork?.toUpperCase() ?? "NOT CONFIGURED"}
+            </b>
+            <p>{TRADING_API_BASE_URL}</p>
+            <p>Binance credentials are managed on the server.</p>
+          </div>
+        ) : credentials.isDesktop ? (
           <>
             <div className="settings-connection-statuses">
               {connections.map(([label, connection, configured, detail]) => (

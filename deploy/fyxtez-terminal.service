@@ -1,0 +1,49 @@
+[Unit]
+Description=Fyxtez Terminal private trading backend
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=fyxtez-terminal
+Group=fyxtez-terminal
+WorkingDirectory=/var/lib/fyxtez-terminal
+ExecStart=/opt/fyxtez-terminal/current/fyxtez-backend
+StateDirectory=fyxtez-terminal
+StateDirectoryMode=0700
+RuntimeDirectory=fyxtez-terminal
+RuntimeDirectoryMode=0700
+LoadCredential=binance.json:/etc/fyxtez-terminal/binance.json
+LoadCredential=service-token:/etc/fyxtez-terminal/service-token
+# systemd may mount credentials as 0440 inside a private directory. The backend
+# also enforces owner-only file permissions, so normalize a volatile copy.
+ExecStartPre=/usr/bin/install -m 0600 %d/binance.json /run/fyxtez-terminal/binance.json
+Environment=BINANCE_CREDENTIALS_FILE=/run/fyxtez-terminal/binance.json
+Environment=SERVICE_API_TOKEN_FILE=%d/service-token
+Environment=SERVER_HOST=127.0.0.1
+Environment=SERVER_PORT=8657
+Environment=SERVER_BROWSER_ORIGIN=https://terminal.fyxtez.com
+Environment=SERVER_BROWSER_UI_DIR=/opt/fyxtez-terminal/current/browser-ui
+Environment=SYMBOL_REGISTRY_PATH=/var/lib/fyxtez-terminal/symbols.json
+Environment=ICON_CACHE_DIR=/var/lib/fyxtez-terminal/icons
+Environment=SIZING_CONFIG_PATH=/var/lib/fyxtez-terminal/sizing.json
+Environment=OPERATION_JOURNAL_PATH=/var/lib/fyxtez-terminal/operations.sqlite3
+Environment=ALLOW_MAINNET=true
+Environment=RUST_LOG=info
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target

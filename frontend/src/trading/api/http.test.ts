@@ -13,7 +13,8 @@ vi.mock("../../config/constants", () => ({
   getTradingRuntimeMode: () => runtime.mode,
   getLocalBrowserSessionProof: () => browserAuth.proof,
   invalidateLocalBrowserSession: browserAuth.invalidate,
-  isDedicatedBrowserOrigin: (origin: string) => origin === "http://127.0.0.1:8658",
+  isBrowserSessionRuntime: (mode: string) => ["local-browser", "remote-browser"].includes(mode),
+  isTrustedBrowserOrigin: (origin: string) => origin === "http://127.0.0.1:8658",
 }));
 
 describe("tradingApiFetch", () => {
@@ -42,7 +43,7 @@ describe("tradingApiFetch", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(tradingApiFetch("https://example.com/api/account")).rejects.toThrow(
-      "outside this computer",
+      "outside the selected connection",
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
