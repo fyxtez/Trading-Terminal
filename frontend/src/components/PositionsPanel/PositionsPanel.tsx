@@ -328,6 +328,9 @@ export default function PositionsPanel({
     }
   };
 
+  const activeTabError =
+    activeTab === "positions" ? positionsApi.error : (openOrdersApi.error ?? stopCancelError);
+
   return (
     <section
       className={`positions-panel ${isResizing ? "resizing" : ""}`}
@@ -428,9 +431,18 @@ export default function PositionsPanel({
         </button>
       </div>
 
-      <div className="positions-body">
-        {closeEverythingError && <div className="positions-error">{closeEverythingError}</div>}
+      {closeEverythingError && (
+        <div className="positions-error" role="alert">
+          {closeEverythingError}
+        </div>
+      )}
+      {activeTabError && (
+        <div className="positions-error" role="alert">
+          {activeTabError}
+        </div>
+      )}
 
+      <div className="positions-body">
         {activeTab === "positions" ? (
           <>
             <div className="positions-heading-row">
@@ -447,8 +459,6 @@ export default function PositionsPanel({
               <span>Realized PNL</span>
               <span>Close Position</span>
             </div>
-
-            {positionsApi.error && <div className="positions-error">{positionsApi.error}</div>}
 
             {positionsApi.isLoading && positionsApi.positions.length === 0 ? (
               <div className="positions-empty">
@@ -505,10 +515,6 @@ export default function PositionsPanel({
               <span>Status</span>
               <span>Action</span>
             </div>
-
-            {(openOrdersApi.error || stopCancelError) && (
-              <div className="positions-error">{openOrdersApi.error ?? stopCancelError}</div>
-            )}
 
             {openOrdersApi.isLoading && combinedOpenOrders.length === 0 ? (
               <div className="positions-empty">

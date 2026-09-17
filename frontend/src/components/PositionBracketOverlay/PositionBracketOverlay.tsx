@@ -234,7 +234,7 @@ export default function PositionBracketOverlay({
   // the candle-close timer. Keep the offset relative to the entry-line origin
   // so the controls continue following the live chart while preserving the
   // user's chosen nearby placement.
-  const [entryControlsOffset, setEntryControlsOffset] = useState({ x: 0, y: 0 });
+  const [entryControlsOffset, setEntryControlsOffset] = useState({ x: 38, y: 0 });
   const [isEntryControlsMoving, setIsEntryControlsMoving] = useState(false);
   const entryControlsRef = useRef<HTMLDivElement | null>(null);
   const entryControlsGrabOffsetRef = useRef({ x: 0, y: 0 });

@@ -95,3 +95,24 @@ it("does not let a late old-credential rejection block the new connection", asyn
   await rejected;
   expect(await cache.get(async () => ["new-account"])).toEqual(["new-account"]);
 });
+
+it("rejects an old account read when native credentials are replaced on the same network", async () => {
+  const { setDesktopCredentialStatus } = await import("../../desktop/credentials");
+  const { SnapshotCache } = await import("./snapshotCache");
+  const status = {
+    binanceConfigured: true,
+    binanceNetwork: "mainnet" as const,
+    ntfyConfigured: false,
+    telegramConfigured: false,
+  };
+  setDesktopCredentialStatus(status);
+  const cache = new SnapshotCache<string[]>(3500);
+  const old = deferred<string[]>();
+  const pending = cache.get(() => old.promise);
+  const rejected = expect(pending).rejects.toThrow("connection changed");
+  // Saving a replacement key can keep every displayed status field identical.
+  setDesktopCredentialStatus({ ...status });
+  old.resolve(["previous-account"]);
+  await rejected;
+  expect(await cache.get(async () => ["replacement-account"])).toEqual(["replacement-account"]);
+});

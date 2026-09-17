@@ -346,7 +346,14 @@ function clearLocalBrowserSessionProof(): void {
 }
 
 function publishLocalBrowserSession(session: LocalBrowserSession | null): void {
+  const connectionChanged =
+    localBrowserSession?.mode !== session?.mode ||
+    localBrowserSession?.binanceConfigured !== session?.binanceConfigured ||
+    localBrowserSession?.binanceNetwork !== session?.binanceNetwork;
   localBrowserSession = session;
+  // Session checks update the remaining lifetime every 30 seconds and on
+  // resume. Only a real connection change should invalidate account reads.
+  if (!connectionChanged) return;
   window.dispatchEvent(
     new CustomEvent(LOCAL_BROWSER_SESSION_CHANGED_EVENT, {
       detail: session,

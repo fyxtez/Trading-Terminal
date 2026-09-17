@@ -360,8 +360,11 @@
 }
 
 .positions-error {
+  flex-shrink: 0;
   min-height: auto;
   justify-content: flex-start;
+  padding: 10px 16px;
+  overflow-wrap: anywhere;
   border-bottom: 1px solid rgba(240, 69, 98, 0.3);
   background: var(--red-soft);
   color: #ffc9d3;
