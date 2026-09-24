@@ -964,6 +964,25 @@ mod tests {
         }
     }
 
+    async fn remove_test_database(path: std::path::PathBuf) {
+        // Windows can briefly retain a SQLite worker's handle after pool.close().
+        // Retry only its sharing violation; every other cleanup error still fails.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        loop {
+            match std::fs::remove_file(&path) {
+                Ok(()) => return,
+                Err(error)
+                    if cfg!(windows)
+                        && error.raw_os_error() == Some(32)
+                        && tokio::time::Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                }
+                Err(error) => panic!("Failed to remove closed test database: {error}"),
+            }
+        }
+    }
+
     #[tokio::test]
     async fn restart_retains_active_alerts_and_atomically_queues_each_trigger_once() {
         let path = std::env::temp_dir().join(format!("alert-test-{}.sqlite3", Uuid::new_v4()));
@@ -987,7 +1006,7 @@ mod tests {
         assert!(row.get::<bool, _>("telegram_pending"));
         assert!(store.list_active(None).await.unwrap().is_empty());
         store.pool.close().await;
-        std::fs::remove_file(path).unwrap();
+        remove_test_database(path).await;
     }
 
     #[tokio::test]
@@ -1177,7 +1196,7 @@ mod tests {
         assert_eq!(ntfy_count.load(Ordering::SeqCst), 3);
         assert_eq!(telegram_count.load(Ordering::SeqCst), 3);
         store.pool.close().await;
-        std::fs::remove_file(path).unwrap();
+        remove_test_database(path).await;
         server.abort();
     }
 
