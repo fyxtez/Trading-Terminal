@@ -24,7 +24,12 @@ child.on("error", (error) => {
 });
 child.on("close", (code) => {
   if (code !== 0) {
-    const escaped = tail.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+    // GitHub truncates annotation messages at 4096 bytes; keep the actual error.
+    const escaped = tail
+      .slice(-3000)
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A");
     console.log(`::error::${escaped}`);
     process.exitCode = code || 1;
   }

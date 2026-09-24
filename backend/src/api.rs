@@ -288,10 +288,15 @@ async fn api_not_found() -> AppError {
 /// only the packaged frontend files as an unauthenticated fallback. The
 /// native API listener intentionally keeps its existing no-static-files shape.
 pub fn browser_router(state: AppState, ui_dir: PathBuf) -> Router {
-    let index = ui_dir.join("index.html");
     router(state)
-        .fallback_service(ServeDir::new(ui_dir).not_found_service(ServeFile::new(index)))
+        .fallback_service(browser_files(ui_dir))
         .layer(middleware::from_fn(browser_security_headers))
+}
+
+fn browser_files(ui_dir: PathBuf) -> ServeDir<ServeFile> {
+    let index = ui_dir.join("index.html");
+    // Symbol paths are valid client routes and must return a successful page.
+    ServeDir::new(ui_dir).fallback(ServeFile::new(index))
 }
 
 async fn browser_security_headers(request: axum::extract::Request, next: Next) -> Response {
@@ -2800,5 +2805,54 @@ mod financial_invariant_tests {
             event_rx.try_recv().expect("snapshot event must be emitted"),
             TradingEvent::SnapshotRequired { reason } if reason == "partial workflow"
         ));
+    }
+}
+
+#[cfg(test)]
+mod browser_route_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn symbol_links_serve_the_app_without_hiding_unknown_api_routes() {
+        let directory =
+            std::env::temp_dir().join(format!("browser-routes-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(directory.join("assets")).unwrap();
+        std::fs::write(directory.join("index.html"), "<html>terminal</html>").unwrap();
+        std::fs::write(directory.join("assets/app.js"), "window.terminal = true;").unwrap();
+        let app = Router::new()
+            .route("/api/{*path}", any(api_not_found))
+            .fallback_service(browser_files(directory.clone()))
+            .layer(middleware::from_fn(browser_security_headers));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = reqwest::Client::new();
+        for path in ["/", "/BTC", "/1000PEPE"] {
+            let response = client.get(format!("{origin}{path}")).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+            assert_eq!(response.text().await.unwrap(), "<html>terminal</html>");
+        }
+        let asset = client
+            .get(format!("{origin}/assets/app.js"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(asset.status(), StatusCode::OK);
+        assert_eq!(asset.text().await.unwrap(), "window.terminal = true;");
+        let missing = client
+            .get(format!("{origin}/api/missing"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        assert!(
+            missing.headers()["content-type"]
+                .to_str()
+                .unwrap()
+                .contains("application/json")
+        );
+        server.abort();
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

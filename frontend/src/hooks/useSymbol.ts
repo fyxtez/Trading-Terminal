@@ -79,8 +79,13 @@ function parseSymbolFromPath(): TradingSymbol | null {
     const segment = window.location.pathname.split("/").filter(Boolean)[0];
     if (!segment) return null;
     const upper = segment.toUpperCase();
-    if (isTradingSymbol(upper)) return upper;
-    return getAvailableSymbols().find((s) => getSymbolInfo(s).label === upper) ?? null;
+    if (getAvailableSymbols().includes(upper)) return upper;
+    const known = getAvailableSymbols().find((s) => getSymbolInfo(s).label === upper);
+    if (known) return known;
+    // Notification links can name a custom symbol before its registry loads.
+    // Retain the candidate until syncRegistry confirms it or selects a fallback.
+    const base = upper.endsWith("USDT") ? upper.slice(0, -4) : upper;
+    return /^[A-Z0-9]{1,24}$/.test(base) ? `${base}USDT` : null;
   } catch {
     return null;
   }

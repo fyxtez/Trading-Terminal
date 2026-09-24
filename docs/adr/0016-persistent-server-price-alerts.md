@@ -48,7 +48,8 @@ late create/trigger responses, symbol switches, and server-backed undo/redo.
 Local HTTP provider tests cover independent retries across restart, invalid
 credentials, refused Telegram acknowledgements, and exact small-price rendering.
 Release checks include backend/Tauri tests and Clippy, frontend checks/builds,
-remote alert CRUD and restart, and real ntfy delivery. Real Telegram delivery
+remote alert CRUD and restart, and real ntfy delivery. Notification chart links
+return HTTP 200 and preserve custom symbols while the registry loads. Real Telegram delivery
 remains dependent on valid owner-supplied credentials.
 
 ## Consequences
