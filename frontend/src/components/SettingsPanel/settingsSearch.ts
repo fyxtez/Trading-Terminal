@@ -68,11 +68,14 @@ export function buildSettingsSearchModel(
 
   const alertsSectionTitleMatches = matches(
     "Alerts",
-    "price alerts persistent active notifications",
+    "price alerts persistent active notifications ntfy Telegram delivery",
   );
   const alertOptionMatches = {
     show: matches("Show price alerts", "pending price alert lines chart right click"),
-    persistent: matches("Use persistent alerts", "backend store monitor alerts browser closed"),
+    persistent: matches(
+      "Persistent alerts · Always on",
+      "backend store monitor alerts browser closed",
+    ),
     active: matches("Active alerts", "symbol price side info active alert list"),
   };
   const showAlertsSection =
@@ -113,7 +116,7 @@ export function buildSettingsSearchModel(
   );
   const showDiagnostics = matches(
     "App status connection Binance trading live prices account updates previous action blocked repeated actions order history",
-    EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED ? "notification failures" : undefined,
+    PRICE_ALERTS_ENABLED ? "notification failures" : undefined,
   );
   const showDataBackup =
     isDesktop &&

@@ -13,7 +13,6 @@ const WATERMARK_VISIBILITY_STORAGE_KEY = "fyxtez:watermark-visible";
 const START_OF_DAY_STORAGE_KEY = "fyxtez:start-of-day-enabled";
 const START_OF_DAY_LOOKBACK_STORAGE_KEY = "fyxtez:start-of-day-lookback-days";
 const PRICE_ALERTS_VISIBLE_STORAGE_KEY = "fyxtez:price-alerts-visible";
-const PERSISTENT_ALERTS_ENABLED_STORAGE_KEY = "fyxtez:persistent-alerts-enabled";
 
 function loadBooleanPreference(key: string): boolean {
   try {
@@ -88,9 +87,6 @@ export function useAppPreferences() {
   const [showPriceAlerts, setShowPriceAlertsState] = useState(() =>
     loadBooleanPreference(PRICE_ALERTS_VISIBLE_STORAGE_KEY),
   );
-  const [persistentAlertsEnabled, setPersistentAlertsEnabledState] = useState(() =>
-    loadOptInPreference(PERSISTENT_ALERTS_ENABLED_STORAGE_KEY),
-  );
 
   const booleanSetter = (setter: (enabled: boolean) => void, key: string) => (enabled: boolean) => {
     setter(enabled);
@@ -144,10 +140,5 @@ export function useAppPreferences() {
     setStartOfDayLookbackDays,
     showPriceAlerts,
     setShowPriceAlerts: booleanSetter(setShowPriceAlertsState, PRICE_ALERTS_VISIBLE_STORAGE_KEY),
-    persistentAlertsEnabled,
-    setPersistentAlertsEnabled: booleanSetter(
-      setPersistentAlertsEnabledState,
-      PERSISTENT_ALERTS_ENABLED_STORAGE_KEY,
-    ),
   };
 }

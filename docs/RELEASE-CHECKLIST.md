@@ -100,8 +100,8 @@ recorded in [ADR 0009](adr/0009-durable-financial-intents.md).
       exclusion and exact-file-set tests pass; the manual clean-system exercise
       remains open below.
 - [x] Redacted durable intent/audit metadata is stored in `operations.sqlite3`.
-- [x] Price alerts, ntfy and Telegram are dormant: no UI, API routes, alert
-      database access, alert worker, or provider delivery (ADR 0013).
+- [x] Price alerts always run on the connected backend (ADR 0016); ntfy/Telegram
+  use a durable delivery queue, and device views reconcile after reconnect.
 - [x] Credential-store fault injection covers unavailable/locked reads,
       incomplete or corrupt Binance sets, rollback after partial write/delete,
       secret-free errors and retry recovery without replacing intact values.

@@ -85,6 +85,7 @@ export function useTradingStream({
 
         reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
         setConnectionState("connected");
+        window.dispatchEvent(new Event("price-alerts-changed"));
         // The URL contains a short-lived one-use ticket. It has already been
         // consumed by a successful upgrade, but it still does not belong in
         // browser logs or copied diagnostics.
@@ -139,6 +140,13 @@ export function useTradingStream({
 
         if (event.type === "SNAPSHOT_REQUIRED") {
           const reason = event.reason.toUpperCase();
+          if (
+            reason.includes("ALERT") ||
+            reason.includes("CONNECTED") ||
+            reason.includes("LAGGED")
+          ) {
+            window.dispatchEvent(new Event("price-alerts-changed"));
+          }
           const affectsOrders =
             reason.includes("ORDER") ||
             reason.includes("ALGO") ||

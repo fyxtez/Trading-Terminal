@@ -68,9 +68,9 @@ opens the desktop window. Desktop mode does not read project `.env` files.
 Configure Binance from the first-run wizard or Settings. The Linux Settings
 panel can also enable **Browser access**, which opens the packaged UI at the
 fixed local origin `http://127.0.0.1:8658`; the installed process must remain
-running. Price alerts, ntfy, and Telegram
-are intentionally dormant in the current product; see
-[ADR 0013](docs/adr/0013-dormant-alerts-and-notifications.md) and the
+running in Local mode. Price alerts are always saved and monitored by the
+connected backend; the private server keeps monitoring while all clients are closed.
+See [ADR 0016](docs/adr/0016-persistent-server-price-alerts.md), [server deployment](deploy/README.md), and the
 [architecture decision records](docs/adr/README.md).
 
 Development builds open in a resizable 1280×800 window and allow mobile-width
@@ -96,8 +96,8 @@ runtime data stays in the app's private data directory.
 This is currently a signed direct-distribution preview. The protected release
 workflow produces and verifies an arm64 APK/AAB using the provisioned upload
 identity, but Android is not yet a supported Play Store release.
-Price alerts and their ntfy/Telegram delivery are dormant on Android and Linux.
-No foreground alert service or alert-specific background connection is started.
+Price alerts and ntfy/Telegram delivery run on the connected backend. Private
+server mode requires no foreground alert service on Android.
 Trading state still reconciles after the application resumes or reconnects.
 
 ### Linux release bundle
@@ -274,7 +274,7 @@ Standalone backend development defaults to `backend/data/`:
 
 - `sizing.json` — sizing configuration
 - `symbols.json` — dynamic symbol registry
-- `alerts.sqlite3` — retained legacy alert data; dormant code does not open it
+- `alerts.sqlite3` — active/triggered price alerts and durable notification delivery queue
 - `operations.sqlite3` — durable financial intents and redacted audit metadata;
   restart-surviving uncertain operations block only new exposure until the
   explicitly confirmed Settings > Diagnostics reconciliation tombstones them
@@ -288,9 +288,11 @@ credential manager and are never included in either backup method. See
 
 ## Deployment status
 
-The supported deployment shape is a local, single-user Linux desktop install,
-including its optional same-computer browser companion. Do not expose Axum as a
-public service or forward its loopback ports. CI produces verified, signed/attested
+The app supports a local Linux backend and the owner-managed private server
+described in [deploy/README.md](deploy/README.md), shared by Linux, Android, and
+authorized browser sessions. The private server keeps Axum on loopback behind
+the configured HTTPS proxy. Local mode includes its optional same-computer
+browser companion. CI produces verified, signed/attested
 Linux `.deb`/AppImage and Android arm64 APK/AAB artifacts. Android remains a
 direct-distribution preview, and the first public release remains gated on the
 clean-machine acceptance procedure in [docs/RELEASING.md](docs/RELEASING.md).

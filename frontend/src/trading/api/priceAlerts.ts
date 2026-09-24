@@ -43,6 +43,7 @@ function fromBackend(alert: BackendPriceAlert): PriceAlert {
     pattern: alert.pattern ?? "none",
     additionalInfo: alert.additionalInfo ?? "",
     createdAt: alert.createdAt,
+    crossing: alert.crossing,
     locked: false,
     hidden: false,
   };
@@ -52,8 +53,8 @@ function fromBackendWithSymbol(alert: BackendPriceAlert): ListedPriceAlert {
   return { ...fromBackend(alert), symbol: alert.symbol.toUpperCase() };
 }
 
-function crossingFor(alert: Pick<PriceAlert, "side">): "CROSS_UP" | "CROSS_DOWN" {
-  return alert.side === "SHORT" ? "CROSS_UP" : "CROSS_DOWN";
+function crossingFor(alert: PriceAlert): "CROSS_UP" | "CROSS_DOWN" {
+  return alert.crossing ?? (alert.side === "SHORT" ? "CROSS_UP" : "CROSS_DOWN");
 }
 
 export async function listPersistentPriceAlerts(symbol: string): Promise<PriceAlert[]> {
@@ -132,4 +133,18 @@ export async function cancelPersistentPriceAlert(alertId: string): Promise<void>
     },
   );
   await parseResponse<void>(response);
+}
+
+export type AlertDeliveryStatus = {
+  ntfyConfigured: boolean;
+  telegramConfigured: boolean;
+  pendingDeliveries: number;
+};
+
+export async function getAlertDeliveryStatus(): Promise<AlertDeliveryStatus> {
+  return parseResponse<AlertDeliveryStatus>(
+    await tradingApiFetch(`${TRADING_API_BASE_URL}${PRICE_ALERTS_ENDPOINT}/status`, {
+      headers: headers(),
+    }),
+  );
 }

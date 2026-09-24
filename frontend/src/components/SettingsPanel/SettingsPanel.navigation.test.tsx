@@ -3,6 +3,28 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPanel from "./SettingsPanel";
 
+vi.mock("../../trading/api/priceAlerts", () => ({
+  listAllPersistentPriceAlerts: vi.fn().mockResolvedValue([
+    {
+      id: "server-alert",
+      symbol: "SOLUSDT",
+      price: 150,
+      createdAt: 1,
+      side: "LONG",
+      crossing: "CROSS_DOWN",
+      pattern: "support",
+      additionalInfo: "server-owned note",
+      locked: false,
+      hidden: false,
+    },
+  ]),
+  getAlertDeliveryStatus: vi.fn().mockResolvedValue({
+    ntfyConfigured: true,
+    telegramConfigured: false,
+    pendingDeliveries: 1,
+  }),
+}));
+
 function props(): ComponentProps<typeof SettingsPanel> {
   return {
     isOpen: true,
@@ -47,8 +69,6 @@ function props(): ComponentProps<typeof SettingsPanel> {
     onStartOfDayLookbackDaysChange: vi.fn(),
     showPriceAlerts: false,
     onShowPriceAlertsChange: vi.fn(),
-    persistentAlertsEnabled: false,
-    onPersistentAlertsEnabledChange: vi.fn(),
     diagnostics: {
       isDesktop: false,
       backendConnection: "disconnected",
@@ -71,6 +91,7 @@ function props(): ComponentProps<typeof SettingsPanel> {
 
 describe("Settings section picker", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
   });
   it("opens a section with working controls and returns to the icon menu", () => {
@@ -101,6 +122,23 @@ describe("Settings section picker", () => {
     expect(screen.getByRole("heading", { name: "PNL" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Chart display" })).toBeNull();
   });
+
+  it.each(["picker", "search"])(
+    "loads server alerts through %s even when the saved section was collapsed",
+    async (entry) => {
+      localStorage.setItem("fyxtez.settings.alertsSectionVisible", "false");
+      render(<SettingsPanel {...props()} backendConnection="connected" />);
+      if (entry === "picker") {
+        fireEvent.click(screen.getByRole("button", { name: "Alerts" }));
+      } else {
+        fireEvent.change(screen.getByPlaceholderText("Search settings…"), {
+          target: { value: "alerts" },
+        });
+      }
+      expect(await screen.findByText("server-owned note")).toBeInTheDocument();
+      expect(screen.getByText(/ntfy: Configured.*Telegram: Not configured/)).toBeInTheDocument();
+    },
+  );
 
   it("the Binance shortcut opens Exchange Connections directly", () => {
     render(<SettingsPanel {...props()} exchangeConnectionsRequest={1} />);

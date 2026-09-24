@@ -38,14 +38,15 @@ describe("buildSettingsSearchModel", () => {
     ).toBe(true);
   });
 
-  it("does not expose dormant alert or notification settings", () => {
+  it("exposes persistent alerts and keeps device notification credentials hidden", () => {
     const alerts = buildSettingsSearchModel("alerts", true, sizingFields);
     const telegram = buildSettingsSearchModel("telegram", true, sizingFields);
 
-    expect(alerts.showAlertsSection).toBe(false);
-    expect(alerts.hasAnySettingsSearchResult).toBe(false);
+    expect(alerts.showAlertsSection).toBe(true);
+    expect(alerts.hasAnySettingsSearchResult).toBe(true);
     expect(telegram.showExchangeConnections).toBe(false);
-    expect(telegram.hasAnySettingsSearchResult).toBe(false);
+    expect(telegram.showAlertsSection).toBe(true);
+    expect(telegram.hasAnySettingsSearchResult).toBe(true);
   });
 
   it("finds the previous-action check under app status", () => {

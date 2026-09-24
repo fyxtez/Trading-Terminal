@@ -226,17 +226,13 @@ function ChartWorkspacePane({
     setStartOfDayLookbackDays,
     showPriceAlerts,
     setShowPriceAlerts,
-    persistentAlertsEnabled,
-    setPersistentAlertsEnabled,
   } = useAppPreferences();
 
-  const priceAlertsApi = usePriceAlerts(
-    refs,
-    currentSymbol,
-    marketData.lastPrice,
-    persistentAlertsEnabled,
-    PRICE_ALERTS_ENABLED,
-  );
+  const alertsSupported =
+    PRICE_ALERTS_ENABLED &&
+    symbolRegistryReady &&
+    getSymbolConfig(currentSymbol).source === "binance";
+  const priceAlertsApi = usePriceAlerts(refs, currentSymbol, marketData.lastPrice, alertsSupported);
 
   const tradeMarkersApi = useTradeMarkers(refs, currentSymbol);
 
@@ -1315,8 +1311,6 @@ function ChartWorkspacePane({
               onStartOfDayLookbackDaysChange={setStartOfDayLookbackDays}
               showPriceAlerts={showPriceAlerts}
               onShowPriceAlertsChange={setShowPriceAlerts}
-              persistentAlertsEnabled={persistentAlertsEnabled}
-              onPersistentAlertsEnabledChange={setPersistentAlertsEnabled}
             />
           </Suspense>
         )}
@@ -1386,7 +1380,7 @@ function ChartWorkspacePane({
           onDeleteAllDrawings={drawingsApi.deleteAllDrawings}
           onDeleteDrawingsByTimeframe={drawingsApi.deleteDrawingsByTimeframe}
           onDeleteAllTradeMarkers={tradeMarkersApi.clearMarkers}
-          priceAlertsEnabled={PRICE_ALERTS_ENABLED}
+          priceAlertsEnabled={alertsSupported}
           onCreateAlert={priceAlertsApi.addAlert}
           onCreateCoordinateMarker={(time, price) =>
             drawingsApi.addDrawing({

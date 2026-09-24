@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { priceAlertsStorageKey } from "../config/constants";
-import { loadStoredAlerts, saveAlerts, sendPriceAlertNotification } from "../utils/alerts";
+import { loadStoredAlerts, saveAlerts } from "../utils/alerts";
+import { publishSystemNotice } from "../diagnostics/events";
+import { userFacingError } from "../utils/userFacingError";
 import {
   cancelPersistentPriceAlert,
   createPersistentPriceAlert,
@@ -10,103 +12,173 @@ import {
 import type { AlertHistoryAction, AlertPattern, PriceAlert } from "../types/alert";
 import type { ChartRefs } from "./useChartRefs";
 
-/**
- * Same per-symbol-scoping shape as useDrawings.ts's SymbolDrawingsState -
- * alerts are persisted under a per-symbol storage key, so switching from
- * BTC to SOL shows SOL's own alerts instead of continuing to show/persist
- * BTC's.
- */
-type SymbolAlertsState = {
+const presentationKey = (symbol: string) => `${priceAlertsStorageKey(symbol)}:server`;
+
+type Session = {
   symbol: string;
+  active: boolean;
+  busy: boolean;
+  revision: number;
   alerts: PriceAlert[];
+  triggered: Set<string>;
+  refresh: () => void;
 };
 
-const normalizeSymbol = (symbol: string) => symbol.toUpperCase();
-
-/**
- * Owns the list of price alerts for the active symbol, and watches the
- * live market price stream for one crossing an alert's level.
- *
- * `persistentAlertsEnabled` (the "Use persistent alerts" setting - see
- * SettingsPanel.tsx) controls WHO is responsible for actually notifying
- * the user once that happens:
- *
- * - OFF (default): this hook is the one firing the ntfy.sh notification
- *   itself (see utils/alerts.ts) the moment a crossing is detected -
- *   this only works while this browser tab is open and connected.
- * - ON: the backend owns price detection, deletion, and notification.
- *   The chart waits for the backend's ALERT_TRIGGERED event before
- *   removing the line, keeping browser and SQLite state authoritative
- *   and preventing the frontend from appearing to trigger earlier.
- *
- * `refs` (the same shared bag used by useDrawings.ts/useDrawingCanvas.ts)
- * is where this hook's undo/redo stacks and its shared `seq` counter
- * with drawings live (refs.alertUndoRef/alertRedoRef/historySeqRef) -
- * see the long comment on HistoryAction in types/drawing.ts for why
- * that counter is shared rather than each system having its own.
- */
+/** Server-confirmed alerts only. The device never monitors prices or delivers notifications. */
 export function usePriceAlerts(
   refs: ChartRefs,
   symbol: string,
   lastPrice: number | null,
-  persistentAlertsEnabled: boolean,
   enabled = true,
 ) {
-  const normalizedSymbol = normalizeSymbol(symbol);
-  const [state, setState] = useState<SymbolAlertsState>(() => ({
+  const normalizedSymbol = symbol.toUpperCase();
+  const [state, setState] = useState<{ symbol: string; alerts: PriceAlert[] }>({
     symbol: normalizedSymbol,
-    alerts: enabled ? loadStoredAlerts(priceAlertsStorageKey(normalizedSymbol)) : [],
-  }));
-  const isHydrated = state.symbol === normalizedSymbol;
-  const alerts = enabled && isHydrated ? state.alerts : [];
+    alerts: [],
+  });
+  const sessionRef = useRef<Session | null>(null);
 
-  /*
-   * Mirrors the current alert list into a ref so the price-watching
-   * effect below can always read the latest alerts without needing to
-   * re-run every time the list itself changes (it only needs to re-run
-   * when the PRICE changes) - same reasoning as refs.drawingsRef in
-   * useChartRefs.ts/useDrawings.ts.
-   */
-  const alertsRef = useRef<PriceAlert[]>(alerts);
-  // A persistent alert can trigger while its create/list request is still in
-  // flight. Remember consumed backend IDs so a late response cannot resurrect
-  // the line after the trigger event already removed it.
-  const triggeredPersistentAlertIdsRef = useRef(new Set<string>());
+  const commit = (session: Session, alerts: PriceAlert[]) => {
+    if (!session.active || sessionRef.current !== session) return;
+    session.alerts = alerts.filter((alert) => !session.triggered.has(alert.id));
+    saveAlerts(presentationKey(session.symbol), session.alerts);
+    setState({ symbol: session.symbol, alerts: session.alerts });
+  };
+
   useEffect(() => {
-    alertsRef.current = alerts;
-  }, [alerts]);
+    if (!enabled) return;
+    const session: Session = {
+      symbol: normalizedSymbol,
+      active: true,
+      busy: false,
+      revision: 0,
+      alerts: [],
+      triggered: new Set(),
+      refresh: () => {},
+    };
+    sessionRef.current = session;
+    refs.alertUndoRef.current = [];
+    refs.alertRedoRef.current = [];
+    setState({ symbol: normalizedSymbol, alerts: [] });
+    let loading = false;
+    let reload = false;
+    let reportedError = false;
+    const sync = async () => {
+      if (!session.active) return;
+      if (loading || session.busy) {
+        reload = true;
+        return;
+      }
+      loading = true;
+      reload = false;
+      const revision = session.revision;
+      try {
+        const remote = await listPersistentPriceAlerts(session.symbol);
+        if (!session.active) return;
+        if (session.revision !== revision || session.busy) {
+          reload = true;
+          return;
+        }
+        // Retained browser alerts are never uploaded or re-armed automatically.
+        const presentation = new Map(
+          loadStoredAlerts(presentationKey(session.symbol)).map((alert) => [alert.id, alert]),
+        );
+        commit(
+          session,
+          remote.map((alert) => {
+            const local = presentation.get(alert.id);
+            return local ? { ...alert, locked: local.locked, hidden: local.hidden } : alert;
+          }),
+        );
+        reportedError = false;
+      } catch (error) {
+        if (session.active && !reportedError) {
+          reportedError = true;
+          publishSystemNotice({
+            kind: "warning",
+            title: "Alert sync unavailable",
+            message: userFacingError(
+              error,
+              "Could not refresh alerts. Server monitoring continues; retrying automatically.",
+            ),
+          });
+        }
+      } finally {
+        loading = false;
+        if (reload && session.active && !session.busy) void sync();
+      }
+    };
+    session.refresh = () => {
+      void sync();
+    };
+    const triggered = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string; symbol: string }>).detail;
+      if (detail.symbol.toUpperCase() !== session.symbol) return;
+      session.revision += 1;
+      session.triggered.add(detail.id);
+      commit(
+        session,
+        session.alerts.filter((alert) => alert.id !== detail.id),
+      );
+      const keep = (action: AlertHistoryAction) =>
+        (action.type === "update" ? action.before.id : action.alert.id) !== detail.id;
+      refs.alertUndoRef.current = refs.alertUndoRef.current.filter(keep);
+      refs.alertRedoRef.current = refs.alertRedoRef.current.filter(keep);
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") session.refresh();
+    };
+    session.refresh();
+    const timer = window.setInterval(session.refresh, 15_000);
+    window.addEventListener("price-alerts-changed", session.refresh);
+    window.addEventListener("persistent-price-alert-triggered", triggered);
+    window.addEventListener("online", session.refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      session.active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("price-alerts-changed", session.refresh);
+      window.removeEventListener("persistent-price-alert-triggered", triggered);
+      window.removeEventListener("online", session.refresh);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [enabled, normalizedSymbol, refs.alertUndoRef, refs.alertRedoRef]);
 
-  /*
-   * Same reasoning as alertsRef above, but for the persistent-alerts
-   * toggle itself: the price-watching effect's dependency array is
-   * intentionally just [lastPrice, normalizedSymbol] (see below), so a
-   * mid-session flip of this setting needs a ref to be seen immediately
-   * rather than only on the next price tick after the effect happens to
-   * re-run for some other reason.
-   */
-  const persistentAlertsEnabledRef = useRef(persistentAlertsEnabled);
-  useEffect(() => {
-    persistentAlertsEnabledRef.current = persistentAlertsEnabled;
-  }, [persistentAlertsEnabled]);
+  const mutate = (operation: (session: Session) => Promise<void>) => {
+    const session = sessionRef.current;
+    if (!enabled || !session?.active || session.symbol !== normalizedSymbol) return;
+    if (session.busy) {
+      publishSystemNotice({
+        kind: "warning",
+        title: "Saving alert",
+        message: "Wait for the current alert change to finish.",
+      });
+      return;
+    }
+    session.busy = true;
+    session.revision += 1;
+    void operation(session)
+      .catch((error: unknown) => {
+        publishSystemNotice({
+          kind: "error",
+          title: "Alert change not confirmed",
+          message: userFacingError(
+            error,
+            "Could not save the alert. Reconnecting to the server before retrying.",
+          ),
+        });
+      })
+      .finally(() => {
+        session.busy = false;
+        if (session.active) session.refresh();
+        window.dispatchEvent(new Event("price-alerts-changed"));
+      });
+  };
 
-  // The previous tick's price, used to detect which direction (if any)
-  // the price just crossed an alert's level from.
-  const previousPriceRef = useRef<number | null>(null);
-  const previousPriceSymbolRef = useRef<string | null>(null);
-
-  /**
-   * Stamps an action with the shared seq counter and pushes it onto
-   * this hook's own undo stack, clearing redo - same shape as
-   * useDrawings.ts's pushHistory, deliberately kept in lockstep with it
-   * (shared counter, same push/clear-redo behavior) so Ctrl+Z/Ctrl+Y in
-   * useHotkeys.ts can treat both stacks as one combined, correctly
-   * ordered history.
-   */
-  const pushAlertHistory = (
+  const pushHistory = (
     action:
-      | { type: "add"; alert: PriceAlert }
-      | { type: "delete"; alert: PriceAlert }
-      | { type: "update"; before: PriceAlert; after: PriceAlert },
+      | Omit<Extract<AlertHistoryAction, { type: "add" | "delete" }>, "seq">
+      | Omit<Extract<AlertHistoryAction, { type: "update" }>, "seq">,
   ) => {
     refs.historySeqRef.current += 1;
     refs.alertUndoRef.current.push({
@@ -116,458 +188,163 @@ export function usePriceAlerts(
     refs.alertRedoRef.current = [];
   };
 
-  const addAlert = (price: number) => {
-    if (!enabled) return;
-    // Automatic LONG/SHORT guess: a price below the current market is
-    // read as "waiting to go long from here", above as "waiting to go
-    // short from here" - the same directional assumption a trader
-    // placing a limit order at that level would usually have. Falls
-    // back to LONG when there's no live price to compare against yet.
-    // The default pattern mirrors the same comparison - a price below
-    // market defaults to "support", above to "resistance" - since
-    // that's the most common reason to place a level there in the
-    // first place. Both remain freely overridable afterwards.
-    const isAbove = lastPrice !== null && price > lastPrice;
-    const side: PriceAlert["side"] = isAbove ? "SHORT" : "LONG";
-    const pattern: AlertPattern = isAbove ? "resistance" : "support";
-
-    const alert: PriceAlert = {
-      id: `alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      price,
-      createdAt: Date.now(),
-      side,
-      pattern,
-      additionalInfo: "",
-      locked: true,
-      hidden: true,
-    };
-
-    setState((previous) => {
-      const nextAlerts = [...previous.alerts, alert];
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    pushAlertHistory({ type: "add", alert });
-
-    if (persistentAlertsEnabled) {
-      void createPersistentPriceAlert(normalizedSymbol, alert)
-        .then((created) => {
-          setState((previous) => {
-            const nextAlerts = previous.alerts
-              .map((item) => (item.id === alert.id ? created : item))
-              .filter((item) => !triggeredPersistentAlertIdsRef.current.has(item.id));
-            saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-            return { symbol: normalizedSymbol, alerts: nextAlerts };
-          });
-        })
-        .catch((error) => console.error("Failed to persist price alert", error));
-    }
-  };
-
-  const removeAlert = (id: string) => {
-    if (!enabled) return;
-    const removed = alertsRef.current.find((alert) => alert.id === id);
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.filter((alert) => alert.id !== id);
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    if (removed) {
-      pushAlertHistory({ type: "delete", alert: removed });
-    }
-
-    if (persistentAlertsEnabled) {
-      void cancelPersistentPriceAlert(id).catch((error) =>
-        console.error("Failed to delete persistent price alert", error),
-      );
-    }
-  };
-
-  /**
-   * Called when the user drags an alert line to a new price on the
-   * chart (see AlertLinesOverlay.tsx) - the same "click, move, click"
-   * interaction TP/SL placement already uses (see
-   * PositionBracketOverlay.tsx's beginDrag/finishDrag).
-   */
-  const updateAlertPrice = (id: string, price: number) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before) return;
-
-    const after: PriceAlert = { ...before, price };
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    pushAlertHistory({ type: "update", before, after });
-    if (persistentAlertsEnabledRef.current) {
-      void updatePersistentPriceAlert(after).catch((error) =>
-        console.error("Failed to update persistent price alert", error),
-      );
-    }
-  };
-
-  /**
-   * Flips an alert's LONG/SHORT setup label - see the LONG/SHORT button
-   * on AlertLinesOverlay.tsx. Purely a label; it never changes the
-   * alert's price or firing behavior.
-   */
-  const toggleAlertSide = (id: string) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before) return;
-
-    const after: PriceAlert = {
-      ...before,
-      side: before.side === "LONG" ? "SHORT" : "LONG",
-    };
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    pushAlertHistory({ type: "update", before, after });
-    if (persistentAlertsEnabledRef.current) {
-      void updatePersistentPriceAlert(after).catch((error) =>
-        console.error("Failed to update persistent price alert", error),
-      );
-    }
-  };
-
-  /**
-   * Sets an alert's price-action pattern label (breakout, support,
-   * etc.) - see the pattern button/popover on AlertLinesOverlay.tsx.
-   * Purely a label, same as toggleAlertSide above; it never changes the
-   * alert's price or firing behavior, and is never sent to the backend
-   * even when persistent alerts are on (there's nothing there yet to
-   * receive an update to an already-created alert).
-   */
-  const setAlertPattern = (id: string, pattern: AlertPattern) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before) return;
-
-    const after: PriceAlert = { ...before, pattern };
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    pushAlertHistory({ type: "update", before, after });
-    if (persistentAlertsEnabledRef.current) {
-      void updatePersistentPriceAlert(after).catch((error) =>
-        console.error("Failed to update persistent price alert", error),
-      );
-    }
-  };
-
-  /**
-   * saves free-form alert context locally and, in persistent mode,
-   * updates SQLite so the backend-owned notification can append it later.
-   */
-  const setAlertAdditionalInfo = (id: string, additionalInfo: string) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before) return;
-
-    const after: PriceAlert = { ...before, additionalInfo: additionalInfo.trim() };
-    if (after.additionalInfo === before.additionalInfo) return;
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-    pushAlertHistory({ type: "update", before, after });
-    if (persistentAlertsEnabledRef.current) {
-      void updatePersistentPriceAlert(after).catch((error) =>
-        console.error("Failed to update persistent price alert", error),
-      );
-    }
-  };
-
-  const toggleAlertLocked = (id: string) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before) return;
-
-    // unlocking also restores full opacity so controls never become
-    // available on a still-dimmed line that the user must restore separately.
-    const after: PriceAlert = {
-      ...before,
-      locked: !before.locked,
-      hidden: before.locked ? false : before.hidden,
-    };
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-    pushAlertHistory({ type: "update", before, after });
-  };
-
-  const toggleAlertHidden = (id: string) => {
-    if (!enabled) return;
-    const before = alertsRef.current.find((alert) => alert.id === id);
-    if (!before || before.locked) return;
-
-    const after: PriceAlert = { ...before, hidden: !before.hidden };
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) => (alert.id === id ? after : alert));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-    pushAlertHistory({ type: "update", before, after });
-  };
-
-  const reverseAlertAction = (action: AlertHistoryAction) => {
-    if (action.type === "add") {
-      setState((previous) => {
-        const nextAlerts = previous.alerts.filter((alert) => alert.id !== action.alert.id);
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-        return { symbol: normalizedSymbol, alerts: nextAlerts };
-      });
-      return;
-    }
-
-    if (action.type === "delete") {
-      setState((previous) => {
-        const nextAlerts = [...previous.alerts, action.alert];
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-        return { symbol: normalizedSymbol, alerts: nextAlerts };
-      });
-      return;
-    }
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === action.before.id ? action.before : alert,
-      );
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-  };
-
-  const applyAlertAction = (action: AlertHistoryAction) => {
-    if (action.type === "add") {
-      setState((previous) => {
-        const nextAlerts = [...previous.alerts, action.alert];
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-        return { symbol: normalizedSymbol, alerts: nextAlerts };
-      });
-      return;
-    }
-
-    if (action.type === "delete") {
-      setState((previous) => {
-        const nextAlerts = previous.alerts.filter((alert) => alert.id !== action.alert.id);
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-        return { symbol: normalizedSymbol, alerts: nextAlerts };
-      });
-      return;
-    }
-
-    setState((previous) => {
-      const nextAlerts = previous.alerts.map((alert) =>
-        alert.id === action.after.id ? action.after : alert,
-      );
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-  };
-
-  /**
-   * Undoes this hook's own most recent action. Ctrl+Z (useHotkeys.ts)
-   * only calls this when comparing refs.alertUndoRef's top `seq`
-   * against refs.undoRef's (drawings') top `seq` says this one is more
-   * recent - see the long comment on HistoryAction in
-   * types/drawing.ts for why that comparison is correct.
-   */
-  const undo = () => {
-    if (!enabled) return;
-    const action = refs.alertUndoRef.current.pop();
-    if (!action) return;
-
-    reverseAlertAction(action);
-    refs.alertRedoRef.current.push(action);
-  };
-
-  /** Redo counterpart to undo() above - see the same useHotkeys.ts routing. */
-  const redo = () => {
-    if (!enabled) return;
-    const action = refs.alertRedoRef.current.pop();
-    if (!action) return;
-
-    applyAlertAction(action);
-    refs.alertUndoRef.current.push(action);
-  };
-
-  // Reload from storage whenever the active symbol changes - same
-  // reasoning as the matching effect in useDrawings.ts. Also clears
-  // this symbol-scoped undo/redo history, since it refers to alerts
-  // that belonged to whichever symbol was active before.
-  useEffect(() => {
-    if (!enabled) {
-      setState({ symbol: normalizedSymbol, alerts: [] });
-      previousPriceRef.current = null;
-      previousPriceSymbolRef.current = null;
-      refs.alertUndoRef.current = [];
-      refs.alertRedoRef.current = [];
-      return;
-    }
-    const next = loadStoredAlerts(priceAlertsStorageKey(normalizedSymbol));
-    setState({ symbol: normalizedSymbol, alerts: next });
-    previousPriceRef.current = null;
-    previousPriceSymbolRef.current = null;
-    refs.alertUndoRef.current = [];
-    refs.alertRedoRef.current = [];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, normalizedSymbol]);
-
-  // When persistent mode is enabled, restore backend alerts and hand any
-  // local-only alerts to the backend. Backend-generated UUIDs replace the
-  // temporary browser IDs so later PUT/DELETE requests target the right row.
-  useEffect(() => {
-    if (!enabled || !persistentAlertsEnabled || !isHydrated) return;
-    let cancelled = false;
-
-    const sync = async () => {
-      try {
-        const remote = await listPersistentPriceAlerts(normalizedSymbol);
-        const remoteIds = new Set(remote.map((alert) => alert.id));
-        const localOnly = alertsRef.current.filter(
-          (alert) => alert.id.startsWith("alert-") && !remoteIds.has(alert.id),
-        );
-        const created = await Promise.all(
-          localOnly.map((alert) => createPersistentPriceAlert(normalizedSymbol, alert)),
-        );
-        if (cancelled) return;
-        const localById = new Map(alertsRef.current.map((alert) => [alert.id, alert]));
-        const nextAlerts = [...remote, ...created]
-          .filter((alert) => !triggeredPersistentAlertIdsRef.current.has(alert.id))
-          .map((alert) => {
-            const local = localById.get(alert.id);
-            return local ? { ...alert, locked: local.locked, hidden: local.hidden } : alert;
-          });
-        setState({ symbol: normalizedSymbol, alerts: nextAlerts });
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      } catch (error) {
-        console.error("Failed to synchronize persistent price alerts", error);
+  const addAlert = (price: number) =>
+    mutate(async (session) => {
+      if (lastPrice === null || !Number.isFinite(lastPrice) || lastPrice <= 0) {
+        throw new Error("Wait for a live price before creating an alert.");
       }
-    };
-
-    void sync();
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, persistentAlertsEnabled, normalizedSymbol, isHydrated]);
-
-  // Persistent alerts are removed only when the backend confirms the
-  // trigger through the trading WebSocket.
-  useEffect(() => {
-    if (!enabled) return;
-    const handleTriggeredAlert = (rawEvent: Event) => {
-      const event = rawEvent as CustomEvent<{ id: string; symbol: string }>;
-      triggeredPersistentAlertIdsRef.current.add(event.detail.id);
-      if (normalizeSymbol(event.detail.symbol) !== normalizedSymbol) return;
-
-      setState((previous) => {
-        if (previous.symbol !== normalizedSymbol) return previous;
-        const nextAlerts = previous.alerts.filter((alert) => alert.id !== event.detail.id);
-        if (nextAlerts.length === previous.alerts.length) return previous;
-        saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-        return { symbol: normalizedSymbol, alerts: nextAlerts };
+      const isAbove = price > lastPrice;
+      const created = await createPersistentPriceAlert(session.symbol, {
+        id: "",
+        price,
+        createdAt: Date.now(),
+        side: isAbove ? "SHORT" : "LONG",
+        crossing: isAbove ? "CROSS_UP" : "CROSS_DOWN",
+        pattern: isAbove ? "resistance" : "support",
+        additionalInfo: "",
+        locked: true,
+        hidden: true,
       });
-    };
-
-    window.addEventListener("persistent-price-alert-triggered", handleTriggeredAlert);
-    return () => {
-      window.removeEventListener("persistent-price-alert-triggered", handleTriggeredAlert);
-    };
-  }, [enabled, normalizedSymbol]);
-
-  // Watches every incoming price tick for a crossing of any alert's
-  // level, in either direction, and removes each one that fired -
-  // additionally firing the ntfy notification itself, but only when
-  // persistent alerts are OFF (see the comment on the hook above).
-  //
-  // Deliberately does NOT push undo history for this removal - it's
-  // the alert doing its job (the price was reached), not a user
-  // mistake to offer "undo" for; only the direct user actions above
-  // (create, drag, remove, flip side, set pattern) are undoable.
-  useEffect(() => {
-    if (!enabled || lastPrice === null || persistentAlertsEnabledRef.current) return;
-
-    // `lastPrice` is React state owned by useMarketData and can survive for
-    // one render while a symbol switch is in progress. Without symbol-tagging
-    // the crossing baseline, opening TRX after NVDA could compare NVDA's last
-    // price (e.g. 218) with TRX's first tick (e.g. 0.34) and falsely fire every
-    // TRX alert crossed by that artificial 218 -> 0.34 jump. A newly selected
-    // symbol therefore gets its own fresh baseline before crossings are allowed.
-    if (previousPriceSymbolRef.current !== normalizedSymbol) {
-      previousPriceSymbolRef.current = normalizedSymbol;
-      previousPriceRef.current = null;
-      return;
-    }
-
-    const previousPrice = previousPriceRef.current;
-    previousPriceRef.current = lastPrice;
-
-    // Nothing to compare against yet (first tick since mount/symbol
-    // change) - never treat that as a crossing.
-    if (previousPrice === null) return;
-
-    const currentAlerts = alertsRef.current;
-    if (currentAlerts.length === 0) return;
-
-    const triggered = currentAlerts.filter((alert) => {
-      const crossedUpward = previousPrice < alert.price && lastPrice >= alert.price;
-      const crossedDownward = previousPrice > alert.price && lastPrice <= alert.price;
-      return crossedUpward || crossedDownward;
+      if (!session.active || session.triggered.has(created.id)) return;
+      commit(session, [...session.alerts.filter((alert) => alert.id !== created.id), created]);
+      pushHistory({ type: "add", alert: created });
     });
 
-    if (triggered.length === 0) return;
-
-    const triggeredIds = new Set(triggered.map((alert) => alert.id));
-    setState((previous) => {
-      const nextAlerts = previous.alerts.filter((alert) => !triggeredIds.has(alert.id));
-      saveAlerts(priceAlertsStorageKey(normalizedSymbol), nextAlerts);
-      return { symbol: normalizedSymbol, alerts: nextAlerts };
-    });
-
-    for (const alert of triggered) {
-      void sendPriceAlertNotification(
-        normalizedSymbol,
-        lastPrice,
-        alert.side,
-        alert.pattern,
-        alert.additionalInfo,
+  const removeAlert = (id: string) =>
+    mutate(async (session) => {
+      const alert = session.alerts.find((item) => item.id === id);
+      if (!alert) return;
+      await cancelPersistentPriceAlert(id);
+      if (!session.active) return;
+      commit(
+        session,
+        session.alerts.filter((item) => item.id !== id),
       );
-    }
-  }, [enabled, lastPrice, normalizedSymbol]);
+      pushHistory({ type: "delete", alert });
+    });
+
+  const update = (id: string, change: (alert: PriceAlert) => PriceAlert) =>
+    mutate(async (session) => {
+      const before = session.alerts.find((item) => item.id === id);
+      if (!before) return;
+      const requested = change(before);
+      const saved = await updatePersistentPriceAlert(requested);
+      if (!session.active || session.triggered.has(id)) return;
+      const after = { ...saved, locked: requested.locked, hidden: requested.hidden };
+      commit(
+        session,
+        session.alerts.map((item) => (item.id === id ? after : item)),
+      );
+      pushHistory({ type: "update", before, after });
+    });
+
+  const presentation = (id: string, change: (alert: PriceAlert) => PriceAlert) => {
+    const session = sessionRef.current;
+    if (!enabled || !session?.active || session.symbol !== normalizedSymbol || session.busy) return;
+    const before = session.alerts.find((item) => item.id === id);
+    if (!before) return;
+    const after = change(before);
+    session.revision += 1;
+    commit(
+      session,
+      session.alerts.map((item) => (item.id === id ? after : item)),
+    );
+    pushHistory({ type: "update", before, after });
+  };
+
+  const replay = (reverse: boolean) =>
+    mutate(async (session) => {
+      const source = reverse ? refs.alertUndoRef.current : refs.alertRedoRef.current;
+      const action = source[source.length - 1];
+      if (!action) return;
+      const restoring =
+        (action.type === "delete" && reverse) || (action.type === "add" && !reverse);
+      if (action.type === "update") {
+        const desired = reverse ? action.before : action.after;
+        const prior = reverse ? action.after : action.before;
+        // Lock/dim changes are presentation only and must not overwrite another device's edits.
+        const onlyPresentation =
+          desired.price === prior.price &&
+          desired.side === prior.side &&
+          desired.pattern === prior.pattern &&
+          desired.additionalInfo === prior.additionalInfo &&
+          desired.crossing === prior.crossing;
+        const saved = onlyPresentation ? null : await updatePersistentPriceAlert(desired);
+        if (!session.active || session.triggered.has(desired.id)) return;
+        commit(
+          session,
+          session.alerts.map((item) =>
+            item.id === desired.id
+              ? { ...(saved ?? item), locked: desired.locked, hidden: desired.hidden }
+              : item,
+          ),
+        );
+      } else if (restoring) {
+        const restored = await createPersistentPriceAlert(session.symbol, action.alert);
+        if (!session.active) return;
+        if (session.triggered.has(restored.id)) {
+          // It fired before POST completed: this restoration must not remain redoable.
+          refs.alertUndoRef.current = refs.alertUndoRef.current.filter((entry) => entry !== action);
+          refs.alertRedoRef.current = refs.alertRedoRef.current.filter((entry) => entry !== action);
+          return;
+        }
+        const previousId = action.alert.id;
+        // Recreating a deleted alert gets a new backend ID; older undo entries follow it.
+        for (const entry of [...refs.alertUndoRef.current, ...refs.alertRedoRef.current]) {
+          for (const alert of entry.type === "update"
+            ? [entry.before, entry.after]
+            : [entry.alert]) {
+            if (alert.id === previousId) alert.id = restored.id;
+          }
+        }
+        commit(session, [...session.alerts, restored]);
+      } else {
+        await cancelPersistentPriceAlert(action.alert.id);
+        if (!session.active) return;
+        commit(
+          session,
+          session.alerts.filter((item) => item.id !== action.alert.id),
+        );
+      }
+      // Trigger events can replace both history arrays while the request is in flight.
+      const currentSource = reverse ? refs.alertUndoRef.current : refs.alertRedoRef.current;
+      const currentDestination = reverse ? refs.alertRedoRef.current : refs.alertUndoRef.current;
+      if (currentSource[currentSource.length - 1] === action) {
+        currentSource.pop();
+        currentDestination.push(action);
+      }
+    });
 
   return {
-    alerts,
+    alerts: enabled && state.symbol === normalizedSymbol ? state.alerts : [],
     addAlert,
     removeAlert,
-    updateAlertPrice,
-    toggleAlertSide,
-    setAlertPattern,
-    setAlertAdditionalInfo,
-    toggleAlertLocked,
-    toggleAlertHidden,
-    undo,
-    redo,
+    updateAlertPrice: (id: string, price: number) =>
+      update(id, (alert) => ({
+        ...alert,
+        price,
+        crossing:
+          lastPrice !== null ? (price > lastPrice ? "CROSS_UP" : "CROSS_DOWN") : alert.crossing,
+      })),
+    toggleAlertSide: (id: string) =>
+      update(id, (alert) => ({ ...alert, side: alert.side === "LONG" ? "SHORT" : "LONG" })),
+    setAlertPattern: (id: string, pattern: AlertPattern) =>
+      update(id, (alert) => ({ ...alert, pattern })),
+    setAlertAdditionalInfo: (id: string, additionalInfo: string) =>
+      update(id, (alert) => ({ ...alert, additionalInfo: additionalInfo.trim() })),
+    toggleAlertLocked: (id: string) =>
+      presentation(id, (alert) => ({
+        ...alert,
+        locked: !alert.locked,
+        hidden: alert.locked ? false : alert.hidden,
+      })),
+    toggleAlertHidden: (id: string) =>
+      presentation(id, (alert) => ({
+        ...alert,
+        hidden: alert.locked ? alert.hidden : !alert.hidden,
+      })),
+    undo: () => replay(true),
+    redo: () => replay(false),
   };
 }
 

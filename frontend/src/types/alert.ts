@@ -13,15 +13,15 @@ export type AlertPattern =
  * A price level the user wants to be notified about via a right-click
  * "Create alert" on the chart (see ContextMenu.tsx / usePriceAlerts.ts).
  *
- * There is deliberately no backend concept of an alert - see the long
- * comment above sendPriceAlertNotification in utils/alerts.ts for why
- * this fires straight to ntfy.sh from the browser instead of round
- * tripping through a server that doesn't otherwise need to exist.
+ * The backend owns active alerts and price detection. Local storage keeps
+ * presentation preferences only and never arms an alert by itself.
  */
 export type PriceAlert = {
   id: string;
   price: number;
   createdAt: number;
+  /** Fixed independently of the LONG/SHORT setup label. */
+  crossing?: "CROSS_UP" | "CROSS_DOWN";
   /**
    * Which setup this alert is flagging - determined automatically at
    * creation time from whether the alert's price sits below ("LONG") or

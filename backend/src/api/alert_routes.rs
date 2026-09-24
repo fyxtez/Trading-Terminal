@@ -29,8 +29,17 @@ pub(super) async fn create_alert(
     State(state): State<AppState>,
     Json(request): Json<CreatePriceAlert>,
 ) -> AppResult<(axum::http::StatusCode, Json<PriceAlert>)> {
+    state
+        .symbol_registry
+        .ensure_binance_trading_symbol(&request.symbol.trim().to_uppercase())
+        .await?;
     let alert = state.alert_store.create(request).await?;
     state.alert_runtime.refresh();
+    let _ = state
+        .trading_events
+        .send(crate::trading_events::TradingEvent::SnapshotRequired {
+            reason: "ALERTS_CHANGED".into(),
+        });
     Ok((axum::http::StatusCode::CREATED, Json(alert)))
 }
 
@@ -43,6 +52,11 @@ pub(super) async fn update_alert(
         .map_err(|_| AppError::Invalid("alert id must be a valid UUID".into()))?;
     let alert = state.alert_store.update(id, request).await?;
     state.alert_runtime.refresh();
+    let _ = state
+        .trading_events
+        .send(crate::trading_events::TradingEvent::SnapshotRequired {
+            reason: "ALERTS_CHANGED".into(),
+        });
     Ok(Json(alert))
 }
 
@@ -54,5 +68,18 @@ pub(super) async fn delete_alert(
         .map_err(|_| AppError::Invalid("alert id must be a valid UUID".into()))?;
     state.alert_store.delete(id).await?;
     state.alert_runtime.refresh();
+    let _ = state
+        .trading_events
+        .send(crate::trading_events::TradingEvent::SnapshotRequired {
+            reason: "ALERTS_CHANGED".into(),
+        });
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+pub(super) async fn alert_delivery_status(
+    State(state): State<AppState>,
+) -> AppResult<Json<crate::alerts::DeliveryStatus>> {
+    Ok(Json(
+        crate::alerts::delivery_status(&state.alert_store).await?,
+    ))
 }

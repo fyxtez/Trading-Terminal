@@ -18,10 +18,12 @@ requires a CSP, timeout, redirect and redaction review.
 | CoinGecko / DexScreener / MEXC metadata | Public provider APIs | Public ticker/address lookup | 5 s connect, 15 s total, at most three redirects; failure cannot reject a valid symbol |
 | TradingView/FMP/provider images | Provider image URL returned by metadata | Image request only | 5 s connect, 15 s total, at most three redirects; downloaded bytes are validated and cached; icon failure is cosmetic |
 
-The repository retains dormant ntfy and Telegram client code, but ADR 0013
-removes every product entry point: their native command is not registered and
-the backend alert worker is not started. Current builds therefore make no ntfy
-or Telegram requests.
+Price alerts use the connected backend's Binance aggTrade WebSocket and configured
+ntfy/Telegram destinations (ADR 0016). Delivery includes the symbol, target price,
+setup, optional note and chart URL. Provider requests use a five-second connect
+and ten-second total timeout, no redirects, and independent durable retries.
+Telegram uses `api.telegram.org`; ntfy uses the owner's configured HTTPS topic.
+Notification credentials and topic URLs are never included in diagnostics.
 
 ## Binance polling budget
 

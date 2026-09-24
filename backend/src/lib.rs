@@ -28,7 +28,7 @@ mod trading_events;
 use std::{collections::HashMap, future::Future, sync::Arc};
 
 use account_state::{AccountState, spawn_refresh_worker};
-use alerts::{AlertRuntime, AlertStore, spawn_alert_worker};
+use alerts::{AlertRuntime, AlertStore, spawn_alert_worker, spawn_delivery_worker};
 use api::{AppState, browser_router, router};
 use binance::BinanceClient;
 use browser_access::BrowserAccessState;
@@ -51,9 +51,8 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 use trade_lock::TradeLock;
 
-/// Alert implementation remains available in the source tree, but the product
-/// does not expose alert routes or start their market-monitoring worker.
-pub(crate) const PRICE_ALERTS_ENABLED: bool = false;
+/// Every connected client shares the backend-owned persistent alert monitor.
+pub(crate) const PRICE_ALERTS_ENABLED: bool = true;
 
 pub async fn run_from_environment() -> AppResult<()> {
     let runtime = RuntimeConfig::load()?;
@@ -248,13 +247,18 @@ where
             alert_store.clone(),
             binance.user_stream_ws_base().to_string(),
             trading_events.clone(),
-            diagnostics.clone(),
         );
         (runtime, Some(task))
     } else {
         info!("Price alerts are dormant; alert market worker is disabled");
         (AlertRuntime::disabled(), None)
     };
+
+    let delivery_task = spawn_delivery_worker(
+        alert_store.clone(),
+        trading_events.clone(),
+        diagnostics.clone(),
+    );
 
     let chart_documents = chart_documents::ChartDocuments::load(
         runtime
@@ -405,6 +409,7 @@ where
     }
 
     user_stream_task.abort();
+    delivery_task.abort();
     if let Some(task) = alert_worker_task {
         task.abort();
     }

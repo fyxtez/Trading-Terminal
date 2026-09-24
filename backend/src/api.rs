@@ -70,7 +70,7 @@ const MAX_REQUEST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 
 use account_routes::{account, balance, position_realized_pnl};
-use alert_routes::{create_alert, delete_alert, list_alerts, update_alert};
+use alert_routes::{alert_delivery_status, create_alert, delete_alert, list_alerts, update_alert};
 use catalog_routes::{
     add_symbol, delete_symbol, get_icon_image, list_icons, list_symbols, mexc_klines,
 };
@@ -235,6 +235,7 @@ pub fn router(state: AppState) -> Router {
     let router = if crate::PRICE_ALERTS_ENABLED {
         router
             .route("/api/alerts", get(list_alerts).post(create_alert))
+            .route("/api/alerts/status", get(alert_delivery_status))
             .route("/api/alerts/{id}", put(update_alert).delete(delete_alert))
     } else {
         router

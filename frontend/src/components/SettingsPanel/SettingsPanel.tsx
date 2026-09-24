@@ -8,12 +8,15 @@ import type { ConnectionState } from "../../hooks/useTradingStream";
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import type { PriceAlert } from "../../types/alert";
 import type { SavedDrawingSet } from "../../types/drawing";
-import { priceAlertsStorageKey } from "../../config/constants";
 import { PRICE_ALERTS_ENABLED } from "../../config/features";
 import { formatSymbolPair } from "../../config/symbols";
-import { loadStoredAlerts } from "../../utils/alerts";
 import { userFacingError } from "../../utils/userFacingError";
-import { listAllPersistentPriceAlerts, type ListedPriceAlert } from "../../trading/api/priceAlerts";
+import {
+  getAlertDeliveryStatus,
+  type AlertDeliveryStatus,
+  listAllPersistentPriceAlerts,
+  type ListedPriceAlert,
+} from "../../trading/api/priceAlerts";
 import "../../styles/floatingPanel.css";
 import { useDesktopCredentials } from "../DesktopSetupGate/DesktopCredentialsContext";
 import { AvailableBalanceCard, ExchangeConnectionsSection } from "./SettingsSummaryCards";
@@ -52,8 +55,7 @@ type SettingsPanelProps = {
   backendConnection: ConnectionState;
   diagnostics: OperationalDiagnostics;
   currentSymbol: string;
-  /** all registered symbols plus the live active-symbol list let the
-   * settings panel aggregate browser-owned alerts even when persistence is off. */
+  /** Registry changes and active-chart edits refresh the server-wide alert list. */
   availableSymbols: readonly string[];
   activePriceAlerts: PriceAlert[];
   regularDrawingsCount: number;
@@ -114,12 +116,6 @@ type SettingsPanelProps = {
    */
   showPriceAlerts: boolean;
   onShowPriceAlertsChange: (enabled: boolean) => void;
-  /**
-   * Whether newly-created price alerts are stored and monitored by the
-   * backend instead of being tracked and fired from this browser tab.
-   */
-  persistentAlertsEnabled: boolean;
-  onPersistentAlertsEnabledChange: (enabled: boolean) => void;
 };
 
 type SizingField = keyof SizingConfig;
@@ -220,8 +216,6 @@ export default function SettingsPanel({
   onStartOfDayLookbackDaysChange,
   showPriceAlerts,
   onShowPriceAlertsChange,
-  persistentAlertsEnabled,
-  onPersistentAlertsEnabledChange,
 }: SettingsPanelProps) {
   const desktopCredentials = useDesktopCredentials();
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
@@ -233,6 +227,7 @@ export default function SettingsPanel({
   // refresh never blocks the rest of the settings panel.
   const [listedPriceAlerts, setListedPriceAlerts] = useState<ListedPriceAlert[]>([]);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  const [alertDelivery, setAlertDelivery] = useState<AlertDeliveryStatus | null>(null);
   const [alertsListError, setAlertsListError] = useState<string | null>(null);
   const [alertsListRevision, setAlertsListRevision] = useState(0);
 
@@ -355,68 +350,52 @@ export default function SettingsPanel({
     // existing global event to refresh even when activePriceAlerts did not change.
     const refreshAfterTrigger = () => setAlertsListRevision((value) => value + 1);
     window.addEventListener("persistent-price-alert-triggered", refreshAfterTrigger);
-    return () =>
+    window.addEventListener("price-alerts-changed", refreshAfterTrigger);
+    const timer = window.setInterval(refreshAfterTrigger, 15_000);
+    return () => {
+      window.clearInterval(timer);
       window.removeEventListener("persistent-price-alert-triggered", refreshAfterTrigger);
+      window.removeEventListener("price-alerts-changed", refreshAfterTrigger);
+    };
   }, []);
 
   useEffect(() => {
-    if (!PRICE_ALERTS_ENABLED || !isOpen || !isAlertsSectionVisible) return;
+    if (!PRICE_ALERTS_ENABLED || !isOpen) return;
+    if (
+      !isAlertsSectionVisible &&
+      selectedSection !== "showAlertsSection" &&
+      !settingsSearchQuery.trim()
+    )
+      return;
 
-    const localAlerts = (): ListedPriceAlert[] =>
-      availableSymbols.flatMap((symbol) => {
-        const normalized = symbol.toUpperCase();
-        const alerts =
-          normalized === currentSymbol.toUpperCase()
-            ? activePriceAlerts
-            : loadStoredAlerts(priceAlertsStorageKey(normalized));
-        return alerts.map((alert) => ({ ...alert, symbol: normalized }));
-      });
-
-    // persistent mode uses SQLite's account-wide active list; local
-    // mode aggregates every registered symbol's per-symbol browser storage.
-    if (!persistentAlertsEnabled || backendConnection !== "connected") {
-      setListedPriceAlerts(localAlerts());
+    if (backendConnection !== "connected") {
+      setListedPriceAlerts([]);
+      setAlertDelivery(null);
       setAlertsListError(
-        persistentAlertsEnabled && backendConnection !== "connected"
-          ? "Live alert updates are unavailable. Showing the last saved alerts."
-          : null,
+        "Connect to the backend to view active alerts. Server monitoring continues while this device is offline.",
       );
       setIsLoadingAlerts(false);
       return;
     }
 
     let cancelled = false;
-    const normalizedCurrentSymbol = currentSymbol.toUpperCase();
-    const currentSymbolAlerts: ListedPriceAlert[] = activePriceAlerts.map((alert) => ({
-      ...alert,
-      symbol: normalizedCurrentSymbol,
-    }));
-
-    /*
-     * deleting a persistent alert updates usePriceAlerts immediately, but
-     * the settings table used to refetch the backend before DELETE had finished.
-     * That stale response could reinsert the removed row until a full page
-     * refresh. Treat the already-updated active-symbol React state as
-     * authoritative immediately, then merge background-symbol rows from the
-     * account-wide backend response so removals disappear from this table now.
-     */
-    setListedPriceAlerts((previous) => [
-      ...previous.filter((alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol),
-      ...currentSymbolAlerts,
-    ]);
     setIsLoadingAlerts(true);
     setAlertsListError(null);
+    void getAlertDeliveryStatus()
+      .then((status) => {
+        if (!cancelled) setAlertDelivery(status);
+      })
+      .catch(() => {
+        if (!cancelled) setAlertDelivery(null);
+      });
     void listAllPersistentPriceAlerts()
       .then((alerts) => {
         if (cancelled) return;
-        setListedPriceAlerts([
-          ...alerts.filter((alert) => alert.symbol.toUpperCase() !== normalizedCurrentSymbol),
-          ...currentSymbolAlerts,
-        ]);
+        setListedPriceAlerts(alerts);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setListedPriceAlerts(localAlerts());
+        setListedPriceAlerts([]);
         setAlertsListError(userFacingError(error, "Terminal could not load your saved alerts."));
       })
       .finally(() => {
@@ -429,7 +408,8 @@ export default function SettingsPanel({
   }, [
     isOpen,
     isAlertsSectionVisible,
-    persistentAlertsEnabled,
+    selectedSection,
+    settingsSearchQuery,
     backendConnection,
     availableSymbols,
     currentSymbol,
@@ -1636,19 +1616,18 @@ export default function SettingsPanel({
                     alertOptionMatches.persistent) && (
                     <label className="settings-toggle-field">
                       <div className="settings-field-copy">
-                        <span>Use persistent alerts</span>
+                        <span>Persistent alerts · Always on</span>
                         <small>
-                          Store and monitor alerts on the backend, so they remain active and can
-                          fire even when this browser tab is closed.
+                          Alerts are saved and monitored by the connected backend. On your private
+                          server they stay active when the phone, Linux app, or browser is closed.
+                          Closed-app notifications require delivery configured on that server.
+                        </small>
+                        <small>
+                          {alertDelivery
+                            ? `ntfy: ${alertDelivery.ntfyConfigured ? "Configured" : "Not configured"} · Telegram: ${alertDelivery.telegramConfigured ? "Configured" : "Not configured"} · Pending delivery: ${alertDelivery.pendingDeliveries}`
+                            : "Notification delivery status unavailable."}
                         </small>
                       </div>
-
-                      <input
-                        type="checkbox"
-                        className="settings-toggle-input"
-                        checked={persistentAlertsEnabled}
-                        onChange={(event) => onPersistentAlertsEnabledChange(event.target.checked)}
-                      />
                     </label>
                   )}
 

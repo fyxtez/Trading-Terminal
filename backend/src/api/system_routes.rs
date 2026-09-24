@@ -378,6 +378,13 @@ async fn stream_trading_events(
     session_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         tokio::select! {
+            incoming = socket.recv() => match incoming {
+                Some(Ok(WsMessage::Ping(payload))) => {
+                    if socket.send(WsMessage::Pong(payload)).await.is_err() { break; }
+                }
+                Some(Ok(WsMessage::Close(_))) | Some(Err(_)) | None => break,
+                _ => {}
+            },
             _ = session_check.tick(), if browser_guard.is_some() => {
                 let Some((access, auth)) = browser_guard.as_ref() else {
                     continue;
@@ -512,6 +519,51 @@ mod tests {
     use axum::http::Method;
 
     use super::{can_increase_exposure, requires_financial_intent};
+
+    #[tokio::test]
+    async fn trading_stream_handles_ping_and_releases_closed_clients() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        let (events, _) = tokio::sync::broadcast::channel(4);
+        let completed = std::sync::Arc::new(tokio::sync::Notify::new());
+        let finished = completed.clone();
+        let app = axum::Router::new().route(
+            "/",
+            axum::routing::get(move |upgrade: axum::extract::ws::WebSocketUpgrade| {
+                let receiver = events.subscribe();
+                let finished = finished.clone();
+                async move {
+                    upgrade.on_upgrade(move |socket| async move {
+                        super::stream_trading_events(socket, receiver, None).await;
+                        finished.notify_one();
+                    })
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}/"))
+            .await
+            .unwrap();
+        socket
+            .send(Message::Ping(vec![1, 2, 3].into()))
+            .await
+            .unwrap();
+        let pong = tokio::time::timeout(std::time::Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(pong, Message::Pong(vec![1, 2, 3].into()));
+        socket.close(None).await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), completed.notified())
+            .await
+            .unwrap();
+        server.abort();
+    }
 
     #[test]
     fn intent_boundary_covers_every_financial_mutation_family() {

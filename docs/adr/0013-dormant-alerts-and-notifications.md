@@ -1,6 +1,6 @@
 # ADR 0013: Keep alerts and external notifications dormant
 
-- Status: Accepted; supersedes ADR 0012
+- Status: Superseded by ADR 0016; previously superseded ADR 0012
 - Date: 2026-09-04
 
 ## Context

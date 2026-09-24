@@ -66,10 +66,6 @@ impl SecretReader for PlatformSecretReader {
     }
 }
 
-pub fn read(name: &str) -> Result<Option<Zeroizing<String>>, String> {
-    PlatformSecretReader.read(name)
-}
-
 fn read_platform(name: &str) -> Result<Option<Zeroizing<String>>, String> {
     let entry = Entry::new(SERVICE, name)
         .map_err(|error| format!("credential store unavailable for {name}: {error}"))?;
@@ -86,10 +82,6 @@ fn read_platform(name: &str) -> Result<Option<Zeroizing<String>>, String> {
         Err(KeyringError::NoEntry) => Ok(None),
         Err(error) => Err(format!("cannot read {name} from credential store: {error}")),
     }
-}
-
-pub fn read_pair(first_name: &str, second_name: &str) -> Result<Option<SecretPair>, String> {
-    read_pair_from(&PlatformSecretReader, first_name, second_name)
 }
 
 pub(crate) fn read_pair_from<R: SecretReader>(

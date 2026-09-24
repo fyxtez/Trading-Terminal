@@ -114,3 +114,30 @@ does not automatically resubmit trades. Ordinary UI preferences stay on the
 device. Local backup controls operate only in Local mode. Android uses the same
 connection adapter, but a packaged Android/device smoke test is required before
 claiming that platform verified.
+
+## Always-on price alerts
+
+Alerts are enabled permanently. The service uses
+`ALERTS_DB_PATH=/var/lib/fyxtez-terminal/alerts.sqlite3`; include this database in
+SQLite backups. It contains active alerts, triggered records, and the durable
+per-channel delivery queue. No clients need to stay open. In Local mode, closing
+the local backend still stops monitoring. Monitoring currently supports Binance
+Futures symbols; a crossing and retrace during server/exchange downtime is not replayed.
+
+Provision `/etc/fyxtez-terminal/notifications.json` (0600, root owned) with string
+keys `ntfy-url`, `telegram-bot-token`, and `telegram-chat-id`. Use an HTTPS ntfy
+topic subscribed to on the receiving devices. Add a systemd drop-in:
+
+```ini
+[Service]
+LoadCredential=notifications.json:/etc/fyxtez-terminal/notifications.json
+ExecStartPre=/usr/bin/install -m 0600 %d/notifications.json /run/fyxtez-terminal/notifications.json
+Environment=NOTIFICATION_CREDENTIALS_FILE=/run/fyxtez-terminal/notifications.json
+```
+
+Reload systemd and restart after provisioning. `PUBLIC_TERMINAL_URL` points to
+`https://terminal.fyxtez.com`. Settings → Alerts shows server delivery status;
+`GET /api/alerts/status` returns only configured flags and queue count.
+Unconfigured/failed channels retain pending messages. Successful channels are not
+repeated; crash recovery provides at-least-once delivery. Test alerts should be
+clearly labelled and never require placing an exchange order.

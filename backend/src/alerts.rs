@@ -129,6 +129,8 @@ impl AlertStore {
                 .await
                 .map_err(db_error)?;
         }
+        sqlx::query("CREATE TABLE IF NOT EXISTS alert_delivery (id TEXT PRIMARY KEY, payload TEXT NOT NULL, ntfy_pending INTEGER NOT NULL DEFAULT 1, telegram_pending INTEGER NOT NULL DEFAULT 1, attempts INTEGER NOT NULL DEFAULT 0, retry_at INTEGER NOT NULL DEFAULT 0)")
+            .execute(&pool).await.map_err(db_error)?;
         Ok(Self { pool })
     }
 
@@ -197,13 +199,34 @@ impl AlertStore {
         Ok(())
     }
 
-    async fn consume_active(&self, id: Uuid) -> AppResult<bool> {
-        let result = sqlx::query("DELETE FROM price_alerts WHERE id=? AND status='ACTIVE'")
-            .bind(id.to_string())
-            .execute(&self.pool)
+    async fn consume_active(&self, alert: &PriceAlert) -> AppResult<bool> {
+        // A market tick can race an API edit. Only consume the exact version
+        // evaluated by the worker, never a newly moved or relabelled alert.
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        let result = sqlx::query("UPDATE price_alerts SET status='TRIGGERED', triggered_at=? WHERE id=? AND status='ACTIVE' AND price=? AND side=? AND crossing=? AND pattern IS ? AND additional_info IS ?")
+            .bind(chrono::Utc::now().timestamp_millis())
+            .bind(alert.id.to_string())
+            .bind(alert.price)
+            .bind(side_str(alert.side))
+            .bind(crossing_str(alert.crossing))
+            .bind(&alert.pattern)
+            .bind(&alert.additional_info)
+            .execute(&mut *transaction)
             .await
             .map_err(db_error)?;
-        Ok(result.rows_affected() == 1)
+        let consumed = result.rows_affected() == 1;
+        if consumed {
+            let payload =
+                serde_json::to_string(alert).map_err(|e| AppError::Config(e.to_string()))?;
+            sqlx::query("INSERT INTO alert_delivery(id, payload) VALUES(?, ?)")
+                .bind(alert.id.to_string())
+                .bind(payload)
+                .execute(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+        }
+        transaction.commit().await.map_err(db_error)?;
+        Ok(consumed)
     }
 }
 
@@ -240,17 +263,10 @@ pub fn spawn_alert_worker(
     store: AlertStore,
     ws_base: String,
     trading_events: broadcast::Sender<TradingEvent>,
-    diagnostics: DiagnosticsState,
 ) -> (AlertRuntime, tokio::task::JoinHandle<()>) {
     let (command_tx, command_rx) = mpsc::unbounded_channel();
     let runtime = AlertRuntime { command_tx };
-    let task = tokio::spawn(run_alert_worker(
-        store,
-        ws_base,
-        trading_events,
-        diagnostics,
-        command_rx,
-    ));
+    let task = tokio::spawn(run_alert_worker(store, ws_base, trading_events, command_rx));
     (runtime, task)
 }
 
@@ -258,7 +274,6 @@ async fn run_alert_worker(
     store: AlertStore,
     ws_base: String,
     trading_events: broadcast::Sender<TradingEvent>,
-    diagnostics: DiagnosticsState,
     mut command_rx: mpsc::UnboundedReceiver<AlertCommand>,
 ) {
     let mut retry = Duration::from_secs(1);
@@ -289,15 +304,7 @@ async fn run_alert_worker(
             Ok(Ok((socket, _))) => {
                 info!(%url, symbols = alerts.len(), "Connected Binance aggTrade stream for price alerts");
                 retry = Duration::from_secs(1);
-                match run_connected(
-                    &store,
-                    socket,
-                    &trading_events,
-                    &diagnostics,
-                    &mut command_rx,
-                    alerts,
-                )
-                .await
+                match run_connected(&store, socket, &trading_events, &mut command_rx, alerts).await
                 {
                     Ok(ConnectedExit::Refresh) => {
                         info!("Price-alert subscriptions changed; reconnecting market stream");
@@ -332,7 +339,6 @@ async fn run_connected(
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     trading_events: &broadcast::Sender<TradingEvent>,
-    diagnostics: &DiagnosticsState,
     command_rx: &mut mpsc::UnboundedReceiver<AlertCommand>,
     mut alerts: HashMap<String, Vec<PriceAlert>>,
 ) -> Result<ConnectedExit, String> {
@@ -348,7 +354,8 @@ async fn run_connected(
                     ConnectedExit::CommandChannelClosed
                 });
             }
-            message = stream.next() => {
+            message = tokio::time::timeout(Duration::from_secs(90), stream.next()) => {
+                let message = message.map_err(|_| "price-alert market stream timed out".to_owned())?;
                 let Some(message) = message else { return Err("websocket stream ended".into()); };
                 match message.map_err(|e| e.to_string())? {
                     Message::Text(text) => {
@@ -372,7 +379,7 @@ async fn run_connected(
                                 continue;
                             }
 
-                            match store.consume_active(alert.id).await {
+                            match store.consume_active(&alert).await {
                                 Ok(true) => {
                                     triggered_any = true;
                                     info!(
@@ -394,18 +401,8 @@ async fn run_connected(
                                         triggered_at: chrono::Utc::now().timestamp_millis(),
                                     });
 
-                                    // Notification delivery must not block processing the next
-                                    // real-time trade event or another alert trigger.
-                                    let notification_alert = alert.clone();
-                                    let notification_events = trading_events.clone();
-                                    let notification_diagnostics = diagnostics.clone();
-                                    tokio::spawn(async move {
-                                        send_notifications(
-                                            &notification_alert,
-                                            &notification_events,
-                                            &notification_diagnostics,
-                                        ).await;
-                                    });
+                                    // Delivery is committed in the same transaction as the trigger.
+                                    // A separate worker retries it even after a server restart.
                                 }
                                 Ok(false) => {}
                                 Err(error) => error!(%error, id=%alert.id, "Failed to remove triggered alert"),
@@ -462,7 +459,7 @@ fn parse_agg_trade(text: &str) -> Option<(String, f64)> {
 
     let symbol = payload.get("s")?.as_str()?.to_owned();
     let price = payload.get("p")?.as_str()?.parse::<f64>().ok()?;
-    Some((symbol, price))
+    (price.is_finite() && price > 0.0).then_some((symbol, price))
 }
 
 fn reached(current: f64, target: f64, direction: CrossingDirection) -> bool {
@@ -472,28 +469,62 @@ fn reached(current: f64, target: f64, direction: CrossingDirection) -> bool {
     }
 }
 
-const DEFAULT_PUBLIC_TERMINAL_URL: &str = "https://demo.terminal.fyxtez.com";
+const DEFAULT_PUBLIC_TERMINAL_URL: &str = "https://terminal.fyxtez.com";
 
 struct NotificationCredentials {
-    ntfy_url: Option<zeroize::Zeroizing<String>>,
-    telegram: Option<(zeroize::Zeroizing<String>, zeroize::Zeroizing<String>)>,
+    ntfy_url: Result<Option<zeroize::Zeroizing<String>>, String>,
+    telegram: Result<Option<crate::secure_store::SecretPair>, String>,
+}
+
+fn read_notification_credentials(
+    reader: &impl crate::secure_store::SecretReader,
+) -> NotificationCredentials {
+    use crate::secure_store::{NTFY_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, read_pair_from};
+    // A broken or incomplete channel must not prevent the other channel sending.
+    let ntfy_url = reader.read(NTFY_URL);
+    let telegram = read_pair_from(reader, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID).and_then(|pair| {
+        if let Some((token, chat_id)) = pair.as_ref() {
+            let valid_token = token.split_once(':').is_some_and(|(id, secret)| {
+                !id.is_empty()
+                    && id.bytes().all(|c| c.is_ascii_digit())
+                    && !secret.is_empty()
+                    && secret
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+            });
+            let digits = chat_id.strip_prefix('-').unwrap_or(chat_id);
+            if !valid_token || digits.is_empty() || !digits.bytes().all(|c| c.is_ascii_digit()) {
+                return Err("Telegram requires a valid bot token and numeric chat ID".into());
+            }
+        }
+        Ok(pair)
+    });
+    NotificationCredentials { ntfy_url, telegram }
 }
 
 fn load_notification_credentials() -> Result<NotificationCredentials, String> {
-    Ok(NotificationCredentials {
-        ntfy_url: crate::secure_store::read(crate::secure_store::NTFY_URL)?,
-        telegram: crate::secure_store::read_pair(
-            crate::secure_store::TELEGRAM_BOT_TOKEN,
-            crate::secure_store::TELEGRAM_CHAT_ID,
-        )?,
-    })
+    use crate::secure_store::{FileSecretReader, PlatformSecretReader};
+    if let Some(path) = std::env::var_os("NOTIFICATION_CREDENTIALS_FILE") {
+        Ok(read_notification_credentials(&FileSecretReader::load(
+            std::path::Path::new(&path),
+        )?))
+    } else if std::env::var_os("BINANCE_CREDENTIALS_FILE").is_some() {
+        Ok(NotificationCredentials {
+            ntfy_url: Ok(None),
+            telegram: Ok(None),
+        })
+    } else {
+        Ok(read_notification_credentials(&PlatformSecretReader))
+    }
 }
 
 async fn send_notifications(
     alert: &PriceAlert,
     trading_events: &broadcast::Sender<TradingEvent>,
     diagnostics: &DiagnosticsState,
-) {
+    ntfy_pending: bool,
+    telegram_pending: bool,
+) -> (bool, bool) {
     let credentials = match tokio::task::spawn_blocking(load_notification_credentials).await {
         Ok(Ok(credentials)) => credentials,
         Ok(Err(error)) => {
@@ -505,7 +536,7 @@ async fn send_notifications(
                 &error,
             );
             warn!(alert_id = %alert.id, %error, "Could not read notification credentials");
-            return;
+            return (!ntfy_pending, !telegram_pending);
         }
         Err(error) => {
             report_notification_failure(
@@ -516,9 +547,44 @@ async fn send_notifications(
                 "Notification credential task failed",
             );
             warn!(alert_id = %alert.id, %error, "Notification credential task failed");
-            return;
+            return (!ntfy_pending, !telegram_pending);
         }
     };
+
+    send_with_credentials(
+        alert,
+        trading_events,
+        diagnostics,
+        (ntfy_pending, telegram_pending),
+        credentials,
+        "https://api.telegram.org",
+    )
+    .await
+}
+
+async fn send_with_credentials(
+    alert: &PriceAlert,
+    trading_events: &broadcast::Sender<TradingEvent>,
+    diagnostics: &DiagnosticsState,
+    pending: (bool, bool),
+    credentials: NotificationCredentials,
+    telegram_base: &str,
+) -> (bool, bool) {
+    let (ntfy_pending, telegram_pending) = pending;
+    let mut ntfy_sent = !ntfy_pending;
+    let mut telegram_sent = !telegram_pending;
+    for (channel, error, pending) in [
+        ("ntfy", credentials.ntfy_url.as_ref().err(), ntfy_pending),
+        (
+            "telegram",
+            credentials.telegram.as_ref().err(),
+            telegram_pending,
+        ),
+    ] {
+        if let Some(error) = error.filter(|_| pending) {
+            report_notification_failure(diagnostics, trading_events, channel, alert, error);
+        }
+    }
 
     // derive the same base-ticker route used by the frontend so both
     // persistent and browser-owned alerts deep-link to one consistent chart.
@@ -547,7 +613,7 @@ async fn send_notifications(
                 "Could not initialize notification delivery",
             );
             error!(%error, "Failed to build ntfy HTTP client");
-            return;
+            return (ntfy_sent, telegram_sent);
         }
     };
 
@@ -561,8 +627,8 @@ async fn send_notifications(
     // omit the noisy trigger-market price, append optional user
     // context, then show the chart URL as a visible/copyable final line.
     let mut body = format!(
-        "{}{side} alert reached {price:.4}",
-        pattern,
+        "{symbol} {pattern}{side} alert reached {price}",
+        symbol = alert.symbol,
         side = side_str(alert.side),
         price = alert.price,
     );
@@ -573,11 +639,13 @@ async fn send_notifications(
     body.push('\n');
     body.push_str(&chart_url);
 
-    if let Some((bot_token, chat_id)) = credentials.telegram {
-        let telegram_url = format!(
-            "https://api.telegram.org/bot{}/sendMessage",
-            bot_token.as_str()
-        );
+    if let Some((bot_token, chat_id)) = credentials
+        .telegram
+        .ok()
+        .flatten()
+        .filter(|_| telegram_pending)
+    {
+        let telegram_url = format!("{telegram_base}/bot{}/sendMessage", bot_token.as_str());
         match client
             .post(telegram_url)
             .json(&serde_json::json!({
@@ -588,7 +656,23 @@ async fn send_notifications(
             .await
         {
             Ok(response) if response.status().is_success() => {
-                info!(id = %alert.id, "Telegram price-alert notification sent");
+                telegram_sent = response
+                    .json::<Value>()
+                    .await
+                    .ok()
+                    .and_then(|body| body.get("ok").and_then(Value::as_bool))
+                    == Some(true);
+                if telegram_sent {
+                    info!(id = %alert.id, "Telegram price-alert notification sent");
+                } else {
+                    report_notification_failure(
+                        diagnostics,
+                        trading_events,
+                        "telegram",
+                        alert,
+                        "Telegram did not confirm delivery",
+                    );
+                }
             }
             Ok(response) => {
                 let message = format!("Telegram rejected delivery ({})", response.status());
@@ -617,19 +701,22 @@ async fn send_notifications(
                 warn!(id = %alert.id, "Failed to send Telegram price-alert notification");
             }
         }
-    } else {
+    } else if telegram_pending {
         warn!(
             alert_id = %alert.id,
             "Telegram notification skipped because it is not configured"
         );
     }
 
-    let Some(url) = credentials.ntfy_url else {
+    if !ntfy_pending {
+        return (ntfy_sent, telegram_sent);
+    }
+    let Some(url) = credentials.ntfy_url.ok().flatten() else {
         warn!(
             alert_id = %alert.id,
             "ntfy notification skipped because it is not configured"
         );
-        return;
+        return (ntfy_sent, telegram_sent);
     };
 
     match client
@@ -644,6 +731,7 @@ async fn send_notifications(
         .await
     {
         Ok(response) if response.status().is_success() => {
+            ntfy_sent = true;
             info!(id = %alert.id, status = %response.status(), "ntfy price-alert notification sent");
         }
         Ok(response) => {
@@ -664,6 +752,92 @@ async fn send_notifications(
             warn!(id = %alert.id, "Failed to send ntfy price-alert notification");
         }
     }
+    (ntfy_sent, telegram_sent)
+}
+
+/// Durable delivery is independent of price processing and client lifetimes.
+/// Providers are at-least-once: a crash after HTTP success but before the local
+/// acknowledgement can produce a duplicate, never silently discard the alert.
+pub fn spawn_delivery_worker(
+    store: AlertStore,
+    events: broadcast::Sender<TradingEvent>,
+    diagnostics: DiagnosticsState,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            if let Err(error) = deliver_pending(&store, &events, &diagnostics).await {
+                error!(%error, "Failed to process alert delivery queue");
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    })
+}
+
+async fn deliver_pending(
+    store: &AlertStore,
+    events: &broadcast::Sender<TradingEvent>,
+    diagnostics: &DiagnosticsState,
+) -> AppResult<()> {
+    let rows = sqlx::query("SELECT id,payload,ntfy_pending,telegram_pending,attempts FROM alert_delivery WHERE (ntfy_pending=1 OR telegram_pending=1) AND retry_at<=? ORDER BY retry_at LIMIT 20")
+        .bind(chrono::Utc::now().timestamp_millis()).fetch_all(&store.pool).await.map_err(db_error)?;
+    for row in rows {
+        let id: String = row.try_get("id").map_err(db_error)?;
+        let payload: String = row.try_get("payload").map_err(db_error)?;
+        let alert: PriceAlert =
+            serde_json::from_str(&payload).map_err(|e| AppError::Config(e.to_string()))?;
+        let attempts: i64 = row.try_get("attempts").map_err(db_error)?;
+        let (ntfy_sent, telegram_sent) = send_notifications(
+            &alert,
+            events,
+            diagnostics,
+            row.try_get::<bool, _>("ntfy_pending").map_err(db_error)?,
+            row.try_get::<bool, _>("telegram_pending")
+                .map_err(db_error)?,
+        )
+        .await;
+        record_delivery_attempt(store, &id, attempts, (ntfy_sent, telegram_sent)).await?;
+    }
+    Ok(())
+}
+
+async fn record_delivery_attempt(
+    store: &AlertStore,
+    id: &str,
+    attempts: i64,
+    sent: (bool, bool),
+) -> AppResult<()> {
+    let delay = 5_000_i64 * (1_i64 << attempts.clamp(0, 6));
+    sqlx::query("UPDATE alert_delivery SET ntfy_pending=?,telegram_pending=?,attempts=attempts+1,retry_at=? WHERE id=?")
+        .bind(!sent.0).bind(!sent.1)
+        .bind(chrono::Utc::now().timestamp_millis() + delay).bind(id)
+        .execute(&store.pool).await.map_err(db_error)?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryStatus {
+    ntfy_configured: bool,
+    telegram_configured: bool,
+    pending_deliveries: i64,
+}
+
+pub async fn delivery_status(store: &AlertStore) -> AppResult<DeliveryStatus> {
+    let credentials = tokio::task::spawn_blocking(load_notification_credentials)
+        .await
+        .map_err(|_| AppError::Config("Notification credential task failed".into()))?
+        .map_err(AppError::Config)?;
+    let pending_deliveries = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_delivery WHERE ntfy_pending=1 OR telegram_pending=1",
+    )
+    .fetch_one(&store.pool)
+    .await
+    .map_err(db_error)?;
+    Ok(DeliveryStatus {
+        ntfy_configured: credentials.ntfy_url.as_ref().is_ok_and(Option::is_some),
+        telegram_configured: credentials.telegram.as_ref().is_ok_and(Option::is_some),
+        pending_deliveries,
+    })
 }
 
 fn report_notification_failure(
@@ -772,5 +946,250 @@ fn parse_crossing(value: &str) -> AppResult<CrossingDirection> {
         _ => Err(AppError::Config(format!(
             "invalid crossing in database: {value}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_request() -> CreatePriceAlert {
+        CreatePriceAlert {
+            symbol: "btcusdt".into(),
+            price: 100.0,
+            side: AlertSide::Short,
+            crossing: Some(CrossingDirection::CrossUp),
+            pattern: None,
+            additional_info: Some("context".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn restart_retains_active_alerts_and_atomically_queues_each_trigger_once() {
+        let path = std::env::temp_dir().join(format!("alert-test-{}.sqlite3", Uuid::new_v4()));
+        let store = AlertStore::connect(&path).await.unwrap();
+        let alert = store.create(create_request()).await.unwrap();
+        store.pool.close().await;
+        let store = AlertStore::connect(&path).await.unwrap();
+        assert_eq!(store.list_active(None).await.unwrap()[0].id, alert.id);
+        assert!(store.consume_active(&alert).await.unwrap());
+        assert!(!store.consume_active(&alert).await.unwrap());
+        assert!(store.list_active(None).await.unwrap().is_empty());
+        store.pool.close().await;
+        let store = AlertStore::connect(&path).await.unwrap();
+        let row = sqlx::query("SELECT payload,ntfy_pending,telegram_pending FROM alert_delivery")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap();
+        let queued: PriceAlert = serde_json::from_str(&row.get::<String, _>("payload")).unwrap();
+        assert_eq!(queued.id, alert.id);
+        assert!(row.get::<bool, _>("ntfy_pending"));
+        assert!(row.get::<bool, _>("telegram_pending"));
+        assert!(store.list_active(None).await.unwrap().is_empty());
+        store.pool.close().await;
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn stale_worker_cannot_trigger_a_moved_or_deleted_alert() {
+        let store = AlertStore::connect(":memory:").await.unwrap();
+        let old = store.create(create_request()).await.unwrap();
+        let updated = store
+            .update(
+                old.id,
+                UpdatePriceAlert {
+                    price: 120.0,
+                    side: old.side,
+                    crossing: Some(old.crossing),
+                    pattern: old.pattern.clone(),
+                    additional_info: old.additional_info.clone(),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(!store.consume_active(&old).await.unwrap());
+        assert_eq!(store.get(old.id).await.unwrap().price, 120.0);
+        store.delete(old.id).await.unwrap();
+        assert!(!store.consume_active(&updated).await.unwrap());
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM alert_delivery")
+                .fetch_one(&store.pool)
+                .await
+                .unwrap(),
+            0
+        );
+    }
+
+    struct NotificationReader {
+        ntfy: String,
+        token: Option<&'static str>,
+        chat_id: Option<&'static str>,
+    }
+
+    impl crate::secure_store::SecretReader for NotificationReader {
+        fn read(&self, name: &str) -> Result<Option<zeroize::Zeroizing<String>>, String> {
+            use crate::secure_store::{NTFY_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID};
+            Ok(match name {
+                NTFY_URL => Some(self.ntfy.as_str()),
+                TELEGRAM_BOT_TOKEN => self.token,
+                TELEGRAM_CHAT_ID => self.chat_id,
+                _ => None,
+            }
+            .map(|value| zeroize::Zeroizing::new(value.to_owned())))
+        }
+    }
+
+    #[tokio::test]
+    async fn retries_only_failed_channels_after_restart_and_isolates_bad_credentials() {
+        use axum::{http::StatusCode, routing::post};
+        use std::sync::{
+            Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let ntfy_count = Arc::new(AtomicUsize::new(0));
+        let telegram_count = Arc::new(AtomicUsize::new(0));
+        let messages = Arc::new(Mutex::new(Vec::<String>::new()));
+        let app = axum::Router::new()
+            .route(
+                "/ntfy",
+                post({
+                    let count = ntfy_count.clone();
+                    let messages = messages.clone();
+                    move |body: String| {
+                        count.fetch_add(1, Ordering::SeqCst);
+                        messages.lock().unwrap().push(body);
+                        async { StatusCode::OK }
+                    }
+                }),
+            )
+            .route(
+                "/telegram/{*path}",
+                post({
+                    let count = telegram_count.clone();
+                    move || {
+                        let attempt = count.fetch_add(1, Ordering::SeqCst);
+                        async move {
+                            let status = if attempt == 0 {
+                                StatusCode::SERVICE_UNAVAILABLE
+                            } else {
+                                StatusCode::OK
+                            };
+                            (
+                                status,
+                                axum::Json(serde_json::json!({ "ok": attempt >= 2 })),
+                            )
+                        }
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let reader = NotificationReader {
+            ntfy: format!("{base}/ntfy"),
+            token: Some("123:test"),
+            chat_id: Some("42"),
+        };
+        let path =
+            std::env::temp_dir().join(format!("alert-delivery-test-{}.sqlite3", Uuid::new_v4()));
+        let store = AlertStore::connect(&path).await.unwrap();
+        let mut request = create_request();
+        request.price = 0.00000123;
+        let alert = store.create(request).await.unwrap();
+        assert!(store.consume_active(&alert).await.unwrap());
+        let (events, _) = broadcast::channel(16);
+        let diagnostics = DiagnosticsState::new(false);
+        let sent = send_with_credentials(
+            &alert,
+            &events,
+            &diagnostics,
+            (true, true),
+            read_notification_credentials(&reader),
+            &format!("{base}/telegram"),
+        )
+        .await;
+        assert_eq!(sent, (true, false));
+        record_delivery_attempt(&store, &alert.id.to_string(), 0, sent)
+            .await
+            .unwrap();
+        store.pool.close().await;
+        let store = AlertStore::connect(&path).await.unwrap();
+        for attempt in 1..=2 {
+            let row =
+                sqlx::query("SELECT ntfy_pending,telegram_pending FROM alert_delivery WHERE id=?")
+                    .bind(alert.id.to_string())
+                    .fetch_one(&store.pool)
+                    .await
+                    .unwrap();
+            let pending = (
+                row.get::<bool, _>("ntfy_pending"),
+                row.get::<bool, _>("telegram_pending"),
+            );
+            assert_eq!(pending, (false, true));
+            let sent = send_with_credentials(
+                &alert,
+                &events,
+                &diagnostics,
+                pending,
+                read_notification_credentials(&reader),
+                &format!("{base}/telegram"),
+            )
+            .await;
+            assert_eq!(sent, (true, attempt == 2));
+            record_delivery_attempt(&store, &alert.id.to_string(), attempt, sent)
+                .await
+                .unwrap();
+        }
+        assert_eq!(ntfy_count.load(Ordering::SeqCst), 1);
+        assert_eq!(telegram_count.load(Ordering::SeqCst), 3);
+        assert!(messages.lock().unwrap()[0].contains("BTCUSDT SHORT alert reached 0.00000123"));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM alert_delivery WHERE ntfy_pending=1 OR telegram_pending=1"
+            )
+            .fetch_one(&store.pool)
+            .await
+            .unwrap(),
+            0
+        );
+
+        // Half-configured and invalid Telegram values must not prevent ntfy delivery.
+        for (token, chat_id) in [(Some("123:test"), None), (Some("invalid"), Some("invalid"))] {
+            let credentials = read_notification_credentials(&NotificationReader {
+                ntfy: format!("{base}/ntfy"),
+                token,
+                chat_id,
+            });
+            assert!(credentials.telegram.is_err());
+            let sent = send_with_credentials(
+                &alert,
+                &events,
+                &diagnostics,
+                (true, true),
+                credentials,
+                &format!("{base}/telegram"),
+            )
+            .await;
+            assert_eq!(sent, (true, false));
+        }
+        assert_eq!(ntfy_count.load(Ordering::SeqCst), 3);
+        assert_eq!(telegram_count.load(Ordering::SeqCst), 3);
+        store.pool.close().await;
+        std::fs::remove_file(path).unwrap();
+        server.abort();
+    }
+
+    #[test]
+    fn reconnect_uses_reached_level_and_rejects_invalid_prices() {
+        assert!(reached(105.0, 100.0, CrossingDirection::CrossUp));
+        assert!(reached(95.0, 100.0, CrossingDirection::CrossDown));
+        assert!(!reached(95.0, 100.0, CrossingDirection::CrossUp));
+        assert!(parse_agg_trade(r#"{"e":"aggTrade","s":"BTCUSDT","p":"NaN"}"#).is_none());
+        assert_eq!(
+            parse_agg_trade(r#"{"data":{"e":"aggTrade","s":"BTCUSDT","p":"100"}}"#),
+            Some(("BTCUSDT".into(), 100.0))
+        );
     }
 }

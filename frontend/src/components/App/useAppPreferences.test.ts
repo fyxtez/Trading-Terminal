@@ -14,7 +14,7 @@ describe("useAppPreferences", () => {
     expect(result.current.showNewYorkSession).toBe(false);
     expect(result.current.showStartOfDay).toBe(false);
     expect(result.current.showNewYorkKillZone).toBe(false);
-    expect(result.current.persistentAlertsEnabled).toBe(false);
+    expect(result.current.showPriceAlerts).toBe(true);
   });
 
   it("persists explicit session and start-of-day choices", () => {

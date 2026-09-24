@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { UTCTimestamp } from "lightweight-charts";
 import ContextMenu from "./ContextMenu";
 
-describe("ContextMenu dormant price alerts", () => {
-  it("does not expose alert creation while keeping normal chart actions", () => {
+describe("ContextMenu price alerts", () => {
+  it("exposes alert creation alongside normal chart actions", () => {
     render(
       <ContextMenu
         contextMenu={{
@@ -29,7 +29,7 @@ describe("ContextMenu dormant price alerts", () => {
         onDeleteAllDrawings={vi.fn()}
         onDeleteDrawingsByTimeframe={vi.fn()}
         onDeleteAllTradeMarkers={vi.fn()}
-        priceAlertsEnabled={false}
+        priceAlertsEnabled={true}
         onCreateAlert={vi.fn()}
         onCreateCoordinateMarker={vi.fn()}
         onClose={vi.fn()}
@@ -38,7 +38,7 @@ describe("ContextMenu dormant price alerts", () => {
 
     expect(screen.getByRole("button", { name: "Reset chart view" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Create crosshair marker" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Create alert" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create alert" })).toBeVisible();
   });
 
   it("requires an explicit yes before deleting every drawing", () => {

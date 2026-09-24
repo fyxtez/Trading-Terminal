@@ -91,7 +91,7 @@ export default function DrawingMoveToast({ onOpenAlertSymbol }: DrawingMoveToast
     const handleAlertTriggered = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<AlertTriggeredEvent>;
       const symbol = event.detail?.symbol?.trim().toUpperCase();
-      if (!symbol) return;
+      if (!symbol || !Number.isFinite(event.detail.trigger_price)) return;
 
       // backend events use exchange pair symbols (for example LITUSDT)
       // while chart routes/tabs use the base ticker label. Resolve the same

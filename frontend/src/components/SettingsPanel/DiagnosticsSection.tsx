@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { OperationalDiagnostics } from "../../hooks/useOperationalDiagnostics";
 import LoadingIndicator from "../LoadingIndicator/LoadingIndicator";
-import { EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED } from "../../config/features";
+import { PRICE_ALERTS_ENABLED } from "../../config/features";
 import { userFacingError } from "../../utils/userFacingError";
 
 type DiagnosticsSectionProps = {
@@ -102,7 +102,7 @@ export default function DiagnosticsSection({
       status: (backend?.requests.duplicateCount ?? 0) > 0 ? "degraded" : "healthy",
       detail: `${backend?.requests.duplicateCount ?? 0} safely prevented since Terminal started`,
     },
-    ...(EXTERNAL_NOTIFICATION_CONNECTIONS_ENABLED
+    ...(PRICE_ALERTS_ENABLED
       ? [
           {
             label: "Notification delivery",
