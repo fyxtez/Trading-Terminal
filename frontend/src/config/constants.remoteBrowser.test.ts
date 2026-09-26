@@ -118,3 +118,62 @@ describe("private server browser", () => {
     expect(localStorage.getItem(config.LOCAL_BROWSER_SESSION_PROOF_KEY)).toBeNull();
   });
 });
+
+it.each(["session-502", "metadata-503", "metadata-network", "unreadable-session"])(
+  "retains a valid login across %s and recovers without a launch ticket",
+  async (failure) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ...session, sessionProof: proof }))
+      .mockResolvedValueOnce(response(session))
+      .mockResolvedValueOnce(response(metadata));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = await import("./constants");
+    await config.initializeRemoteBrowserRuntime(origin, ticket);
+    if (failure === "session-502")
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 502 }));
+    if (failure === "metadata-503")
+      fetchMock
+        .mockResolvedValueOnce(response(session))
+        .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    if (failure === "metadata-network")
+      fetchMock
+        .mockResolvedValueOnce(response(session))
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    if (failure === "unreadable-session")
+      fetchMock.mockResolvedValueOnce(new Response("truncated", { status: 200 }));
+    await expect(config.validateLocalBrowserSession()).rejects.toThrow();
+    expect(config.getLocalBrowserSessionProof()).toBe(proof);
+    fetchMock.mockResolvedValueOnce(response(session)).mockResolvedValueOnce(response(metadata));
+    await config.initializeRemoteBrowserRuntime(origin, null);
+    expect(config.getLocalBrowserSession()).toMatchObject(session);
+  },
+);
+
+it.each([401, 403])("removes authorization when session validation returns %s", async (status) => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(response({ ...session, sessionProof: proof }))
+    .mockResolvedValueOnce(response(session))
+    .mockResolvedValueOnce(response(metadata));
+  vi.stubGlobal("fetch", fetchMock);
+  const config = await import("./constants");
+  await config.initializeRemoteBrowserRuntime(origin, ticket);
+  fetchMock.mockResolvedValueOnce(new Response(null, { status }));
+  await expect(config.validateLocalBrowserSession()).rejects.toThrow("expired");
+  expect(config.getLocalBrowserSessionProof()).toBeNull();
+});
+
+it("does not destroy an existing session when a replacement launch link fails", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(response({ ...session, sessionProof: proof }))
+    .mockResolvedValueOnce(response(session))
+    .mockResolvedValueOnce(response(metadata));
+  vi.stubGlobal("fetch", fetchMock);
+  const config = await import("./constants");
+  await config.initializeRemoteBrowserRuntime(origin, ticket);
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
+  await expect(config.initializeRemoteBrowserRuntime(origin, ticket)).rejects.toThrow();
+  expect(config.getLocalBrowserSessionProof()).toBe(proof);
+});

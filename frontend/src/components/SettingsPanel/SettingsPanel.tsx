@@ -94,6 +94,8 @@ type SettingsPanelProps = {
    * Whether the top-left candle-close countdown badge (see
    * CandleCountdownBadge.tsx / hooks/useCandleCountdown.ts) is shown.
    */
+  candleTimerInHeader: boolean;
+  onCandleTimerInHeaderChange: (enabled: boolean) => void;
   showCandleCountdown: boolean;
   onShowCandleCountdownChange: (enabled: boolean) => void;
   /** chart watermark is independently hideable and remains a local-only display preference. */
@@ -104,8 +106,6 @@ type SettingsPanelProps = {
   onShowDrawingSetBadgeChange: (enabled: boolean) => void;
   showCurrentDailyCandle: boolean;
   onShowCurrentDailyCandleChange: (enabled: boolean) => void;
-  dailyCandleOffset: number;
-  onDailyCandleOffsetChange: (offset: number) => void;
   showStartOfDay: boolean;
   onShowStartOfDayChange: (enabled: boolean) => void;
   startOfDayLookbackDays: number;
@@ -136,8 +136,8 @@ const FIELD_META: Record<
   margin_pct: {
     label: "Margin percentage",
     description: "Portfolio margin used per trade",
-    step: 1,
-    min: 1,
+    step: 0.1,
+    min: 0.1,
     max: 50,
   },
   max_leverage: {
@@ -207,6 +207,8 @@ export default function SettingsPanel({
   onShowPositionPnlChange,
   showTotalPnl,
   onShowTotalPnlChange,
+  candleTimerInHeader,
+  onCandleTimerInHeaderChange,
   showCandleCountdown,
   onShowCandleCountdownChange,
   showWatermark,
@@ -215,8 +217,6 @@ export default function SettingsPanel({
   onShowDrawingSetBadgeChange,
   showCurrentDailyCandle,
   onShowCurrentDailyCandleChange,
-  dailyCandleOffset,
-  onDailyCandleOffsetChange,
   showStartOfDay,
   onShowStartOfDayChange,
   startOfDayLookbackDays,
@@ -240,6 +240,7 @@ export default function SettingsPanel({
 
   const [sizing, setSizing] = useState<SizingConfig | null>(null);
   const [draftSizing, setDraftSizing] = useState<SizingConfig | null>(null);
+  const [marginInput, setMarginInput] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<SizingField | null>(null);
   const [savingField, setSavingField] = useState<SizingField | null>(null);
   const [sizingError, setSizingError] = useState<string | null>(null);
@@ -761,6 +762,11 @@ export default function SettingsPanel({
   const changeField = (field: SizingField, rawValue: string) => {
     if (!draftSizing || !isBackendConnected) return;
 
+    if (field === "margin_pct") setMarginInput(rawValue);
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     const displayValue = Number(rawValue);
 
     if (!Number.isFinite(displayValue)) {
@@ -802,6 +808,15 @@ export default function SettingsPanel({
 
   const saveImmediately = (field: SizingField) => {
     if (!draftSizing || !isBackendConnected) return;
+    if (field === "margin_pct" && marginInput !== null) {
+      const value = Number(marginInput);
+      if (
+        !Number.isFinite(value) ||
+        value < FIELD_META.margin_pct.min ||
+        value > FIELD_META.margin_pct.max!
+      )
+        return;
+    }
 
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
@@ -1076,7 +1091,7 @@ export default function SettingsPanel({
 
                       const displayValue =
                         field === "margin_pct" && typeof storedValue === "number"
-                          ? storedValue * 100
+                          ? Number((storedValue * 100).toFixed(10))
                           : storedValue;
 
                       const isActive = activeField === field;
@@ -1102,7 +1117,11 @@ export default function SettingsPanel({
                           >
                             <input
                               type="number"
-                              value={displayValue ?? ""}
+                              value={
+                                field === "margin_pct" && isActive && marginInput !== null
+                                  ? marginInput
+                                  : (displayValue ?? "")
+                              }
                               step={meta.step}
                               min={meta.min}
                               max={meta.max}
@@ -1113,6 +1132,7 @@ export default function SettingsPanel({
                               onChange={(event) => changeField(field, event.target.value)}
                               onBlur={() => {
                                 setActiveField(null);
+                                if (field === "margin_pct") setMarginInput(null);
 
                                 if (saveTimerRef.current !== null) {
                                   saveImmediately(field);
@@ -1405,8 +1425,8 @@ export default function SettingsPanel({
                         <div className="settings-field-copy">
                           <span>Draw current daily candle</span>
                           <small>
-                            Show the current 1D open, high, low and close to the right of the latest
-                            candle
+                            Show the current 1D open, high, low and close 100 px to the right of the
+                            latest candle
                           </small>
                         </div>
                         <input
@@ -1416,31 +1436,6 @@ export default function SettingsPanel({
                           onChange={(event) => onShowCurrentDailyCandleChange(event.target.checked)}
                         />
                       </label>
-                      {showCurrentDailyCandle && (
-                        <label className="settings-lookback-field">
-                          <div className="settings-field-copy">
-                            <span>Offset</span>
-                            <small>
-                              100 px base + {dailyCandleOffset} px custom ={" "}
-                              {100 + dailyCandleOffset} px to the right
-                            </small>
-                          </div>
-                          <div className="settings-lookback-control">
-                            <input
-                              type="range"
-                              min={0}
-                              max={500}
-                              step={1}
-                              value={dailyCandleOffset}
-                              aria-label="Daily candle offset"
-                              onChange={(event) =>
-                                onDailyCandleOffsetChange(Number(event.target.value))
-                              }
-                            />
-                            <output>{dailyCandleOffset} px</output>
-                          </div>
-                        </label>
-                      )}
                     </>
                   )}
 
@@ -1787,9 +1782,7 @@ export default function SettingsPanel({
                     <label className="settings-toggle-field">
                       <div className="settings-field-copy">
                         <span>Show candle timer</span>
-                        <small>
-                          Show the countdown to the current candle's close, top-left of the chart
-                        </small>
+                        <small>Show the countdown to the current candle's close</small>
                       </div>
 
                       <input
@@ -1797,6 +1790,26 @@ export default function SettingsPanel({
                         className="settings-toggle-input"
                         checked={showCandleCountdown}
                         onChange={(event) => onShowCandleCountdownChange(event.target.checked)}
+                      />
+                    </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    chartDisplaySectionTitleMatches ||
+                    chartDisplayOptionMatches.timerPosition) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Show candle timer in top row</span>
+                        <small>
+                          Place the timer between the day and drawing-set cards instead of beside
+                          the candle
+                        </small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={candleTimerInHeader}
+                        onChange={(event) => onCandleTimerInHeaderChange(event.target.checked)}
                       />
                     </label>
                   )}

@@ -1,7 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DesktopRuntimeGate from "./DesktopRuntimeGate";
-import { initializeTradingApiBaseUrl, retryTradingRuntime } from "../../config/constants";
+import {
+  initializeTradingApiBaseUrl,
+  retryTradingRuntime,
+  validateLocalBrowserSession,
+} from "../../config/constants";
 import { LOCAL_BROWSER_SESSION_ENDED_EVENT } from "../../trading/api/http";
 
 const runtime = vi.hoisted(() => ({ mode: "native" as "native" | "local-browser" }));
@@ -146,4 +150,57 @@ describe("DesktopRuntimeGate", () => {
     expect(await screen.findByText("terminal")).toBeInTheDocument();
     expect(restartMock).toHaveBeenCalledOnce();
   });
+});
+
+it("automatically reconnects after a temporary browser failure without reopening the app", async () => {
+  vi.useFakeTimers();
+  runtime.mode = "local-browser";
+  browserSession.proof = "a".repeat(64);
+  initializeMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+  restartMock.mockResolvedValueOnce("http://127.0.0.1:8658");
+  const view = render(
+    <DesktopRuntimeGate>
+      <div>recovered terminal</div>
+    </DesktopRuntimeGate>,
+  );
+  await act(async () => {});
+  expect(screen.getByRole("button", { name: "CHECK AGAIN" })).toBeInTheDocument();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(screen.getByText("recovered terminal")).toBeInTheDocument();
+  view.unmount();
+  vi.useRealTimers();
+});
+
+it("preserves chart state during temporary validation failures and recovers without remounting", async () => {
+  vi.useFakeTimers();
+  runtime.mode = "local-browser";
+  browserSession.proof = "a".repeat(64);
+  initializeMock.mockResolvedValueOnce("http://127.0.0.1:8658");
+  vi.mocked(validateLocalBrowserSession)
+    .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    .mockResolvedValueOnce({} as never);
+  const view = render(
+    <DesktopRuntimeGate>
+      <input aria-label="chart state" defaultValue="original" />
+    </DesktopRuntimeGate>,
+  );
+  await act(async () => {});
+  const input = screen.getByLabelText("chart state");
+  fireEvent.change(input, { target: { value: "preserve me" } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(screen.getByLabelText("chart state")).toBe(input);
+  expect(input).toHaveValue("preserve me");
+  expect(screen.getByText(/Checking server connection/)).toBeInTheDocument();
+  expect(screen.queryByText("Browser access needs attention")).not.toBeInTheDocument();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(screen.queryByText(/Checking server connection/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("chart state")).toBe(input);
+  view.unmount();
+  vi.useRealTimers();
 });

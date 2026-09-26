@@ -10,6 +10,7 @@ type CandleCountdownBadgeProps = {
   interval: Interval;
   /** Countdown label for every timeframe (active one included) - see useCandleCountdown.ts. */
   allLabels: Record<Interval, string>;
+  movable?: boolean;
   /** Whether the user explicitly unlocked the timer for repositioning. */
   moveArmed: boolean;
   /** Whether the timer is currently following the pointer before the drop click. */
@@ -22,6 +23,7 @@ export default function CandleCountdownBadge({
   label,
   interval,
   allLabels,
+  movable = true,
   moveArmed,
   moving,
   onMovePointerDown,
@@ -86,22 +88,24 @@ export default function CandleCountdownBadge({
         {label}
       </button>
 
-      <button
-        type="button"
-        className={`candle-countdown-move-button ${moveArmed ? "active" : ""}`}
-        title={moveArmed ? "Cancel timer movement" : "Move candle timer"}
-        aria-pressed={moveArmed}
-        onPointerDown={(event) => {
-          /*
-           * pressing the move control now picks the timer up immediately.
-           * Previously the button only armed movement and required a second
-           * click on the timer before pointer movement actually started.
-           */
-          onMovePointerDown(event);
-        }}
-      >
-        ↗
-      </button>
+      {movable && (
+        <button
+          type="button"
+          className={`candle-countdown-move-button ${moveArmed ? "active" : ""}`}
+          title={moveArmed ? "Cancel timer movement" : "Move candle timer"}
+          aria-pressed={moveArmed}
+          onPointerDown={(event) => {
+            /*
+             * pressing the move control now picks the timer up immediately.
+             * Previously the button only armed movement and required a second
+             * click on the timer before pointer movement actually started.
+             */
+            onMovePointerDown(event);
+          }}
+        >
+          ↗
+        </button>
+      )}
 
       {isOpen && (
         <div className="candle-countdown-menu" onClick={(event) => event.stopPropagation()}>

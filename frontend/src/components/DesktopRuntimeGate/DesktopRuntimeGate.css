@@ -111,3 +111,19 @@
   letter-spacing: 0.12em;
   cursor: pointer;
 }
+
+.browser-session-reconnecting {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border: 1px solid #b88620;
+  border-radius: 6px;
+  color: #f5c66a;
+  background: #10151d;
+  font-size: 12px;
+  pointer-events: none;
+}

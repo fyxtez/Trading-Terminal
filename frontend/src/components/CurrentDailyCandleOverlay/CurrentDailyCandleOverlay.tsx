@@ -1,6 +1,6 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import type { CandlestickData, IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
-import { fetchLatestKline } from "../../trading/api/marketData";
+import { getDailyCandle } from "../../trading/api/dailyCandle";
 import { startMarketPoll } from "../../utils/marketPoll";
 import { startPacedLoop } from "../../utils/pacedLoop";
 
@@ -10,7 +10,6 @@ type Props = {
   candleRef: MutableRefObject<ISeriesApi<"Candlestick"> | null>;
   lastDataTimeRef: MutableRefObject<UTCTimestamp | null>;
   coordTimeToX: (time: UTCTimestamp) => number | null;
-  offset: number;
 };
 
 export default function CurrentDailyCandleOverlay({
@@ -19,16 +18,18 @@ export default function CurrentDailyCandleOverlay({
   candleRef,
   lastDataTimeRef,
   coordTimeToX,
-  offset,
 }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const candleGroupRef = useRef<SVGGElement>(null);
+  const bodyRef = useRef<SVGRectElement>(null);
+  const wickRef = useRef<SVGPathElement>(null);
   const dailyRef = useRef<CandlestickData | null>(null);
 
   useEffect(() => {
     dailyRef.current = null;
     const poll = startMarketPoll(
       async (signal) => {
-        const candle = await fetchLatestKline("1d", symbol, signal);
+        const candle = await getDailyCandle(symbol, signal);
         if (!signal.aborted) dailyRef.current = candle;
       },
       1_000,
@@ -47,24 +48,23 @@ export default function CurrentDailyCandleOverlay({
   useEffect(
     () =>
       startPacedLoop(() => {
-        const canvas = canvasRef.current;
+        const svg = svgRef.current;
+        const group = candleGroupRef.current;
+        const body = bodyRef.current;
+        const wick = wickRef.current;
+        if (!svg || !group || !body || !wick) return;
         const chart = chartRef.current;
         const series = candleRef.current;
-        if (!canvas || !chart || !series) return;
-        const { width, height } = chart.paneSize();
-        const ratio = window.devicePixelRatio || 1;
-        const pixelWidth = Math.round(width * ratio);
-        const pixelHeight = Math.round(height * ratio);
-        if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-          canvas.width = pixelWidth;
-          canvas.height = pixelHeight;
-          canvas.style.width = `${width}px`;
-          canvas.style.height = `${height}px`;
+        if (!chart || !series) {
+          group.style.display = "none";
+          return;
         }
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        ctx.clearRect(0, 0, width, height);
+        const { width, height } = chart.paneSize();
+        svg.setAttribute("width", String(width));
+        svg.setAttribute("height", String(height));
+        const hide = () => {
+          group.style.display = "none";
+        };
         const daily = dailyRef.current;
         const lastTime = lastDataTimeRef.current;
         const now = Date.now() / 1000;
@@ -75,39 +75,49 @@ export default function CurrentDailyCandleOverlay({
           now < daily.time ||
           now >= daily.time + 86400
         )
-          return;
+          return hide();
         const anchor = coordTimeToX(lastTime);
-        if (anchor === null) return;
-        const x = anchor + 100 + offset;
-        if (x < -10 || x > width + 10) return;
+        if (anchor === null) return hide();
+        const x = anchor + 100;
+        if (x < -10 || x > width + 10) return hide();
         const high = series.priceToCoordinate(daily.high);
         const low = series.priceToCoordinate(daily.low);
         const open = series.priceToCoordinate(daily.open);
         const close = series.priceToCoordinate(daily.close);
-        if (high === null || low === null || open === null || close === null) return;
+        if (high === null || low === null || open === null || close === null) return hide();
         const top = Math.min(open, close);
         const bottom = Math.max(open, close);
         const colors = series.options();
         const isUp = daily.close >= daily.open;
-        ctx.fillStyle = isUp ? colors.upColor : colors.downColor;
-        ctx.strokeStyle = isUp ? colors.wickUpColor : colors.wickDownColor;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, high);
-        ctx.lineTo(x, top);
-        ctx.moveTo(x, bottom);
-        ctx.lineTo(x, low);
-        ctx.stroke();
-        ctx.fillRect(x - 9, top, 18, Math.max(1, bottom - top));
+        // Update one retained shape instead of accumulating canvas pixels while dragging.
+        body.setAttribute("x", String(x - 9));
+        body.setAttribute("y", String(top));
+        body.setAttribute("height", String(Math.max(1, bottom - top)));
+        body.setAttribute("fill", isUp ? colors.upColor : colors.downColor);
+        wick.setAttribute("d", `M ${x} ${high} L ${x} ${top} M ${x} ${bottom} L ${x} ${low}`);
+        wick.setAttribute("stroke", isUp ? colors.wickUpColor : colors.wickDownColor);
+        group.style.display = "";
       }, 30),
-    [chartRef, candleRef, lastDataTimeRef, coordTimeToX, offset],
+    [chartRef, candleRef, lastDataTimeRef, coordTimeToX],
   );
 
   return (
-    <canvas
-      ref={canvasRef}
+    <svg
+      ref={svgRef}
       aria-hidden="true"
-      style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 12 }}
-    />
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: 12,
+      }}
+    >
+      <g ref={candleGroupRef} style={{ display: "none" }}>
+        <path ref={wickRef} fill="none" strokeWidth={1.5} />
+        <rect ref={bodyRef} width={18} />
+      </g>
+    </svg>
   );
 }

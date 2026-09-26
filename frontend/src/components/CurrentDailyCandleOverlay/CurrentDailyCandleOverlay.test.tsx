@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import CurrentDailyCandleOverlay from "./CurrentDailyCandleOverlay";
-import { fetchLatestKline } from "../../trading/api/marketData";
+import { getDailyCandle } from "../../trading/api/dailyCandle";
 
 let draw: () => void;
 vi.mock("../../utils/pacedLoop", () => ({
@@ -11,7 +11,7 @@ vi.mock("../../utils/pacedLoop", () => ({
     return () => {};
   },
 }));
-vi.mock("../../trading/api/marketData", () => ({ fetchLatestKline: vi.fn() }));
+vi.mock("../../trading/api/dailyCandle", () => ({ getDailyCandle: vi.fn() }));
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -21,33 +21,20 @@ it.each([
   { open: 100, close: 120, color: "#34d399" },
   { open: 120, close: 100, color: "#f04562" },
 ])(
-  "renders filled daily OHLC in $color, tracks offset and clears at rollover",
+  "renders filled daily OHLC in $color, stays 100 px from the latest candle and clears at rollover",
   async ({ open, close, color }) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T23:59:59Z"));
     const day = Date.parse("2026-09-26T00:00:00Z") / 1000;
-    vi.mocked(fetchLatestKline).mockResolvedValue({
+    vi.mocked(getDailyCandle).mockResolvedValue({
       time: day as never,
       open,
       high: 130,
       low: 80,
       close,
     });
-    const ctx = {
-      setTransform: vi.fn(),
-      clearRect: vi.fn(),
-      beginPath: vi.fn(),
-      moveTo: vi.fn(),
-      lineTo: vi.fn(),
-      stroke: vi.fn(),
-      fillRect: vi.fn(),
-      fillStyle: "",
-      strokeStyle: "",
-    };
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
     const props = {
       symbol: "BTCUSDT",
-      offset: 50,
       chartRef: { current: { paneSize: () => ({ width: 600, height: 400 }) } },
       candleRef: {
         current: {
@@ -66,19 +53,34 @@ it.each([
     const view = render(<CurrentDailyCandleOverlay {...props} />);
     await act(async () => {});
     draw();
-    expect(fetchLatestKline).toHaveBeenCalledWith("1d", "BTCUSDT", expect.any(AbortSignal));
-    expect(ctx.fillRect).toHaveBeenLastCalledWith(341, 180, 18, 20);
-    expect(ctx.fillStyle).toBe(color);
-    expect(ctx.strokeStyle).toBe(color);
-    expect(ctx.moveTo).toHaveBeenCalledWith(350, 170);
-    expect(ctx.lineTo).toHaveBeenCalledWith(350, 220);
-    view.rerender(<CurrentDailyCandleOverlay {...props} offset={0} />);
+    expect(getDailyCandle).toHaveBeenCalledWith("BTCUSDT", expect.any(AbortSignal));
+    const body = view.container.querySelector("rect")!;
+    const wick = view.container.querySelector("path")!;
+    const group = view.container.querySelector("g")!;
+    expect(body).toHaveAttribute("x", "291");
+    expect(body).toHaveAttribute("y", "180");
+    expect(body).toHaveAttribute("height", "20");
+    expect(body).toHaveAttribute("fill", color);
+    expect(wick).toHaveAttribute("stroke", color);
+    expect(wick).toHaveAttribute("d", "M 300 170 L 300 180 M 300 200 L 300 220");
+    for (const anchor of [200, 210, 230, 260, 324, 398, 300, 200]) {
+      view.rerender(<CurrentDailyCandleOverlay {...props} coordTimeToX={() => anchor} />);
+      draw();
+      expect(view.container.querySelectorAll("rect")).toHaveLength(1);
+      expect(view.container.querySelectorAll("path")).toHaveLength(1);
+      expect(view.container.querySelector("rect")).toBe(body);
+      expect(body).toHaveAttribute("x", String(anchor + 100 - 9));
+      expect(group.style.display).toBe("");
+    }
+    view.rerender(<CurrentDailyCandleOverlay {...props} coordTimeToX={() => 700} />);
     draw();
-    expect(ctx.fillRect).toHaveBeenLastCalledWith(291, 180, 18, 20);
-    ctx.fillRect.mockClear();
+    expect(group.style.display).toBe("none");
+    view.rerender(<CurrentDailyCandleOverlay {...props} />);
+    draw();
+    expect(group.style.display).toBe("");
     vi.setSystemTime(new Date("2026-09-27T00:00:00Z"));
     draw();
-    expect(ctx.fillRect).not.toHaveBeenCalled();
+    expect(group.style.display).toBe("none");
     view.unmount();
     expect(vi.getTimerCount()).toBe(0);
   },
@@ -86,7 +88,7 @@ it.each([
 
 it("does not render a late response from the previous symbol", async () => {
   let resolveOld: (value: never) => void = () => {};
-  vi.mocked(fetchLatestKline)
+  vi.mocked(getDailyCandle)
     .mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -94,19 +96,16 @@ it("does not render a late response from the previous symbol", async () => {
         }),
     )
     .mockResolvedValue(null);
-  const ctx = { setTransform: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn() };
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
   const props = {
     symbol: "BTCUSDT",
-    offset: 0,
     chartRef: { current: { paneSize: () => ({ width: 600, height: 400 }) } },
     candleRef: { current: { priceToCoordinate: (p: number) => p } },
     lastDataTimeRef: { current: 1 },
     coordTimeToX: () => 100,
   } as unknown as ComponentProps<typeof CurrentDailyCandleOverlay>;
   const view = render(<CurrentDailyCandleOverlay {...props} />);
-  const calls = vi.mocked(fetchLatestKline).mock.calls;
-  const signal = calls[calls.length - 1][2]!;
+  const calls = vi.mocked(getDailyCandle).mock.calls;
+  const signal = calls[calls.length - 1][1]!;
   view.rerender(<CurrentDailyCandleOverlay {...props} symbol="ETHUSDT" />);
   expect(signal.aborted).toBe(true);
   await act(async () => {
@@ -119,6 +118,6 @@ it("does not render a late response from the previous symbol", async () => {
     } as never);
   });
   draw();
-  expect(ctx.fillRect).not.toHaveBeenCalled();
+  expect(view.container.querySelector("g")!.style.display).toBe("none");
   view.unmount();
 });

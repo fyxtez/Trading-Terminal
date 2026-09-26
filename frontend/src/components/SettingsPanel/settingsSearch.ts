@@ -48,7 +48,7 @@ export function buildSettingsSearchModel(
     showDrawings: matches("Show drawings", "Show all saved drawings on the chart"),
     currentDailyCandle: matches(
       "Draw current daily candle",
-      "OHLC open high low close 1D offset distance 100 px custom",
+      "OHLC open high low close 1D distance 100 px",
     ),
     startOfDay: matches("Start of day candle", "vertical marker start chart day daily"),
     dayHistory: matches("Day history", "Number of chart days to mark maximum 20 lookback"),
@@ -93,6 +93,10 @@ export function buildSettingsSearchModel(
     "chart display visual appearance",
   );
   const chartDisplayOptionMatches = {
+    timerPosition: matches(
+      "Show candle timer in top row",
+      "countdown position header cards day drawing set dock move",
+    ),
     timer: matches("Show candle timer", "countdown current candle close chart"),
     watermark: matches("Show watermark", "Terminal watermark chart hide watermark"),
     drawingSetBadge: matches(

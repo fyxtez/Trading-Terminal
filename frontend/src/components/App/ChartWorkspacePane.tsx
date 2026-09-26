@@ -214,6 +214,8 @@ function ChartWorkspacePane({
     setShowPositionPnl,
     showTotalPnl,
     setShowTotalPnl,
+    candleTimerInHeader,
+    setCandleTimerInHeader,
     showCandleCountdown,
     setShowCandleCountdown,
     showWatermark,
@@ -222,8 +224,6 @@ function ChartWorkspacePane({
     setShowDrawingSetBadge,
     showCurrentDailyCandle,
     setShowCurrentDailyCandle,
-    dailyCandleOffset,
-    setDailyCandleOffset,
     showStartOfDay,
     setShowStartOfDay,
     startOfDayLookbackDays,
@@ -1183,7 +1183,6 @@ function ChartWorkspacePane({
             showNewYorkSession={showNewYorkSession}
             showNewYorkKillZone={showNewYorkKillZone}
             showCurrentDailyCandle={showCurrentDailyCandle}
-            dailyCandleOffset={dailyCandleOffset}
             showStartOfDay={showStartOfDay}
             startOfDayLookbackDays={startOfDayLookbackDays}
             hoveredDrawingInfo={drawingCanvas.hoveredDrawingInfo}
@@ -1228,6 +1227,7 @@ function ChartWorkspacePane({
             positionPnl={showPositionPnl ? (positionPnl?.unrealizedPnl ?? null) : null}
             positionRealizedPnl={showPositionPnl ? (positionPnl?.realizedPnl ?? null) : null}
             totalPnl={showTotalPnl ? totalPnl : null}
+            candleTimerInHeader={candleTimerInHeader}
             showCandleCountdown={showCandleCountdown}
             showWatermark={showWatermark}
             showDrawingSetBadge={showDrawingSetBadge}
@@ -1305,17 +1305,17 @@ function ChartWorkspacePane({
               onShowPositionPnlChange={setShowPositionPnl}
               showTotalPnl={showTotalPnl}
               onShowTotalPnlChange={setShowTotalPnl}
+              candleTimerInHeader={candleTimerInHeader}
               showCandleCountdown={showCandleCountdown}
+              onCandleTimerInHeaderChange={setCandleTimerInHeader}
               onShowCandleCountdownChange={setShowCandleCountdown}
               showWatermark={showWatermark}
               onShowWatermarkChange={setShowWatermark}
               showDrawingSetBadge={showDrawingSetBadge}
               onShowDrawingSetBadgeChange={setShowDrawingSetBadge}
               showCurrentDailyCandle={showCurrentDailyCandle}
-              dailyCandleOffset={dailyCandleOffset}
               showStartOfDay={showStartOfDay}
               onShowCurrentDailyCandleChange={setShowCurrentDailyCandle}
-              onDailyCandleOffsetChange={setDailyCandleOffset}
               onShowStartOfDayChange={setShowStartOfDay}
               startOfDayLookbackDays={startOfDayLookbackDays}
               onStartOfDayLookbackDaysChange={setStartOfDayLookbackDays}

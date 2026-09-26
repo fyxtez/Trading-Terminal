@@ -266,7 +266,10 @@ type ParsedBrowserSession = {
 };
 
 export class LocalBrowserSessionError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly invalidatesSession = true,
+  ) {
     super(message);
     this.name = "LocalBrowserSessionError";
   }
@@ -430,7 +433,8 @@ async function readBrowserSessionResponse(
     throw new LocalBrowserSessionError(
       response.status === 401 || response.status === 403
         ? "This browser connection has expired or was turned off."
-        : "Terminal could not confirm this browser connection.",
+        : "Terminal could not confirm this browser connection. Please retry.",
+      response.status === 401 || response.status === 403,
     );
   }
 
@@ -438,7 +442,10 @@ async function readBrowserSessionResponse(
     return parseBrowserSession(await response.json(), requireProof);
   } catch (reason) {
     if (reason instanceof LocalBrowserSessionError) throw reason;
-    throw new LocalBrowserSessionError("The browser connection returned an invalid response.");
+    throw new LocalBrowserSessionError(
+      "The browser connection returned an invalid response.",
+      false,
+    );
   }
 }
 
@@ -471,7 +478,7 @@ async function initializeBrowserRuntime(origin: string, ticket: string | null): 
   selectTradingApiBaseUrl(normalizedOrigin);
 
   if (ticket) {
-    clearLocalBrowserSessionProof();
+    // Keep the working proof until the replacement ticket has been redeemed.
     if (!/^[A-Za-z0-9_-]{32,256}$/.test(ticket)) {
       throw new LocalBrowserSessionError("This browser launch link is invalid or has expired.");
     }
@@ -510,6 +517,7 @@ export async function validateLocalBrowserSession(): Promise<LocalBrowserSession
     credentials: "include",
     cache: "no-store",
     redirect: "error",
+    signal: AbortSignal.timeout(15_000),
     headers: { "x-fyxtez-browser-proof": sessionProof },
   });
   try {
@@ -520,10 +528,14 @@ export async function validateLocalBrowserSession(): Promise<LocalBrowserSession
         cache: "no-store",
         redirect: "error",
         headers: { "x-fyxtez-browser-proof": sessionProof },
+        signal: AbortSignal.timeout(15_000),
       });
       if (!metadataResponse.ok)
         throw new LocalBrowserSessionError(
-          "Server session could not be verified. Open it from Terminal again.",
+          metadataResponse.status === 401 || metadataResponse.status === 403
+            ? "This browser connection has expired or was turned off."
+            : "Server session could not be verified. Please retry.",
+          metadataResponse.status === 401 || metadataResponse.status === 403,
         );
       const metadata = (await metadataResponse.json()) as {
         apiVersion?: unknown;
@@ -548,7 +560,10 @@ export async function validateLocalBrowserSession(): Promise<LocalBrowserSession
       const nextScope = `remote:${metadata.backendId}:${metadata.accountScope}:${session.binanceNetwork ?? "unconfigured"}`;
       if (remoteBackend && backendScope !== nextScope) {
         window.location.reload();
-        throw new LocalBrowserSessionError("The server account changed. Reloading the workspace.");
+        throw new LocalBrowserSessionError(
+          "The server account changed. Reloading the workspace.",
+          false,
+        );
       }
       remoteBackend = true;
       backendScope = nextScope;
@@ -556,7 +571,15 @@ export async function validateLocalBrowserSession(): Promise<LocalBrowserSession
     publishLocalBrowserSession(session);
     return session;
   } catch (reason) {
-    invalidateLocalBrowserSession();
+    // Network failures and 5xx responses do not revoke a 30-day authorization.
+    // A response for an older proof must not erase a newer login from another tab.
+    if (
+      reason instanceof LocalBrowserSessionError &&
+      reason.invalidatesSession &&
+      getLocalBrowserSessionProof() === sessionProof
+    ) {
+      invalidateLocalBrowserSession();
+    }
     throw reason;
   }
 }

@@ -1,7 +1,13 @@
 import type { ComponentProps } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPanel from "./SettingsPanel";
+import { DesktopCredentialsContext } from "../DesktopSetupGate/DesktopCredentialsContext";
+import { getSizing, updateSizing } from "../../trading/api/sizing";
+vi.mock("../../trading/api/sizing", () => ({
+  getSizing: vi.fn().mockResolvedValue({ margin_pct: 0.01, max_leverage: 50 }),
+  updateSizing: vi.fn().mockImplementation(async (value) => value),
+}));
 
 vi.mock("../../trading/api/priceAlerts", () => ({
   listAllPersistentPriceAlerts: vi.fn().mockResolvedValue([
@@ -57,6 +63,8 @@ function props(): ComponentProps<typeof SettingsPanel> {
     onShowPositionPnlChange: vi.fn(),
     showTotalPnl: false,
     onShowTotalPnlChange: vi.fn(),
+    candleTimerInHeader: false,
+    onCandleTimerInHeaderChange: vi.fn(),
     showCandleCountdown: false,
     onShowCandleCountdownChange: vi.fn(),
     showWatermark: true,
@@ -65,8 +73,6 @@ function props(): ComponentProps<typeof SettingsPanel> {
     onShowDrawingSetBadgeChange: vi.fn(),
     showCurrentDailyCandle: false,
     onShowCurrentDailyCandleChange: vi.fn(),
-    dailyCandleOffset: 0,
-    onDailyCandleOffsetChange: vi.fn(),
     showStartOfDay: false,
     onShowStartOfDayChange: vi.fn(),
     startOfDayLookbackDays: 0,
@@ -149,4 +155,50 @@ describe("Settings section picker", () => {
     expect(screen.getByRole("heading", { name: "Exchange Connections" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).toBeNull();
   });
+});
+
+it("saves 0.1% margin as 0.001 and rejects values below the new minimum", async () => {
+  vi.mocked(getSizing).mockResolvedValue({ margin_pct: 0.01, max_leverage: 50 });
+  vi.mocked(updateSizing).mockClear();
+  render(
+    <DesktopCredentialsContext.Provider
+      value={{
+        isDesktop: false,
+        runtimeMode: "remote-browser",
+        canTrade: true,
+        status: {
+          binanceConfigured: true,
+          binanceNetwork: "mainnet",
+          ntfyConfigured: false,
+          telegramConfigured: false,
+        },
+        openSetup: vi.fn(),
+        disconnectBinance: vi.fn(),
+      }}
+    >
+      <SettingsPanel {...props()} backendConnection="connected" />
+    </DesktopCredentialsContext.Provider>,
+  );
+  fireEvent.change(screen.getByPlaceholderText("Search settings…"), {
+    target: { value: "Margin percentage" },
+  });
+  const input = await screen.findByRole("spinbutton");
+  await waitFor(() => expect(input).toBeEnabled());
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "0" } });
+  expect(input).toHaveValue(0);
+  fireEvent.change(input, { target: { value: "0.1" } });
+  expect(input).toHaveAttribute("min", "0.1");
+  expect(input).toHaveAttribute("step", "0.1");
+  fireEvent.blur(input);
+  await waitFor(() =>
+    expect(updateSizing).toHaveBeenCalledWith({ margin_pct: 0.001, max_leverage: 50 }),
+  );
+  vi.mocked(updateSizing).mockClear();
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: "0.05" } });
+  expect(screen.getByText("Margin percentage must be between 0.1 and 50%")).toBeInTheDocument();
+  fireEvent.keyDown(input, { key: "Enter" });
+  fireEvent.blur(input);
+  expect(updateSizing).not.toHaveBeenCalled();
 });

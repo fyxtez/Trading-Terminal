@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CHART_TIME_ZONE } from "../../utils/time";
 import "./ChartContextBadges.css";
 
 type ChartContextBadgesProps = {
+  children?: ReactNode;
   symbol: string;
   activeDrawingSetName: string;
   showDrawingSetBadge: boolean;
@@ -11,6 +12,7 @@ type ChartContextBadgesProps = {
 };
 
 export default function ChartContextBadges({
+  children,
   symbol,
   activeDrawingSetName,
   showDrawingSetBadge,
@@ -82,6 +84,8 @@ export default function ChartContextBadges({
       <div className="current-day-badge" title={`Current day: ${currentDayLabel}`}>
         {currentDayLabel}
       </div>
+
+      {children}
 
       {showDrawingSetBadge && (
         <div className="drawing-set-badge-wrap">

@@ -141,7 +141,6 @@ type ChartPanelProps = {
   showNewYorkSession: boolean;
   showNewYorkKillZone: boolean;
   showCurrentDailyCandle: boolean;
-  dailyCandleOffset: number;
   showStartOfDay: boolean;
   /** Number of previous chart days to include, capped at 20 in Settings. */
   startOfDayLookbackDays: number;
@@ -233,6 +232,7 @@ type ChartPanelProps = {
   positionPnl: number | null;
   positionRealizedPnl: number | null;
   totalPnl: number | null;
+  candleTimerInHeader: boolean;
   showCandleCountdown: boolean;
   /** local Settings preference controls whether chart branding is rendered. */
   showWatermark: boolean;
@@ -294,7 +294,6 @@ export default function ChartPanel({
   showNewYorkSession,
   showNewYorkKillZone,
   showCurrentDailyCandle,
-  dailyCandleOffset,
   showStartOfDay,
   startOfDayLookbackDays,
   hoveredDrawingInfo,
@@ -334,6 +333,7 @@ export default function ChartPanel({
   positionPnl,
   positionRealizedPnl,
   totalPnl,
+  candleTimerInHeader,
   showCandleCountdown,
   showWatermark,
   showDrawingSetBadge,
@@ -386,6 +386,12 @@ export default function ChartPanel({
   }, [chartRef, isDrawingInteractionActive]);
 
   useEffect(() => {
+    if (candleTimerInHeader || !showCandleCountdown) {
+      setIsCandleCountdownMoving(false);
+      setIsCandleCountdownMoveArmed(false);
+      setCandleCountdownAnchor(null);
+      return;
+    }
     let previousLeft: number | null = null;
     let previousTop: number | null = null;
 
@@ -475,6 +481,7 @@ export default function ChartPanel({
     return startPacedLoop(updateCandleCountdownAnchor, 30);
   }, [
     candleRef,
+    candleTimerInHeader,
     candleCountdownOffset.x,
     candleCountdownOffset.y,
     chartRef,
@@ -773,7 +780,6 @@ export default function ChartPanel({
           candleRef={candleRef}
           lastDataTimeRef={lastDataTimeRef}
           coordTimeToX={coordTimeToX}
-          offset={dailyCandleOffset}
         />
       )}
 
@@ -900,6 +906,7 @@ export default function ChartPanel({
 
       {!isChartLoading &&
         showCandleCountdown &&
+        !candleTimerInHeader &&
         candleCountdown.label !== null &&
         candleCountdownAnchor !== null && (
           <div
@@ -929,7 +936,20 @@ export default function ChartPanel({
             showDrawingSetBadge={showDrawingSetBadge}
             isDrawingSetUnsaved={isDrawingSetUnsaved}
             onSaveDrawingSet={onSaveDrawingSet}
-          />
+          >
+            {showCandleCountdown && candleTimerInHeader && candleCountdown.label !== null && (
+              <CandleCountdownBadge
+                label={candleCountdown.label}
+                interval={interval}
+                allLabels={candleCountdown.allLabels}
+                movable={false}
+                moveArmed={false}
+                moving={false}
+                onMovePointerDown={handleCandleCountdownMovePointerDown}
+                onPlacementPointerDown={handleCandleCountdownPlacementClick}
+              />
+            )}
+          </ChartContextBadges>
         </div>
       )}
 

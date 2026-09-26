@@ -56,6 +56,7 @@ function failedRuntimeState(reason: unknown): RuntimeState {
 
 export default function DesktopRuntimeGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>({ kind: "starting" });
+  const [sessionWarning, setSessionWarning] = useState<string | null>(null);
   const [showStartupMessage, setShowStartupMessage] = useState(false);
 
   useEffect(() => {
@@ -83,12 +84,30 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       return;
 
     let current = true;
-    const checkSession = () => {
-      void validateLocalBrowserSession().catch((reason: unknown) => {
+    let checking = false;
+    let nextCheckAt = Date.now() + 30_000;
+    const checkSession = async () => {
+      if (checking || document.visibilityState === "hidden") return;
+      checking = true;
+      try {
+        await validateLocalBrowserSession();
+        if (current) setSessionWarning(null);
+        nextCheckAt = Date.now() + 30_000;
+      } catch (reason) {
         if (current) {
-          setState(failedRuntimeState(reason));
+          const failure = failedRuntimeState(reason);
+          if (failure.kind === "failed" && failure.retryAvailable) {
+            // Keep charts mounted during temporary outages so recovery does not
+            // repeatedly reload candle history and amplify the request load.
+            setSessionWarning("Checking server connection… Reconnecting automatically.");
+            nextCheckAt = Date.now() + 5_000;
+          } else {
+            setState(failure);
+          }
         }
-      });
+      } finally {
+        checking = false;
+      }
     };
     const handleSessionEnded = () => {
       if (current) {
@@ -104,16 +123,49 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       if (document.visibilityState === "visible") checkSession();
     };
 
-    const interval = window.setInterval(checkSession, 30_000);
+    const interval = window.setInterval(() => {
+      if (Date.now() >= nextCheckAt) void checkSession();
+    }, 5_000);
+    const handleOnline = () => void checkSession();
+    window.addEventListener("online", handleOnline);
     window.addEventListener(LOCAL_BROWSER_SESSION_ENDED_EVENT, handleSessionEnded);
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       current = false;
       window.clearInterval(interval);
+      window.removeEventListener("online", handleOnline);
       window.removeEventListener(LOCAL_BROWSER_SESSION_ENDED_EVENT, handleSessionEnded);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [state.kind]);
+
+  useEffect(() => {
+    if (state.kind !== "failed" || !state.browserAccess || !state.retryAvailable) return;
+    let current = true;
+    let checking = false;
+    const reconnect = async () => {
+      if (checking || document.visibilityState === "hidden") return;
+      checking = true;
+      try {
+        await retryTradingRuntime();
+        if (current) setState({ kind: "ready" });
+      } catch (reason) {
+        if (current) setState(failedRuntimeState(reason));
+      } finally {
+        checking = false;
+      }
+    };
+    const timer = window.setInterval(() => void reconnect(), 5_000);
+    const resume = () => void reconnect();
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [state]);
 
   const retry = () => {
     setShowStartupMessage(false);
@@ -124,7 +176,17 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
     );
   };
 
-  if (state.kind === "ready") return children;
+  if (state.kind === "ready")
+    return (
+      <>
+        {children}
+        {sessionWarning && (
+          <div className="browser-session-reconnecting" role="status">
+            {sessionWarning}
+          </div>
+        )}
+      </>
+    );
   if (state.kind === "starting" && !showStartupMessage) {
     return <main className="desktop-runtime-gate" aria-busy="true" aria-label="Loading Terminal" />;
   }
