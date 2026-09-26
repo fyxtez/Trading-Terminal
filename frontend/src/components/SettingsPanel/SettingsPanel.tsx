@@ -102,7 +102,10 @@ type SettingsPanelProps = {
   /** Whether the active drawing-set name badge is shown on the chart. */
   showDrawingSetBadge: boolean;
   onShowDrawingSetBadgeChange: (enabled: boolean) => void;
-  /** Whether midnight/start-of-day vertical markers are shown. */
+  showCurrentDailyCandle: boolean;
+  onShowCurrentDailyCandleChange: (enabled: boolean) => void;
+  dailyCandleOffset: number;
+  onDailyCandleOffsetChange: (offset: number) => void;
   showStartOfDay: boolean;
   onShowStartOfDayChange: (enabled: boolean) => void;
   startOfDayLookbackDays: number;
@@ -210,6 +213,10 @@ export default function SettingsPanel({
   onShowWatermarkChange,
   showDrawingSetBadge,
   onShowDrawingSetBadgeChange,
+  showCurrentDailyCandle,
+  onShowCurrentDailyCandleChange,
+  dailyCandleOffset,
+  onDailyCandleOffsetChange,
   showStartOfDay,
   onShowStartOfDayChange,
   startOfDayLookbackDays,
@@ -1388,6 +1395,53 @@ export default function SettingsPanel({
                         onChange={(event) => onShowDrawingsChange(event.target.checked)}
                       />
                     </label>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.currentDailyCandle) && (
+                    <>
+                      <label className="settings-toggle-field">
+                        <div className="settings-field-copy">
+                          <span>Draw current daily candle</span>
+                          <small>
+                            Show the current 1D open, high, low and close to the right of the latest
+                            candle
+                          </small>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="settings-toggle-input"
+                          checked={showCurrentDailyCandle}
+                          onChange={(event) => onShowCurrentDailyCandleChange(event.target.checked)}
+                        />
+                      </label>
+                      {showCurrentDailyCandle && (
+                        <label className="settings-lookback-field">
+                          <div className="settings-field-copy">
+                            <span>Offset</span>
+                            <small>
+                              100 px base + {dailyCandleOffset} px custom ={" "}
+                              {100 + dailyCandleOffset} px to the right
+                            </small>
+                          </div>
+                          <div className="settings-lookback-control">
+                            <input
+                              type="range"
+                              min={0}
+                              max={500}
+                              step={1}
+                              value={dailyCandleOffset}
+                              aria-label="Daily candle offset"
+                              onChange={(event) =>
+                                onDailyCandleOffsetChange(Number(event.target.value))
+                              }
+                            />
+                            <output>{dailyCandleOffset} px</output>
+                          </div>
+                        </label>
+                      )}
+                    </>
                   )}
 
                   {(!isSearchingSettings ||

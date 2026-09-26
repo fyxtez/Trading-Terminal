@@ -21,6 +21,7 @@ import ChartPositionPnl from "../ChartPositionPnl/ChartPositionPnl";
 import PositionBracketOverlay from "../PositionBracketOverlay/PositionBracketOverlay";
 import AutoMarketOverlay from "../AutoMarketOverlay/AutoMarketOverlay";
 import SessionZonesOverlay from "../SessionZonesOverlay/SessionZonesOverlay";
+import CurrentDailyCandleOverlay from "../CurrentDailyCandleOverlay/CurrentDailyCandleOverlay";
 import TimeMarkersOverlay from "../TimeMarkersOverlay/TimeMarkersOverlay";
 import AlertLinesOverlay from "../AlertLinesOverlay/AlertLinesOverlay";
 import DrawingInfoTooltip from "../DrawingInfoTooltip/DrawingInfoTooltip";
@@ -139,7 +140,8 @@ type ChartPanelProps = {
   showLondonSession: boolean;
   showNewYorkSession: boolean;
   showNewYorkKillZone: boolean;
-  /** Whether midnight/start-of-day vertical markers are rendered. */
+  showCurrentDailyCandle: boolean;
+  dailyCandleOffset: number;
   showStartOfDay: boolean;
   /** Number of previous chart days to include, capped at 20 in Settings. */
   startOfDayLookbackDays: number;
@@ -291,6 +293,8 @@ export default function ChartPanel({
   showLondonSession,
   showNewYorkSession,
   showNewYorkKillZone,
+  showCurrentDailyCandle,
+  dailyCandleOffset,
   showStartOfDay,
   startOfDayLookbackDays,
   hoveredDrawingInfo,
@@ -758,6 +762,18 @@ export default function ChartPanel({
           showLondon={showLondonSession}
           showNewYork={showNewYorkSession}
           showNewYorkKillZone={showNewYorkKillZone}
+        />
+      )}
+
+      {showCurrentDailyCandle && !isChartLoading && (
+        <CurrentDailyCandleOverlay
+          key={symbol}
+          symbol={symbol}
+          chartRef={chartRef}
+          candleRef={candleRef}
+          lastDataTimeRef={lastDataTimeRef}
+          coordTimeToX={coordTimeToX}
+          offset={dailyCandleOffset}
         />
       )}
 

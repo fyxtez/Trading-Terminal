@@ -220,6 +220,10 @@ function ChartWorkspacePane({
     setShowWatermark,
     showDrawingSetBadge,
     setShowDrawingSetBadge,
+    showCurrentDailyCandle,
+    setShowCurrentDailyCandle,
+    dailyCandleOffset,
+    setDailyCandleOffset,
     showStartOfDay,
     setShowStartOfDay,
     startOfDayLookbackDays,
@@ -1178,6 +1182,8 @@ function ChartWorkspacePane({
             showLondonSession={showLondonSession}
             showNewYorkSession={showNewYorkSession}
             showNewYorkKillZone={showNewYorkKillZone}
+            showCurrentDailyCandle={showCurrentDailyCandle}
+            dailyCandleOffset={dailyCandleOffset}
             showStartOfDay={showStartOfDay}
             startOfDayLookbackDays={startOfDayLookbackDays}
             hoveredDrawingInfo={drawingCanvas.hoveredDrawingInfo}
@@ -1305,7 +1311,11 @@ function ChartWorkspacePane({
               onShowWatermarkChange={setShowWatermark}
               showDrawingSetBadge={showDrawingSetBadge}
               onShowDrawingSetBadgeChange={setShowDrawingSetBadge}
+              showCurrentDailyCandle={showCurrentDailyCandle}
+              dailyCandleOffset={dailyCandleOffset}
               showStartOfDay={showStartOfDay}
+              onShowCurrentDailyCandleChange={setShowCurrentDailyCandle}
+              onDailyCandleOffsetChange={setDailyCandleOffset}
               onShowStartOfDayChange={setShowStartOfDay}
               startOfDayLookbackDays={startOfDayLookbackDays}
               onStartOfDayLookbackDaysChange={setStartOfDayLookbackDays}

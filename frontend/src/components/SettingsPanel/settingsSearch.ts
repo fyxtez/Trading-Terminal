@@ -46,6 +46,10 @@ export function buildSettingsSearchModel(
   );
   const drawingOptionMatches = {
     showDrawings: matches("Show drawings", "Show all saved drawings on the chart"),
+    currentDailyCandle: matches(
+      "Draw current daily candle",
+      "OHLC open high low close 1D offset distance 100 px custom",
+    ),
     startOfDay: matches("Start of day candle", "vertical marker start chart day daily"),
     dayHistory: matches("Day history", "Number of chart days to mark maximum 20 lookback"),
     asia: matches("Asia session zone", "Asia session boundaries chart"),

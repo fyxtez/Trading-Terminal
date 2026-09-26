@@ -12,6 +12,8 @@ const DRAWING_SET_BADGE_STORAGE_KEY = "fyxtez:drawing-set-badge-enabled";
 const WATERMARK_VISIBILITY_STORAGE_KEY = "fyxtez:watermark-visible";
 const START_OF_DAY_STORAGE_KEY = "fyxtez:start-of-day-enabled";
 const START_OF_DAY_LOOKBACK_STORAGE_KEY = "fyxtez:start-of-day-lookback-days";
+const DAILY_CANDLE_KEY = "fyxtez:daily-candle-enabled";
+const DAILY_CANDLE_OFFSET_KEY = "fyxtez:daily-candle-offset";
 const PRICE_ALERTS_VISIBLE_STORAGE_KEY = "fyxtez:price-alerts-visible";
 
 function loadBooleanPreference(key: string): boolean {
@@ -50,6 +52,27 @@ function loadStartOfDayLookback(): number {
 
 /** Owns chart-only preferences and their localStorage lifecycle. */
 export function useAppPreferences() {
+  const [showCurrentDailyCandle, setShowCurrentDailyCandleState] = useState(() =>
+    loadOptInPreference(DAILY_CANDLE_KEY),
+  );
+  const [dailyCandleOffset, setDailyCandleOffsetState] = useState(() => {
+    try {
+      const value = Number(localStorage.getItem(DAILY_CANDLE_OFFSET_KEY));
+      return Number.isFinite(value) ? Math.min(500, Math.max(0, Math.round(value))) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const setDailyCandleOffset = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    const normalized = Math.min(500, Math.max(0, Math.round(value)));
+    setDailyCandleOffsetState(normalized);
+    try {
+      localStorage.setItem(DAILY_CANDLE_OFFSET_KEY, String(normalized));
+    } catch {
+      /* Keep the preference in memory. */
+    }
+  };
   const [showDrawings, setShowDrawingsState] = useState(() =>
     loadBooleanPreference(DRAWINGS_VISIBILITY_STORAGE_KEY),
   );
@@ -105,6 +128,10 @@ export function useAppPreferences() {
   };
 
   return {
+    showCurrentDailyCandle,
+    setShowCurrentDailyCandle: booleanSetter(setShowCurrentDailyCandleState, DAILY_CANDLE_KEY),
+    dailyCandleOffset,
+    setDailyCandleOffset,
     showDrawings,
     setShowDrawings: booleanSetter(setShowDrawingsState, DRAWINGS_VISIBILITY_STORAGE_KEY),
     showAsiaSession,
