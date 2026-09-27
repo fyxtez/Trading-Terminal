@@ -57,19 +57,22 @@ it.each([
     const body = view.container.querySelector("rect")!;
     const wick = view.container.querySelector("path")!;
     const group = view.container.querySelector("g")!;
-    expect(body).toHaveAttribute("x", "291");
+    expect(body).toHaveAttribute("x", "2");
+    expect(view.container.querySelector("svg")!.style.transform).toBe("translate3d(289px, 0, 0)");
     expect(body).toHaveAttribute("y", "180");
     expect(body).toHaveAttribute("height", "20");
     expect(body).toHaveAttribute("fill", color);
     expect(wick).toHaveAttribute("stroke", color);
-    expect(wick).toHaveAttribute("d", "M 300 170 L 300 180 M 300 200 L 300 220");
+    expect(wick).toHaveAttribute("d", "M 11 170 L 11 180 M 11 200 L 11 220");
     for (const anchor of [200, 210, 230, 260, 324, 398, 300, 200]) {
       view.rerender(<CurrentDailyCandleOverlay {...props} coordTimeToX={() => anchor} />);
       draw();
       expect(view.container.querySelectorAll("rect")).toHaveLength(1);
       expect(view.container.querySelectorAll("path")).toHaveLength(1);
       expect(view.container.querySelector("rect")).toBe(body);
-      expect(body).toHaveAttribute("x", String(anchor + 100 - 9));
+      expect(view.container.querySelector("svg")!.style.transform).toBe(
+        `translate3d(${anchor + 100 - 11}px, 0, 0)`,
+      );
       expect(group.style.display).toBe("");
     }
     view.rerender(<CurrentDailyCandleOverlay {...props} coordTimeToX={() => 700} />);
@@ -120,4 +123,92 @@ it("does not render a late response from the previous symbol", async () => {
   draw();
   expect(view.container.querySelector("g")!.style.display).toBe("none");
   view.unmount();
+});
+
+async function setupVisibleDaily() {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-26T12:00:00Z"));
+  const day = Date.parse("2026-09-26T00:00:00Z") / 1000;
+  vi.mocked(getDailyCandle).mockResolvedValue({
+    time: day as never,
+    open: 100,
+    high: 130,
+    low: 80,
+    close: 120,
+  });
+  const position = { x: 200 };
+  const priceToCoordinate = vi.fn((price: number) => 300 - price);
+  const props = {
+    symbol: "BTCUSDT",
+    chartRef: { current: { paneSize: () => ({ width: 600, height: 400 }) } },
+    candleRef: {
+      current: {
+        priceToCoordinate,
+        options: () => ({
+          upColor: "#34d399",
+          downColor: "#f04562",
+          wickUpColor: "#34d399",
+          wickDownColor: "#f04562",
+        }),
+      },
+    },
+    lastDataTimeRef: { current: day + 40000 },
+    coordTimeToX: () => position.x,
+  } as unknown as ComponentProps<typeof CurrentDailyCandleOverlay>;
+  const view = render(<CurrentDailyCandleOverlay {...props} />);
+  await act(async () => {});
+  draw();
+  return { view, position, priceToCoordinate };
+}
+
+it("makes no DOM mutations across 10000 stationary frames and only translates on horizontal pan", async () => {
+  const { view, position } = await setupVisibleDaily();
+  const observer = new MutationObserver(() => {});
+  observer.observe(view.container, { subtree: true, attributes: true, childList: true });
+  try {
+    for (let frame = 0; frame < 10000; frame++) draw();
+    expect(observer.takeRecords()).toHaveLength(0);
+    position.x += 20;
+    draw();
+    const changes = observer.takeRecords();
+    expect(changes).toHaveLength(1);
+    expect(changes[0].target).toBe(view.container.querySelector("svg"));
+    expect(changes[0].attributeName).toBe("style");
+    expect(view.container.querySelector("svg")).toHaveAttribute("width", "22");
+  } finally {
+    observer.disconnect();
+  }
+});
+
+it("bounds extreme daily geometry to the pane while zooming and updates when the scale changes", async () => {
+  const { view, priceToCoordinate } = await setupVisibleDaily();
+  priceToCoordinate.mockImplementation((price) => (price > 100 ? -100000000 : 100000000));
+  draw();
+  expect(view.container.querySelector("rect")).toHaveAttribute("y", "0");
+  expect(view.container.querySelector("rect")).toHaveAttribute("height", "400");
+  expect(view.container.querySelector("path")).toHaveAttribute(
+    "d",
+    "M 11 0 L 11 0 M 11 400 L 11 400",
+  );
+  priceToCoordinate.mockImplementation((price) => 300 - price);
+  draw();
+  expect(view.container.querySelector("rect")).toHaveAttribute("y", "180");
+  expect(view.container.querySelector("rect")).toHaveAttribute("height", "20");
+});
+
+it("skips price conversions offscreen and hides invalid coordinates", async () => {
+  const { view, position, priceToCoordinate } = await setupVisibleDaily();
+  position.x = 700;
+  priceToCoordinate.mockClear();
+  draw();
+  expect(priceToCoordinate).not.toHaveBeenCalled();
+  expect(view.container.querySelector("g")!.style.display).toBe("none");
+  position.x = 200;
+  priceToCoordinate.mockReturnValue(Infinity);
+  draw();
+  expect(view.container.querySelector("g")!.style.display).toBe("none");
+  priceToCoordinate.mockReturnValue(200);
+  draw();
+  expect(view.container.querySelector("g")!.style.display).toBe("");
+  expect(view.container.querySelector("rect")).toHaveAttribute("height", "1");
 });

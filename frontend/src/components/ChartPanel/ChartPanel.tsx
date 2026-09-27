@@ -772,9 +772,11 @@ export default function ChartPanel({
         />
       )}
 
+      {/* Daily and position overlays are siblings: their symbol keys must differ
+          so React can retain and clean up each instance independently. */}
       {showCurrentDailyCandle && !isChartLoading && (
         <CurrentDailyCandleOverlay
-          key={symbol}
+          key={`daily-candle:${symbol}`}
           symbol={symbol}
           chartRef={chartRef}
           candleRef={candleRef}

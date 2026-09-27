@@ -48,6 +48,14 @@ type CanvasRendererOptions = {
   setEditingText: Dispatch<SetStateAction<EditingTextState | null>>;
 };
 
+// Retain only the last successful frame per canvas. Drawing edits replace their
+// arrays; mutable gesture points and selection sets are captured by value below.
+const paintedFrames = new WeakMap<HTMLCanvasElement, readonly unknown[]>();
+
+export function invalidateCanvasFrame(canvas: HTMLCanvasElement | null): void {
+  if (canvas) paintedFrames.delete(canvas);
+}
+
 export function drawCanvasFrame({
   refs,
   coord,
@@ -84,6 +92,7 @@ export function drawCanvasFrame({
   const expectedHeight = Math.round(height * pixelRatio);
 
   if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
+    paintedFrames.delete(canvas);
     canvas.width = expectedWidth;
     canvas.height = expectedHeight;
 
@@ -112,10 +121,60 @@ export function drawCanvasFrame({
    * of taking the whole canvas down for the rest of the session.
    */
   try {
+    const paneSize = chart.paneSize();
+    const logicalRange = chart.timeScale().getVisibleLogicalRange();
+    const priceRange = series.priceScale().getVisibleRange();
+    const selectionBox = refs.groupSelectionBoxRef.current;
+    const highlighted = Date.now() < refs.highlightedOrderUntilRef.current;
+    const frame = [
+      chart,
+      series,
+      futureSeries,
+      coord,
+      width,
+      height,
+      pixelRatio,
+      paneSize.width,
+      paneSize.height,
+      logicalRange?.from,
+      logicalRange?.to,
+      priceRange?.from,
+      priceRange?.to,
+      refs.drawingsRef.current,
+      refs.tradeMarkersRef.current,
+      refs.loadedCandlesRef.current,
+      refs.lastCandleRef.current,
+      refs.intervalRef.current,
+      refs.selectedIdRef.current,
+      JSON.stringify([...refs.groupSelectedIdsRef.current]),
+      JSON.stringify([...cancellingOrderIds]),
+      selectionBox?.start.x,
+      selectionBox?.start.y,
+      selectionBox?.end.x,
+      selectionBox?.end.y,
+      refs.pendingStartRef.current?.time,
+      refs.pendingStartRef.current?.price,
+      refs.previewPointRef.current?.time,
+      refs.previewPointRef.current?.price,
+      refs.rulerStartRef.current?.time,
+      refs.rulerStartRef.current?.price,
+      refs.rulerEndRef.current?.time,
+      refs.rulerEndRef.current?.price,
+      refs.toolRef.current,
+      pricePrecision,
+      showDrawings,
+      highlighted ? refs.highlightedOrderIdRef.current : null,
+      highlighted && Math.floor(Date.now() / 180) % 2 === 0,
+      reduceOrderEditorRef.current,
+      editingTextRef.current,
+    ];
+    const previousFrame = paintedFrames.get(canvas);
+    if (previousFrame && frame.every((value, index) => Object.is(value, previousFrame[index]))) {
+      return;
+    }
+
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     context.clearRect(0, 0, width, height);
-
-    const paneSize = chart.paneSize();
 
     const rightInset = `${Math.max(0, width - paneSize.width)}px`;
     const bottomInset = `${Math.max(0, height - paneSize.height)}px`;
@@ -763,7 +822,12 @@ export function drawCanvasFrame({
 
       context.restore();
     }
+    paintedFrames.set(canvas, frame);
   } catch (error) {
+    // A failed frame may have left nested saves/clips on the context stack.
+    // Reset it before retrying so repeated failures cannot accumulate state.
+    canvas.width = expectedWidth;
+    paintedFrames.delete(canvas);
     console.error("[useDrawingCanvas] drawCanvas frame failed, retrying next frame:", error);
   }
 }

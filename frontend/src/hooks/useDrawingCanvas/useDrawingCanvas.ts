@@ -42,7 +42,7 @@ import {
   getPendingOrderRects as buildPendingOrderRects,
 } from "./pendingOrderLayout";
 import type { EditingTextState, ReduceOrderEditorState } from "./types";
-import { drawCanvasFrame } from "./canvasRenderer";
+import { drawCanvasFrame, invalidateCanvasFrame } from "./canvasRenderer";
 import { useArmedDrawingInteractions } from "./useArmedDrawingInteractions";
 
 /**
@@ -314,7 +314,14 @@ export function useDrawingCanvas(
   useEffect(() => {
     // Follow the paint loop so drawings stay aligned during chart gestures.
     // startPacedLoop throttles background tabs; live inputs are read from refs.
-    return startPacedLoop(drawCanvas);
+    const invalidate = () => invalidateCanvasFrame(refs.canvasRef.current);
+    document.fonts?.addEventListener("loadingdone", invalidate);
+    const stop = startPacedLoop(drawCanvas);
+    return () => {
+      stop();
+      document.fonts?.removeEventListener("loadingdone", invalidate);
+      invalidate();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -278,7 +278,10 @@ export function useChartInstance(
         refs.currentPriceRef.current = price;
 
         if (refs.mousePriceLineRef.current) {
-          refs.candleRef.current.removePriceLine(refs.mousePriceLineRef.current);
+          if (refs.mousePriceLineRef.current.options().price !== price) {
+            refs.mousePriceLineRef.current.applyOptions({ price });
+          }
+          return;
         }
 
         refs.mousePriceLineRef.current = refs.candleRef.current.createPriceLine({
@@ -423,6 +426,8 @@ export function useChartInstance(
       refs.chartRef.current = null;
       refs.candleRef.current = null;
       refs.futureScaleRef.current = null;
+      refs.mousePriceLineRef.current = null;
+      refs.livePriceLineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
