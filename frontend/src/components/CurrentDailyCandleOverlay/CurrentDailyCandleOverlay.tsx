@@ -1,11 +1,12 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import type { CandlestickData, IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
-import { getDailyCandle } from "../../trading/api/dailyCandle";
+import { getDailyCandle, getYesterdayDailyCandle } from "../../trading/api/dailyCandle";
 import { startMarketPoll } from "../../utils/marketPoll";
 import { startPacedLoop } from "../../utils/pacedLoop";
 
 type Props = {
   symbol: string;
+  dayOffset?: 0 | 1;
   chartRef: MutableRefObject<IChartApi | null>;
   candleRef: MutableRefObject<ISeriesApi<"Candlestick"> | null>;
   lastDataTimeRef: MutableRefObject<UTCTimestamp | null>;
@@ -14,6 +15,7 @@ type Props = {
 
 export default function CurrentDailyCandleOverlay({
   symbol,
+  dayOffset = 0,
   chartRef,
   candleRef,
   lastDataTimeRef,
@@ -30,7 +32,10 @@ export default function CurrentDailyCandleOverlay({
     dailyRef.current = null;
     const poll = startMarketPoll(
       async (signal) => {
-        const candle = await getDailyCandle(symbol, signal);
+        const candle = await (dayOffset === 1 ? getYesterdayDailyCandle : getDailyCandle)(
+          symbol,
+          signal,
+        );
         if (!signal.aborted) dailyRef.current = candle;
       },
       1_000,
@@ -44,7 +49,7 @@ export default function CurrentDailyCandleOverlay({
       poll.stop();
       dailyRef.current = null;
     };
-  }, [symbol]);
+  }, [symbol, dayOffset]);
 
   useEffect(
     () =>
@@ -77,13 +82,13 @@ export default function CurrentDailyCandleOverlay({
           !daily ||
           lastTime === null ||
           typeof daily.time !== "number" ||
-          now < daily.time ||
-          now >= daily.time + 86400
+          now < daily.time + dayOffset * 86400 ||
+          now >= daily.time + (dayOffset + 1) * 86400
         )
           return hide();
         const anchor = coordTimeToX(lastTime);
         if (anchor === null || !Number.isFinite(anchor)) return hide();
-        const x = anchor + 100;
+        const x = anchor + 100 - dayOffset * 30;
         if (x < -11 || x > width + 11) return hide();
         const high = series.priceToCoordinate(daily.high);
         const low = series.priceToCoordinate(daily.low);
@@ -114,7 +119,7 @@ export default function CurrentDailyCandleOverlay({
         setAttribute(wick, "stroke", isUp ? colors.wickUpColor : colors.wickDownColor);
         if (group.style.display !== "") group.style.display = "";
       }),
-    [chartRef, candleRef, lastDataTimeRef, coordTimeToX],
+    [chartRef, candleRef, lastDataTimeRef, coordTimeToX, dayOffset],
   );
 
   return (

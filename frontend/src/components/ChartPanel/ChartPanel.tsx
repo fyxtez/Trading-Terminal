@@ -140,6 +140,7 @@ type ChartPanelProps = {
   showLondonSession: boolean;
   showNewYorkSession: boolean;
   showNewYorkKillZone: boolean;
+  showYesterdayDailyCandle: boolean;
   showCurrentDailyCandle: boolean;
   showStartOfDay: boolean;
   /** Number of previous chart days to include, capped at 20 in Settings. */
@@ -293,6 +294,7 @@ export default function ChartPanel({
   showLondonSession,
   showNewYorkSession,
   showNewYorkKillZone,
+  showYesterdayDailyCandle,
   showCurrentDailyCandle,
   showStartOfDay,
   startOfDayLookbackDays,
@@ -778,6 +780,18 @@ export default function ChartPanel({
         <CurrentDailyCandleOverlay
           key={`daily-candle:${symbol}`}
           symbol={symbol}
+          chartRef={chartRef}
+          candleRef={candleRef}
+          lastDataTimeRef={lastDataTimeRef}
+          coordTimeToX={coordTimeToX}
+        />
+      )}
+
+      {showYesterdayDailyCandle && !isChartLoading && (
+        <CurrentDailyCandleOverlay
+          key={`yesterday-candle:${symbol}`}
+          symbol={symbol}
+          dayOffset={1}
           chartRef={chartRef}
           candleRef={candleRef}
           lastDataTimeRef={lastDataTimeRef}

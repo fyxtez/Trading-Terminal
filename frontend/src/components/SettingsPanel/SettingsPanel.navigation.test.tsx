@@ -71,6 +71,8 @@ function props(): ComponentProps<typeof SettingsPanel> {
     onShowWatermarkChange: vi.fn(),
     showDrawingSetBadge: false,
     onShowDrawingSetBadgeChange: vi.fn(),
+    showYesterdayDailyCandle: false,
+    onShowYesterdayDailyCandleChange: vi.fn(),
     showCurrentDailyCandle: false,
     onShowCurrentDailyCandleChange: vi.fn(),
     showStartOfDay: false,

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import ChartPanel from "./ChartPanel";
 import { useChartRefs } from "../../hooks/useChartRefs";
 import { useAppPreferences } from "../App/useAppPreferences";
-import { getDailyCandle } from "../../trading/api/dailyCandle";
+import { getDailyCandle, getYesterdayDailyCandle } from "../../trading/api/dailyCandle";
 
 const positionLife = vi.hoisted(() => ({ mounts: 0, cleanups: 0 }));
 vi.mock("../PositionBracketOverlay/PositionBracketOverlay", () => ({
@@ -21,7 +21,10 @@ vi.mock("../PositionBracketOverlay/PositionBracketOverlay", () => ({
 vi.mock("../DrawingMoveToast/DrawingMoveToast", () => ({ default: () => null }));
 vi.mock("../ChartContextBadges/ChartContextBadges", () => ({ default: () => null }));
 vi.mock("../ChartTimezoneBadge/ChartTimezoneBadge", () => ({ default: () => null }));
-vi.mock("../../trading/api/dailyCandle", () => ({ getDailyCandle: vi.fn() }));
+vi.mock("../../trading/api/dailyCandle", () => ({
+  getDailyCandle: vi.fn(),
+  getYesterdayDailyCandle: vi.fn(),
+}));
 
 function Harness({ symbol = "BTCUSDT", revision = 0 }) {
   const refs = useChartRefs();
@@ -31,6 +34,7 @@ function Harness({ symbol = "BTCUSDT", revision = 0 }) {
     symbol,
     interval: "1m",
     tool: "cursor",
+    showYesterdayDailyCandle: preferences.showYesterdayDailyCandle,
     showCurrentDailyCandle: preferences.showCurrentDailyCandle,
     showCandleCountdown: false,
     isChartLoading: false,
@@ -51,6 +55,14 @@ function Harness({ symbol = "BTCUSDT", revision = 0 }) {
           onChange={(event) => preferences.setShowCurrentDailyCandle(event.target.checked)}
         />
       </label>
+      <label>
+        Yesterday candle
+        <input
+          type="checkbox"
+          checked={preferences.showYesterdayDailyCandle}
+          onChange={(event) => preferences.setShowYesterdayDailyCandle(event.target.checked)}
+        />
+      </label>
       <ChartPanel {...props} />
     </div>
   );
@@ -62,6 +74,8 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   localStorage.setItem("fyxtez:daily-candle-enabled", "true");
   vi.mocked(getDailyCandle).mockReset().mockResolvedValue(null);
+  localStorage.removeItem("fyxtez:yesterday-candle-enabled");
+  vi.mocked(getYesterdayDailyCandle).mockReset().mockResolvedValue(null);
   positionLife.mounts = 0;
   positionLife.cleanups = 0;
 });
@@ -130,4 +144,30 @@ it("cleans up old symbol overlays and cancels their outstanding request", async 
     await vi.advanceTimersByTimeAsync(32);
   });
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it("toggles yesterday independently and restores the preference on remount", async () => {
+  const view = render(<Harness />);
+  await act(async () => {});
+  const current = view.container.querySelector("svg");
+  fireEvent.click(screen.getByRole("checkbox", { name: "Yesterday candle" }));
+  await act(async () => {});
+  expect(view.container.querySelectorAll("svg")).toHaveLength(2);
+  expect(view.container.querySelector("svg")).toBe(current);
+  expect(getYesterdayDailyCandle).toHaveBeenCalledTimes(1);
+  expect(localStorage.getItem("fyxtez:yesterday-candle-enabled")).toBe("true");
+  fireEvent.click(screen.getByRole("checkbox", { name: "Daily candle" }));
+  expect(view.container.querySelectorAll("svg")).toHaveLength(1);
+  view.unmount();
+  const restored = render(<Harness />);
+  await act(async () => {});
+  expect(screen.getByRole("checkbox", { name: "Yesterday candle" })).toBeChecked();
+  expect(restored.container.querySelectorAll("svg")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Yesterday candle" }));
+  expect(restored.container.querySelectorAll("svg")).toHaveLength(0);
+  const calls = vi.mocked(getYesterdayDailyCandle).mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  expect(getYesterdayDailyCandle).toHaveBeenCalledTimes(calls);
 });

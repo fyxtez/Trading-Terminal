@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import CurrentDailyCandleOverlay from "./CurrentDailyCandleOverlay";
-import { getDailyCandle } from "../../trading/api/dailyCandle";
+import { getDailyCandle, getYesterdayDailyCandle } from "../../trading/api/dailyCandle";
 
 let draw: () => void;
 vi.mock("../../utils/pacedLoop", () => ({
@@ -11,29 +11,36 @@ vi.mock("../../utils/pacedLoop", () => ({
     return () => {};
   },
 }));
-vi.mock("../../trading/api/dailyCandle", () => ({ getDailyCandle: vi.fn() }));
+vi.mock("../../trading/api/dailyCandle", () => ({
+  getDailyCandle: vi.fn(),
+  getYesterdayDailyCandle: vi.fn(),
+}));
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 it.each([
-  { open: 100, close: 120, color: "#34d399" },
-  { open: 120, close: 100, color: "#f04562" },
+  { open: 100, close: 120, color: "#34d399", dayOffset: 0 },
+  { open: 100, close: 120, color: "#34d399", dayOffset: 1 },
+  { open: 120, close: 100, color: "#f04562", dayOffset: 0 },
+  { open: 120, close: 100, color: "#f04562", dayOffset: 1 },
 ])(
-  "renders filled daily OHLC in $color, stays 100 px from the latest candle and clears at rollover",
-  async ({ open, close, color }) => {
+  "renders filled daily OHLC in $color, uses the correct position for day offset $dayOffset and clears at rollover",
+  async ({ open, close, color, dayOffset }) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T23:59:59Z"));
     const day = Date.parse("2026-09-26T00:00:00Z") / 1000;
-    vi.mocked(getDailyCandle).mockResolvedValue({
-      time: day as never,
+    const getCandle = dayOffset === 1 ? getYesterdayDailyCandle : getDailyCandle;
+    vi.mocked(getCandle).mockResolvedValue({
+      time: (day - dayOffset * 86400) as never,
       open,
       high: 130,
       low: 80,
       close,
     });
     const props = {
+      dayOffset,
       symbol: "BTCUSDT",
       chartRef: { current: { paneSize: () => ({ width: 600, height: 400 }) } },
       candleRef: {
@@ -53,12 +60,14 @@ it.each([
     const view = render(<CurrentDailyCandleOverlay {...props} />);
     await act(async () => {});
     draw();
-    expect(getDailyCandle).toHaveBeenCalledWith("BTCUSDT", expect.any(AbortSignal));
+    expect(getCandle).toHaveBeenCalledWith("BTCUSDT", expect.any(AbortSignal));
     const body = view.container.querySelector("rect")!;
     const wick = view.container.querySelector("path")!;
     const group = view.container.querySelector("g")!;
     expect(body).toHaveAttribute("x", "2");
-    expect(view.container.querySelector("svg")!.style.transform).toBe("translate3d(289px, 0, 0)");
+    expect(view.container.querySelector("svg")!.style.transform).toBe(
+      `translate3d(${289 - dayOffset * 30}px, 0, 0)`,
+    );
     expect(body).toHaveAttribute("y", "180");
     expect(body).toHaveAttribute("height", "20");
     expect(body).toHaveAttribute("fill", color);
@@ -71,7 +80,7 @@ it.each([
       expect(view.container.querySelectorAll("path")).toHaveLength(1);
       expect(view.container.querySelector("rect")).toBe(body);
       expect(view.container.querySelector("svg")!.style.transform).toBe(
-        `translate3d(${anchor + 100 - 11}px, 0, 0)`,
+        `translate3d(${anchor + 100 - dayOffset * 30 - 11}px, 0, 0)`,
       );
       expect(group.style.display).toBe("");
     }

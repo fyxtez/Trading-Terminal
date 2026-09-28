@@ -104,7 +104,9 @@ type SettingsPanelProps = {
   /** Whether the active drawing-set name badge is shown on the chart. */
   showDrawingSetBadge: boolean;
   onShowDrawingSetBadgeChange: (enabled: boolean) => void;
+  showYesterdayDailyCandle: boolean;
   showCurrentDailyCandle: boolean;
+  onShowYesterdayDailyCandleChange: (enabled: boolean) => void;
   onShowCurrentDailyCandleChange: (enabled: boolean) => void;
   showStartOfDay: boolean;
   onShowStartOfDayChange: (enabled: boolean) => void;
@@ -215,7 +217,9 @@ export default function SettingsPanel({
   onShowWatermarkChange,
   showDrawingSetBadge,
   onShowDrawingSetBadgeChange,
+  showYesterdayDailyCandle,
   showCurrentDailyCandle,
+  onShowYesterdayDailyCandleChange,
   onShowCurrentDailyCandleChange,
   showStartOfDay,
   onShowStartOfDayChange,
@@ -1437,6 +1441,26 @@ export default function SettingsPanel({
                         />
                       </label>
                     </>
+                  )}
+
+                  {(!isSearchingSettings ||
+                    drawingsSectionTitleMatches ||
+                    drawingOptionMatches.yesterdayDailyCandle) && (
+                    <label className="settings-toggle-field">
+                      <div className="settings-field-copy">
+                        <span>Draw yesterday daily candle</span>
+                        <small>
+                          Show the previous UTC day’s 1D open, high, low and close to the left of
+                          the current daily candle
+                        </small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="settings-toggle-input"
+                        checked={showYesterdayDailyCandle}
+                        onChange={(event) => onShowYesterdayDailyCandleChange(event.target.checked)}
+                      />
+                    </label>
                   )}
 
                   {(!isSearchingSettings ||

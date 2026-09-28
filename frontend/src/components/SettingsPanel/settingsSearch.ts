@@ -50,6 +50,10 @@ export function buildSettingsSearchModel(
       "Draw current daily candle",
       "OHLC open high low close 1D distance 100 px",
     ),
+    yesterdayDailyCandle: matches(
+      "Draw yesterday daily candle",
+      "previous UTC day OHLC open high low close 1D",
+    ),
     startOfDay: matches("Start of day candle", "vertical marker start chart day daily"),
     dayHistory: matches("Day history", "Number of chart days to mark maximum 20 lookback"),
     asia: matches("Asia session zone", "Asia session boundaries chart"),

@@ -13,6 +13,7 @@ const DRAWING_SET_BADGE_STORAGE_KEY = "fyxtez:drawing-set-badge-enabled";
 const WATERMARK_VISIBILITY_STORAGE_KEY = "fyxtez:watermark-visible";
 const START_OF_DAY_STORAGE_KEY = "fyxtez:start-of-day-enabled";
 const START_OF_DAY_LOOKBACK_STORAGE_KEY = "fyxtez:start-of-day-lookback-days";
+const YESTERDAY_CANDLE_KEY = "fyxtez:yesterday-candle-enabled";
 const DAILY_CANDLE_KEY = "fyxtez:daily-candle-enabled";
 const PRICE_ALERTS_VISIBLE_STORAGE_KEY = "fyxtez:price-alerts-visible";
 
@@ -52,6 +53,9 @@ function loadStartOfDayLookback(): number {
 
 /** Owns chart-only preferences and their localStorage lifecycle. */
 export function useAppPreferences() {
+  const [showYesterdayDailyCandle, setShowYesterdayDailyCandleState] = useState(() =>
+    loadOptInPreference(YESTERDAY_CANDLE_KEY),
+  );
   const [showCurrentDailyCandle, setShowCurrentDailyCandleState] = useState(() =>
     loadOptInPreference(DAILY_CANDLE_KEY),
   );
@@ -113,6 +117,11 @@ export function useAppPreferences() {
   };
 
   return {
+    showYesterdayDailyCandle,
+    setShowYesterdayDailyCandle: booleanSetter(
+      setShowYesterdayDailyCandleState,
+      YESTERDAY_CANDLE_KEY,
+    ),
     showCurrentDailyCandle,
     setShowCurrentDailyCandle: booleanSetter(setShowCurrentDailyCandleState, DAILY_CANDLE_KEY),
     showDrawings,
