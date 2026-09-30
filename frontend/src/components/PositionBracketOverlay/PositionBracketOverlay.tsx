@@ -1906,7 +1906,7 @@ export default function PositionBracketOverlay({
             className="position-bracket-r-multiple"
             title={
               riskBasis
-                ? "Target profit divided by the initial cash risk (1R). Moving SL does not change 1R."
+                ? "Target distance from average entry divided by the original risk per unit (1R). Adding or reducing quantity and moving SL do not change 1R."
                 : "Original risk is not recorded for this trade; R is unavailable until an initial risk is known."
             }
           >
@@ -1931,7 +1931,7 @@ export default function PositionBracketOverlay({
         >
           <div
             className="position-bracket-r-multiple"
-            title="Profit or loss at SL, relative to the initial cash risk"
+            title="SL distance from average entry, relative to the original risk per unit"
           >
             {stopRLabel}
           </div>

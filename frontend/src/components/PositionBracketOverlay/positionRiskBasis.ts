@@ -43,7 +43,10 @@ export function priceInR(
 ): number | null {
   if (!basis || basis.side !== position.side || price == null) return null;
   const direction = position.side === "LONG" ? 1 : -1;
-  return (
-    (direction * (price - position.entry_price) * Math.abs(position.quantity)) / basis.cashRisk
-  );
+  // Normalize the saved risk to one unit, then apply it to the whole current
+  // position. Scaling in/out must not multiply R by the quantity change.
+  const unitRisk = basis.cashRisk / basis.quantity;
+  if (!Number.isFinite(unitRisk) || unitRisk <= 0 || !(basis.quantity > 0)) return null;
+  const multiple = (direction * (price - position.entry_price)) / unitRisk;
+  return Number.isFinite(multiple) ? multiple : null;
 }
