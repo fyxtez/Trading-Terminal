@@ -65,6 +65,38 @@ Local trading requires its own permitted outbound IP.
 Nginx must forward the Upgrade and Connection headers for the WebSocket route.
 See [Nginx WebSocket proxying](https://nginx.org/en/docs/http/websocket.html).
 
+### Verify browser asset delivery
+
+On the current Ubuntu host, Nginx workers run as `www-data`. Its proxy temporary
+directory must be writable by that user. Install the persistent ownership rule
+from the repository root on the server:
+
+```sh
+install -m 0644 deploy/nginx-proxy-tmpfiles.conf /etc/tmpfiles.d/fyxtez-nginx-proxy.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/fyxtez-nginx-proxy.conf
+runuser -u www-data -- test -w /var/lib/nginx/proxy
+nginx -t
+```
+
+This applies immediately and at boot; no backend or Nginx restart is needed.
+For another host, verify the configured Nginx worker user and proxy temporary
+path before installing the rule. The rule only changes the proxy directory,
+preserving the restricted `0700` mode.
+
+After every deployment, run this check from a machine with public network access:
+
+```sh
+python3 deploy/check-browser-assets.py https://terminal.fyxtez.com
+```
+
+It downloads `/`, `/BTC`, and their JavaScript/CSS entry assets, checking response
+types and complete bodies. A `200 OK` or successful HEAD request alone is not
+sufficient: on 2026-10-09, Nginx returned `200` but truncated the main JavaScript
+because `/var/lib/nginx/proxy` belonged to `nobody`. The error log reported
+`Permission denied` while reading upstream; browsers reported
+`ERR_CONTENT_LENGTH_MISMATCH`. Also open the site in a browser to verify rendering;
+this download check does not exercise JavaScript execution or authenticated trading.
+
 ## Recovery and current scope
 
 Stop the service before an offline data-directory backup, or use SQLite's backup
