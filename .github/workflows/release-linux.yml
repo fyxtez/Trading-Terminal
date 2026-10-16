@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Use pinned npm version
         run: npm install --global npm@11.19.1
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@1.120.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
@@ -136,7 +136,7 @@ jobs:
             "build-tools;36.0.0" \
             "ndk;29.0.14206865"
           printf 'NDK_HOME=%s\n' "$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
