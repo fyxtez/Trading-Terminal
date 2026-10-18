@@ -295,3 +295,17 @@
     min-height: 50px;
   }
 }
+
+/* An embedded workspace can be narrow even on a desktop with the timeline open.
+ * Wrap controls instead of hiding the rightmost actions beyond the frame. */
+.terminal-workspace.opcore-embedded .topbar {
+  height: auto;
+  min-height: 46px;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  padding-block: 8px;
+  overflow: visible;
+}
+.terminal-workspace.opcore-embedded .topbar > * {
+  flex-shrink: 0;
+}

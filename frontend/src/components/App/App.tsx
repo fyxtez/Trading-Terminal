@@ -1,3 +1,4 @@
+import { isEmbeddedTerminal } from "../../config/embeddedTerminal";
 import ChartWorkspaceLayout from "./ChartWorkspaceLayout";
 import { createPositionBindingsStore, SharedPositionsPanel } from "./sharedPositions";
 import {
@@ -138,7 +139,7 @@ export default function App() {
       }}
     >
       <div
-        className="terminal-workspace"
+        className={`terminal-workspace${isEmbeddedTerminal() ? " opcore-embedded" : ""}`}
         style={{ "--positions-panel-height": `${positionsPanelHeight}px` } as CSSProperties}
       >
         <div className="terminal-topbar" ref={setTopbarHost} />

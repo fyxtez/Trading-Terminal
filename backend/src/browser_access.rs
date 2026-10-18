@@ -20,6 +20,9 @@ use crate::error::{AppError, AppResult};
 
 use super::api::AppState;
 
+#[path = "browser_embed.rs"]
+pub(crate) mod embed;
+
 pub(crate) const BROWSER_SESSION_COOKIE: &str = "fyxtez_browser_session";
 pub(crate) const BROWSER_PROOF_HEADER: &str = "x-fyxtez-browser-proof";
 const SESSION_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
@@ -63,11 +66,15 @@ struct BrowserAccessInner {
     unavailable_reason: Option<String>,
     #[serde(skip)]
     launch_tickets: HashMap<String, Instant>,
+    #[serde(skip)]
+    embed_requests: HashMap<String, embed::PendingConnection>,
     sessions: HashMap<String, BrowserSessionRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BrowserSessionRecord {
+    #[serde(default)]
+    embedded: bool,
     auth: BrowserSessionAuth,
     proof_hashes: HashSet<[u8; 32]>,
     expires_at: u64,
@@ -127,6 +134,7 @@ impl BrowserAccessState {
                 next_session_id: 1,
                 unavailable_reason: None,
                 launch_tickets: HashMap::new(),
+                embed_requests: HashMap::new(),
                 sessions: HashMap::new(),
             })),
         }
@@ -145,6 +153,7 @@ impl BrowserAccessState {
                 next_session_id: 1,
                 unavailable_reason: Some("Browser access is starting".into()),
                 launch_tickets: HashMap::new(),
+                embed_requests: HashMap::new(),
                 sessions: HashMap::new(),
             })),
         }
@@ -279,6 +288,7 @@ impl BrowserAccessState {
             inner.enabled = false;
             inner.generation = inner.generation.wrapping_add(1);
             inner.launch_tickets.clear();
+            inner.embed_requests.clear();
             inner.sessions.clear();
             self.persist(&inner)?;
         }
@@ -340,6 +350,7 @@ impl BrowserAccessState {
                 inner
                     .sessions
                     .get_mut(&session_key(session))
+                    .filter(|record| !record.embedded)
                     .map(|record| (session.to_owned(), record))
             })
         {
@@ -359,6 +370,7 @@ impl BrowserAccessState {
         inner.sessions.insert(
             session_key(&session),
             BrowserSessionRecord {
+                embedded: false,
                 auth,
                 proof_hashes: HashSet::from([proof_hash]),
                 expires_at: unix_seconds() + SESSION_TTL_SECONDS,
@@ -374,8 +386,15 @@ impl BrowserAccessState {
         method: &Method,
     ) -> AppResult<BrowserSessionAuth> {
         self.validate_browser_headers(headers, is_mutation(method))?;
-        let session =
-            cookie_value(headers, BROWSER_SESSION_COOKIE).ok_or(AppError::Unauthorized)?;
+        let embedded = headers.contains_key(embed::EMBEDDED_SESSION_HEADER);
+        let session = if embedded {
+            headers
+                .get(embed::EMBEDDED_SESSION_HEADER)
+                .and_then(|value| value.to_str().ok())
+        } else {
+            cookie_value(headers, BROWSER_SESSION_COOKIE)
+        }
+        .ok_or(AppError::Unauthorized)?;
         if !valid_secret(session) {
             return Err(AppError::Unauthorized);
         }
@@ -394,7 +413,8 @@ impl BrowserAccessState {
             .sessions
             .get(&session_key(session))
             .ok_or(AppError::Unauthorized)?;
-        if !record.proof_hashes.contains(&secret_hash(session_proof)) {
+        if record.embedded != embedded || !record.proof_hashes.contains(&secret_hash(session_proof))
+        {
             return Err(AppError::Unauthorized);
         }
         let auth = record.auth;
@@ -588,6 +608,9 @@ pub(crate) fn require_master_token(state: &AppState, headers: &HeaderMap) -> App
 }
 
 fn remove_expired(inner: &mut BrowserAccessInner, now: Instant) {
+    inner
+        .embed_requests
+        .retain(|_, pending| pending.expires_at > now);
     inner
         .launch_tickets
         .retain(|_, expires_at| *expires_at > now);

@@ -151,6 +151,22 @@ pub fn router(state: AppState) -> Router {
         .route("/api/browser-access/launch", post(launch_browser_access))
         .route("/api/browser-session/redeem", post(redeem_browser_session))
         .route("/api/browser-session", get(browser_session))
+        .route(
+            "/api/browser-session/embed/request",
+            post(crate::browser_access::embed::request),
+        )
+        .route(
+            "/api/browser-session/embed/poll",
+            post(crate::browser_access::embed::poll),
+        )
+        .route(
+            "/api/browser-session/embed/review",
+            get(crate::browser_access::embed::review),
+        )
+        .route(
+            "/api/browser-session/embed/approve",
+            post(crate::browser_access::embed::approve),
+        )
         .route("/api/diagnostics", get(diagnostics))
         .route("/api/operation-safety/unresolved", get(unresolved_intents))
         .route(
@@ -300,6 +316,11 @@ fn browser_files(ui_dir: PathBuf) -> ServeDir<ServeFile> {
 }
 
 async fn browser_security_headers(request: axum::extract::Request, next: Next) -> Response {
+    let embed = request.uri().path() == "/BTC"
+        && request.uri().query().is_some_and(|query| {
+            url::form_urlencoded::parse(query.as_bytes())
+                .any(|(key, value)| key == "embed" && value == "opcore")
+        });
     let mut response = next.run(request).await;
     for (name, value) in [
         ("x-content-type-options", "nosniff"),
@@ -315,6 +336,29 @@ async fn browser_security_headers(request: axum::extract::Request, next: Next) -
         response.headers_mut().insert(
             HeaderName::from_static(name),
             HeaderValue::from_static(value),
+        );
+    }
+    if embed
+        && response.status().is_success()
+        && response
+            .headers()
+            .get("content-type")
+            .is_some_and(|value| value.to_str().unwrap_or_default().starts_with("text/html"))
+    {
+        let csp = response.headers()["content-security-policy"]
+            .to_str()
+            .unwrap_or_default()
+            .replace(
+                "frame-ancestors 'none'",
+                &format!(
+                    "frame-ancestors {}",
+                    crate::browser_access::embed::frame_ancestors()
+                ),
+            );
+        response.headers_mut().remove("x-frame-options");
+        response.headers_mut().insert(
+            "content-security-policy",
+            HeaderValue::from_str(&csp).expect("fixed trusted frame origins"),
         );
     }
     response
@@ -2831,7 +2875,32 @@ mod browser_route_tests {
             let response = client.get(format!("{origin}{path}")).send().await.unwrap();
             assert_eq!(response.status(), StatusCode::OK, "{path}");
             assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+            assert_eq!(response.headers()["x-frame-options"], "DENY");
+            assert!(
+                response.headers()["content-security-policy"]
+                    .to_str()
+                    .unwrap()
+                    .contains("frame-ancestors 'none'")
+            );
             assert_eq!(response.text().await.unwrap(), "<html>terminal</html>");
+        }
+        let embed = client
+            .get(format!("{origin}/BTC?embed=opcore"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(embed.status(), StatusCode::OK);
+        assert!(embed.headers().get("x-frame-options").is_none());
+        let csp = embed.headers()["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("frame-ancestors tauri://localhost http://tauri.localhost https://tauri.localhost http://127.0.0.1:37373"));
+        assert!(!csp.contains("frame-ancestors *"));
+        for path in [
+            "/BTC?embed=other",
+            "/api/missing?embed=opcore",
+            "/assets/app.js?embed=opcore",
+        ] {
+            let response = client.get(format!("{origin}{path}")).send().await.unwrap();
+            assert_eq!(response.headers()["x-frame-options"], "DENY");
         }
         let asset = client
             .get(format!("{origin}/assets/app.js"))

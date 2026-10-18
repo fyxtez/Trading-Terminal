@@ -1,3 +1,4 @@
+import { isEmbeddedTerminal, embeddedSessionHeaders } from "../../config/embeddedTerminal";
 import {
   TRADING_API_BASE_URL,
   TRADING_API_TOKEN,
@@ -65,6 +66,8 @@ export async function tradingApiFetch(
     // Always replace a caller-provided value. Only the persistent origin-scoped proof
     // selected by the trusted bootstrap is allowed to authenticate this tab.
     headers.set("x-fyxtez-browser-proof", proof);
+    headers.delete("x-fyxtez-embedded-session");
+    for (const [key, value] of Object.entries(embeddedSessionHeaders())) headers.set(key, value);
   }
 
   const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
@@ -81,7 +84,11 @@ export async function tradingApiFetch(
     ...init,
     signal,
     headers,
-    credentials: isBrowserSessionRuntime(runtimeMode) ? "include" : init.credentials,
+    credentials: isBrowserSessionRuntime(runtimeMode)
+      ? isEmbeddedTerminal()
+        ? "omit"
+        : "include"
+      : init.credentials,
     redirect:
       isBrowserSessionRuntime(runtimeMode) || runtimeMode === "native" ? "error" : init.redirect,
   });

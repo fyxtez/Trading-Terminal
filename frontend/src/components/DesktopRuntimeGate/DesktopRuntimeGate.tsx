@@ -1,3 +1,5 @@
+import { isEmbeddedTerminal, notifyEmbeddedParent } from "../../config/embeddedTerminal";
+import { EmbeddedConnection } from "./EmbeddedConnection";
 import terminalMark from "../../assets/fyxtez-f-mark-alpha.png?inline";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -167,6 +169,10 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
     };
   }, [state]);
 
+  useEffect(() => {
+    if (state.kind === "ready") notifyEmbeddedParent("ready");
+  }, [state.kind]);
+
   const retry = () => {
     setShowStartupMessage(false);
     setState({ kind: "starting" });
@@ -175,6 +181,9 @@ export default function DesktopRuntimeGate({ children }: { children: ReactNode }
       (reason: unknown) => setState(failedRuntimeState(reason)),
     );
   };
+
+  if (state.kind === "failed" && isEmbeddedTerminal() && !getLocalBrowserSessionProof())
+    return <EmbeddedConnection onConnected={retry} />;
 
   if (state.kind === "ready")
     return (

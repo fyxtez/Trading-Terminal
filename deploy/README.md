@@ -173,3 +173,40 @@ Reload systemd and restart after provisioning. `PUBLIC_TERMINAL_URL` points to
 Unconfigured/failed channels retain pending messages. Successful channels are not
 repeated; crash recovery provides at-least-once delivery. Test alerts should be
 clearly labelled and never require placing an exchange order.
+
+
+### OpCore main-panel embedding (source change, 2026-10-18)
+
+Deploy the updated Terminal backend and frontend together before delivering the
+OpCore client that selects Terminal below Wallets. This source change has not been
+deployed. No order or live account is needed for its offline checks.
+
+Only `/BTC?embed=opcore` may be framed. Its CSP allows the exact installed OpCore
+origins: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`,
+and `http://127.0.0.1:37373`. Normal documents and API responses retain DENY and
+`frame-ancestors 'none'`. Do not add a blanket proxy framing override. Debug
+builds additionally allow Vite ports 1420 and 31420; release builds do not.
+
+First use creates a three-minute pending connection. The owner chooses Connect
+Terminal in OpCore, then explicitly approves in an already authorized top-level
+Terminal browser tab. If that browser has not been authorized, use the installed
+Terminal app's existing Open in Browser flow first, then retry from OpCore.
+Approval enables Terminal account access, including trading, within the frame.
+It cannot be approved by another embedded session.
+
+The frame polls with a private one-use secret and receives a separate embedded
+session plus proof. Those values remain in Terminal storage/memory; OpCore sees
+only status and a public request ID. Embedded requests use those headers with
+credentials omitted, so blocked third-party cookies do not prevent access.
+Blocked storage still permits the current visit; reopening then requires pairing
+again. Normal Strict/HttpOnly cookie authorization is unchanged. Disabling browser
+access revokes both kinds of sessions and their WebSocket authority. Pending
+connections are bounded and expire; they do not survive a backend restart.
+
+Verification: Rust browser/auth and frame-header tests, frontend auth/API and
+embedded-storage tests, and the cross-project OpCore Playwright case with both
+real built frontend bundles and mock API responses. From the OpCore repository,
+after building both frontends, set `OPCORE_TERMINAL_DIST` to this project's
+`frontend/dist` and select `Terminal (opens|ignores|real bundle)` in
+`e2e/terminal.spec.ts`. These checks do not establish native WebKit/Android or
+production-login behavior; verify those during delivery without placing an order.

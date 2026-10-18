@@ -1,3 +1,9 @@
+import {
+  isEmbeddedTerminal,
+  getEmbeddedCredentials,
+  clearEmbeddedCredentials,
+  embeddedSessionHeaders,
+} from "./embeddedTerminal";
 import type { UTCTimestamp } from "lightweight-charts";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
@@ -306,6 +312,7 @@ function validBrowserSessionProof(value: unknown): value is string {
 }
 
 export function getLocalBrowserSessionProof(): string | null {
+  if (isEmbeddedTerminal()) return getEmbeddedCredentials()?.sessionProof ?? null;
   if (!isTrustedBrowserOrigin(TRADING_API_BASE_URL)) return null;
   try {
     const proof =
@@ -338,6 +345,10 @@ function storeLocalBrowserSessionProof(proof: string): void {
 }
 
 function clearLocalBrowserSessionProof(): void {
+  if (isEmbeddedTerminal()) {
+    clearEmbeddedCredentials();
+    return;
+  }
   if (!isTrustedBrowserOrigin(TRADING_API_BASE_URL)) return;
   for (const storage of ["localStorage", "sessionStorage"] as const) {
     try {
@@ -477,14 +488,14 @@ async function initializeBrowserRuntime(origin: string, ticket: string | null): 
   const normalizedOrigin = normalizeBaseUrl(origin);
   selectTradingApiBaseUrl(normalizedOrigin);
 
-  if (ticket) {
+  if (ticket && !isEmbeddedTerminal()) {
     // Keep the working proof until the replacement ticket has been redeemed.
     if (!/^[A-Za-z0-9_-]{32,256}$/.test(ticket)) {
       throw new LocalBrowserSessionError("This browser launch link is invalid or has expired.");
     }
     const redeemed = await fetch(`${normalizedOrigin}/api/browser-session/redeem`, {
       method: "POST",
-      credentials: "include",
+      credentials: isEmbeddedTerminal() ? "omit" : "include",
       cache: "no-store",
       redirect: "error",
       headers: { "Content-Type": "application/json" },
@@ -514,20 +525,20 @@ export async function validateLocalBrowserSession(): Promise<LocalBrowserSession
 
   const response = await fetch(`${TRADING_API_BASE_URL}/api/browser-session`, {
     method: "GET",
-    credentials: "include",
+    credentials: isEmbeddedTerminal() ? "omit" : "include",
     cache: "no-store",
     redirect: "error",
     signal: AbortSignal.timeout(15_000),
-    headers: { "x-fyxtez-browser-proof": sessionProof },
+    headers: { "x-fyxtez-browser-proof": sessionProof, ...embeddedSessionHeaders() },
   });
   try {
     const { session } = await readBrowserSessionResponse(response);
     if (TRADING_RUNTIME_MODE === "remote-browser") {
       const metadataResponse = await fetch(`${TRADING_API_BASE_URL}/api/session`, {
-        credentials: "include",
+        credentials: isEmbeddedTerminal() ? "omit" : "include",
         cache: "no-store",
         redirect: "error",
-        headers: { "x-fyxtez-browser-proof": sessionProof },
+        headers: { "x-fyxtez-browser-proof": sessionProof, ...embeddedSessionHeaders() },
         signal: AbortSignal.timeout(15_000),
       });
       if (!metadataResponse.ok)

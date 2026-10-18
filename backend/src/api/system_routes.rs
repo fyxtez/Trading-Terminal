@@ -91,7 +91,11 @@ pub(super) async fn authorize(
 
     if matches!(
         path.as_str(),
-        "/health" | "/api/ws/trading" | "/api/browser-session/redeem"
+        "/health"
+            | "/api/ws/trading"
+            | "/api/browser-session/redeem"
+            | "/api/browser-session/embed/request"
+            | "/api/browser-session/embed/poll"
     ) {
         return Ok(next.run(request).await);
     }
