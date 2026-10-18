@@ -1,0 +1,91 @@
+{
+  "source_commit": "00bcff6d80843814f47e2d613a7e9816a2cbc348",
+  "deployed_at": "2026-10-18T19:19:38.077356+00:00",
+  "observed_at": "2026-10-18T19:19:58.678477+00:00",
+  "release": "/opt/fyxtez-terminal/releases/20261018T191914Z-opcore-embed-00bcff6",
+  "previous_release": "/opt/fyxtez-terminal/releases/20260928-yesterday-candle-7dd09dc",
+  "backup": "/opt/fyxtez-terminal/backups/20261018T191914Z-opcore-embed-00bcff6",
+  "binary_sha256": "c2cf4a69a0c428dddb2d0ce6499454c36e375667fa82b0b632826198e12d47e9",
+  "shutdown_seconds": 0.036,
+  "stopped_to_healthy_seconds": 1.0,
+  "private_configuration_preserved": true,
+  "unit_unchanged": true,
+  "journal_integrity": "ok",
+  "pending_operations": 0,
+  "service": {
+    "MainPID": "1401598",
+    "NRestarts": "0",
+    "ExecMainStartTimestamp": "Sun 2026-10-18 19:19:38 UTC",
+    "ExecMainStartTimestampMonotonic": "9526630961192",
+    "User": "fyxtez-terminal",
+    "ActiveState": "active"
+  },
+  "validation": {
+    "backend_browser_auth_tests": 17,
+    "frontend_auth_storage_tests": 16,
+    "cross_project_browser_tests": 4,
+    "production_assets": "Both document routes and all seven entry JS/CSS assets downloaded completely.",
+    "production_frame": {
+      "at": "2026-10-18T19:21:27.470Z",
+      "parentOrigin": "http://127.0.0.1:37373",
+      "rendered": true,
+      "explicitConnectionRequired": true,
+      "authenticated": false,
+      "responses": [
+        {
+          "path": "/BTC",
+          "status": 200
+        },
+        {
+          "path": "/assets/vendor-Vqc6nbtd.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/rolldown-runtime-CbXtAM7H.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/vendor-BwdWM3dV.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-ClWQ1ufH.css",
+          "status": 200
+        },
+        {
+          "path": "/assets/index-CzJ6tGFK.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/react-vendor-BZkEIToh.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/chart-vendor-B0UwYn2Y.js",
+          "status": 200
+        },
+        {
+          "path": "/assets/manrope-latin-wght-normal-DHIcAJRg.woff2",
+          "status": 200
+        },
+        {
+          "path": "/api/browser-session/embed/request",
+          "status": 200
+        }
+      ],
+      "blocked": [],
+      "errors": [],
+      "scope": "Public deployed iframe through Chromium; one expiring unapproved connection request. No account access or order."
+    },
+    "authenticated_session_status": 200,
+    "unauthenticated_session_status": 401,
+    "normal_page_frame_options": "DENY",
+    "embed_csp": "default-src 'self'; connect-src 'self' ws://127.0.0.1:8658 wss://terminal.fyxtez.com https://fapi.binance.com https://testnet.binancefuture.com https://api.binance.com https://contract.mexc.com wss://fstream.binance.com wss://stream.binancefuture.com wss://contract.mexc.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors tauri://localhost http://tauri.localhost https://tauri.localhost http://127.0.0.1:37373; base-uri 'none'; form-action 'none'"
+  },
+  "scope": "Existing Terminal backend/frontend only; OpCore client delivered separately. No order, account-setting change or approval of an embedded account connection.",
+  "limitations": [
+    "Production frame verified in Chromium at the installed OpCore browser origin.",
+    "Native WebKit frame and Android device login were not exercised.",
+    "First account connection still requires explicit user approval in an authorized top-level Terminal browser."
+  ]
+}

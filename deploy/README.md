@@ -175,11 +175,15 @@ repeated; crash recovery provides at-least-once delivery. Test alerts should be
 clearly labelled and never require placing an exchange order.
 
 
-### OpCore main-panel embedding (source change, 2026-10-18)
+### OpCore main-panel embedding (deployed 2026-10-18)
 
-Deploy the updated Terminal backend and frontend together before delivering the
-OpCore client that selects Terminal below Wallets. This source change has not been
-deployed. No order or live account is needed for its offline checks.
+Backend/frontend source `00bcff6` is deployed on the existing Terminal host. The
+OpCore 0.7.5 client selects Terminal below Wallets. The controlled Terminal restart
+reached healthy state in 1.0 seconds after stopping; credentials, settings, service
+unit and journal were preserved, with no unresolved operation before cutover.
+[Delivery receipt](releases/2026-10-18-opcore-embed.json) records source/binary identity,
+backup, tests and limits. The public frame renders in Chromium and still requires
+explicit account approval; no production account connection or order was submitted.
 
 Only `/BTC?embed=opcore` may be framed. Its CSP allows the exact installed OpCore
 origins: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`,
