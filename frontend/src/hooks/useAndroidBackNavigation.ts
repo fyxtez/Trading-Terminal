@@ -1,4 +1,5 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../desktop/nativeRuntime";
 import { useEffect, useRef, useState } from "react";
 
 export const MOBILE_BACK_EVENT = "fyxtez:mobile-back";
@@ -11,7 +12,7 @@ type MobileBackEventDetail = {
 const HISTORY_GUARD = "__fyxtezAndroidBackGuard";
 
 function isAndroidTauri(): boolean {
-  return isTauri() && /Android/i.test(navigator.userAgent);
+  return isNativeTerminal() && /Android/i.test(navigator.userAgent);
 }
 
 function guardedHistoryState(): Record<string, unknown> {

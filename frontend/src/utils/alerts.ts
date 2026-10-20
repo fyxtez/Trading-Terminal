@@ -1,4 +1,5 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../desktop/nativeRuntime";
 import { formatSymbolPair, getSymbolInfo } from "../config/symbols";
 import type { AlertPattern, PriceAlert } from "../types/alert";
 import { publishSystemNotice } from "../diagnostics/events";
@@ -81,7 +82,7 @@ export async function sendPriceAlertNotification(
   pattern: AlertPattern,
   additionalInfo: string,
 ): Promise<void> {
-  if (!isTauri()) {
+  if (!isNativeTerminal()) {
     console.error(
       "Price alert notification skipped: notifications are available only in the desktop app",
     );

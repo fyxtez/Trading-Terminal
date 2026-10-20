@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../desktop/nativeRuntime";
 import {
   isBrowserSessionRuntime,
   TRADING_API_BASE_URL,
@@ -116,7 +116,7 @@ export function connectSharedDrawings(
   initial: Drawing[],
   receive: (drawings: Drawing[]) => void,
 ) {
-  if (!isTauri() && !isBrowserSessionRuntime()) return () => {};
+  if (!isNativeTerminal() && !isBrowserSessionRuntime()) return () => {};
   let document = documents.get(symbol);
   if (!document) {
     document = new SharedDocument(symbol, initial);

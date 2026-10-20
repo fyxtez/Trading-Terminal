@@ -185,6 +185,18 @@ unit and journal were preserved, with no unresolved operation before cutover.
 backup, tests and limits. The public frame renders in Chromium and still requires
 explicit account approval; no production account connection or order was submitted.
 
+Windows follow-up, 2026-10-20: WebView2 also injects the containing Tauri app's
+initialization into subframes. A plain `isTauri()` check made the hosted Terminal
+invoke `desktop_runtime` against OpCore and remain on its startup screen.
+All native feature checks now use `isNativeTerminal()`, which requires the
+top-level window. Embedded sessions retain their separate browser authorization;
+no parent credentials or native commands are used. The standalone native app
+keeps its existing IPC path. Validation: 277 frontend tests and the OpCore
+cross-project browser test with injected WebView2 globals at `http://tauri.localhost`.
+The old bundle passed the ordinary-browser case and failed that Windows case;
+the corrected bundle passes both. This is simulated WebView2 initialization,
+not an installed-app acceptance test.
+
 Only `/BTC?embed=opcore` may be framed. Its CSP allows the exact installed OpCore
 origins: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`,
 and `http://127.0.0.1:37373`. Normal documents and API responses retain DENY and

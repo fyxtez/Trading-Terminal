@@ -1,4 +1,5 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../../desktop/nativeRuntime";
 import { useEffect, useState } from "react";
 import { isRemoteBackend, TRADING_API_BASE_URL } from "../../config/constants";
 import "./BackendConnectionSection.css";
@@ -12,7 +13,7 @@ export default function BackendConnectionSection() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isNativeTerminal()) return;
     void invoke<{ mode: string; url?: string }>("backend_connection_settings")
       .then((profile) => {
         setMode(profile.mode);
@@ -20,7 +21,7 @@ export default function BackendConnectionSection() {
       })
       .catch(() => setError("Saved connection could not be read. Choose a connection below."));
   }, []);
-  if (!isTauri()) return null;
+  if (!isNativeTerminal()) return null;
 
   const save = async () => {
     setSaving(true);

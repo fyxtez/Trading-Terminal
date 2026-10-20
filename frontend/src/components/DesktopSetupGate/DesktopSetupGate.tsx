@@ -1,6 +1,7 @@
 import terminalMark from "../../assets/fyxtez-f-mark-alpha.png?inline";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../../desktop/nativeRuntime";
 import {
   DESKTOP_ONBOARDING_KEY,
   DESKTOP_SETUP_EVENT,
@@ -92,7 +93,7 @@ const steps = allSteps.filter(
 );
 
 export default function DesktopSetupGate({ children }: { children: ReactNode }) {
-  const desktop = isTauri();
+  const desktop = isNativeTerminal();
   const runtimeMode: TradingRuntimeMode = desktop ? "native" : getTradingRuntimeMode();
   const initialBrowserSession = !desktop ? getLocalBrowserSession() : null;
   const [status, setStatus] = useState<DesktopCredentialStatus>(() =>

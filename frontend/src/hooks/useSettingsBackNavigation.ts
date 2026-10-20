@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../desktop/nativeRuntime";
 import { useEffect, useId, useRef } from "react";
 import { claimMobileBack, MOBILE_BACK_EVENT } from "./useAndroidBackNavigation";
 
@@ -27,7 +27,7 @@ export function useSettingsBackNavigation(active: boolean, onBack: () => void) {
     const mobileBack = (event: Event) => claimMobileBack(event, back);
     window.addEventListener(MOBILE_BACK_EVENT, mobileBack, true);
 
-    const native = isTauri();
+    const native = isNativeTerminal();
     let popped = false;
     const historyBack = () => {
       if (history.state?.[HISTORY_KEY] === id) return;

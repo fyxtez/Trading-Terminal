@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "./nativeRuntime";
 import { getLocalBrowserSession, isBrowserSessionRuntime } from "../config/constants";
 
 export type DesktopCredentialStatus = {
@@ -28,5 +28,5 @@ export function setDesktopCredentialStatus(status: DesktopCredentialStatus) {
 
 export function canUseTradingAccount(): boolean {
   if (isBrowserSessionRuntime()) return getLocalBrowserSession()?.binanceConfigured === true;
-  return isTauri() && currentStatus.binanceConfigured;
+  return isNativeTerminal() && currentStatus.binanceConfigured;
 }

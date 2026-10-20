@@ -5,7 +5,8 @@ import {
   embeddedSessionHeaders,
 } from "./embeddedTerminal";
 import type { UTCTimestamp } from "lightweight-charts";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
+import { isNativeTerminal } from "../desktop/nativeRuntime";
 
 /** Market-data/execution venue attached to each chart symbol. */
 export type ExchangeSource = "binance" | "mexc";
@@ -641,7 +642,7 @@ function applyDesktopRuntime(runtime: DesktopRuntime): string {
  * other browser uses VITE_TRADING_API_URL (or the hosted terminal default).
  */
 export async function refreshTradingApiBaseUrl(): Promise<string> {
-  if (isTauri()) {
+  if (isNativeTerminal()) {
     return applyDesktopRuntime(await invoke<DesktopRuntime>("desktop_runtime"));
   }
 
@@ -665,7 +666,7 @@ export async function refreshTradingApiBaseUrl(): Promise<string> {
 
 /** Explicit recovery after the native supervisor exhausts automatic retries. */
 export async function restartDesktopBackend(): Promise<string> {
-  if (!isTauri()) {
+  if (!isNativeTerminal()) {
     throw new Error("Backend restart is available only in the desktop app.");
   }
   const nextUrl = applyDesktopRuntime(await invoke<DesktopRuntime>("restart_backend"));
@@ -696,7 +697,7 @@ export function retryTradingRuntime(): Promise<string> {
  * history/BFCache.
  */
 export function refreshTradingApiBaseUrlAfterResume(): Promise<string> {
-  if (isTauri()) {
+  if (isNativeTerminal()) {
     return refreshTradingApiBaseUrl();
   }
   if (isBrowserSessionRuntime()) {
