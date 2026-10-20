@@ -1,0 +1,86 @@
+{
+  "at": "20261020T155343Z",
+  "source_commit": "baed809c703ba80671ea84befe30fbb9075c790a",
+  "release": "/opt/fyxtez-terminal/releases/20261018T191914Z-opcore-embed-00bcff6",
+  "backup": "/opt/fyxtez-terminal/backups/20261020T155343Z-webview2-baed809",
+  "before": {
+    "MainPID": "1401598",
+    "NRestarts": "0",
+    "ActiveState": "active"
+  },
+  "after": {
+    "MainPID": "1401598",
+    "NRestarts": "0",
+    "ActiveState": "active"
+  },
+  "backend_sha256": "c2cf4a69a0c428dddb2d0ce6499454c36e375667fa82b0b632826198e12d47e9",
+  "previous_index_sha256": "eadf9cfa4d2e904967ab56576c6321a278def7cb3b1c444b0d62786c4c0c8efd",
+  "index_sha256": "efe3019e9eac00b78cc922a952e3f87059773007e5478f58ee3ec352f5774c8d",
+  "files": {
+    "assets/chart-vendor-B0UwYn2Y.js": "6d0c39427e89801954fa3b029b505bcce069066f9463455e23010f23f1cdd398",
+    "assets/fyxtez-f-mark-alpha-D2hBryH4.png": "271fe593e23a3ef31c9b8faec570120b29550a38476ccb06c5ae007909ff9ade",
+    "assets/index-ClWQ1ufH.css": "98d76f89bf55a7396a2e878c2eb856d3e458ec6e8e9096fdbdaaa5fe78a62192",
+    "assets/index-COqwSt3R.js": "924701b39b20c9d3927bbf9932faf4ba61e16a94482f6d1aa27c10385f12d86c",
+    "assets/manrope-cyrillic-wght-normal-Dvxsihut.woff2": "c268b459a9329e59fecf39a17618efd44c71735532048d60b12aab76a8c14914",
+    "assets/manrope-greek-wght-normal-DL7QRZyv.woff2": "2fb2e8cbfd52ae46179a8b6024eb162f1f9c6de3d22d6e3a30d8f395de7220be",
+    "assets/manrope-latin-ext-wght-normal-Ch3YOpNY.woff2": "3911b66d9f2e005a4b989223405d0e5032619c668597ba467cc76a23c8fffcfb",
+    "assets/manrope-latin-wght-normal-DHIcAJRg.woff2": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+    "assets/manrope-vietnamese-wght-normal-usUDDRr7.woff2": "6bbb044ab420e07edb0a3042d2eb314b85e83a0182e945a15ab3b9092668dfd5",
+    "assets/PositionsPanel-Db35MwZV.js": "5f325df17f8c347a7cd440ae54c0d77a70312bd4ecc5e185539842964827eb6b",
+    "assets/PositionsPanel-to5uAZaG.css": "b72727195f380abf91160afd1ba996cac3ad73b7f872aa99360e374772892b4f",
+    "assets/power-BBV7Sbnj.jpg": "e7f66e45b85e0d51027b3319ea4b840cf5472decd7842a80d09dff01553a707c",
+    "assets/react-vendor-BZkEIToh.js": "d121c4a0c3a7784410d4522b9fee8ff37017e40a963165f085652364d9fa9680",
+    "assets/rolldown-runtime-CbXtAM7H.js": "bbf7c5086ae414dc3f33777e3eebf16ea8631325b8bb4690d25091c03567f31a",
+    "assets/SettingsPanel-CGm-5su1.js": "ed828272ad03f92b8d56cedaab04bf3275c0b32841ea685c113370554869fa3d",
+    "assets/SettingsPanel-CtCCkVTP.css": "1c1055f4c76ca62f05a8a3c70b013d64935c24c921ec12634554171d43f26b49",
+    "assets/usePanelResize-DZBlHfR-.js": "1150b87a52e8c902f71e23fa5ae45871b0ada4db4d06f8a53b78ebd8ce18495d",
+    "assets/vendor-BwdWM3dV.js": "32b3485d47b4c271c7679e004226a7ba189e6da1e26f3b947606d02f31ce26db",
+    "assets/vendor-Vqc6nbtd.css": "38a2a0995c27f585fd6371dd91f4f433015999dc1954c09a48fb38705d7aff4b",
+    "favicon-32x32.png": "7343cdd8dab571aa94bc74547b4c4ffb73a6956687c6ac36609ad3e3a506fa3a",
+    "favicon-64x64.png": "d09be74202c6f63a3dd2c2805e0b30c186ca9b98bac61443f829d156b5d083b1",
+    "favicon.ico": "b8349873e08387160ecbd051876bcfd1cc50f36b222b8375ca888a78990df8b2",
+    "fyxtez-f-mark.png": "1ae8d4cf0c5e4fbe2bb812a60ccdb1f9334e6e3024b6103869470181ef70a84d",
+    "index.html": "efe3019e9eac00b78cc922a952e3f87059773007e5478f58ee3ec352f5774c8d"
+  },
+  "restarted": false,
+  "scope": "Static frontend assets and atomic index replacement only; old assets retained.",
+  "public_verification": {
+    "matching_files": 24,
+    "health": "ok",
+    "unauthenticated_session": 401
+  },
+  "live_frame": {
+    "at": "2026-10-20T15:54:37.097Z",
+    "publicRequests": [
+      "/BTC",
+      "/assets/index-COqwSt3R.js",
+      "/assets/rolldown-runtime-CbXtAM7H.js",
+      "/assets/react-vendor-BZkEIToh.js",
+      "/assets/vendor-BwdWM3dV.js",
+      "/assets/chart-vendor-B0UwYn2Y.js",
+      "/assets/vendor-Vqc6nbtd.css",
+      "/assets/index-ClWQ1ufH.css",
+      "/assets/manrope-latin-wght-normal-DHIcAJRg.woff2"
+    ],
+    "parentOrigin": "http://tauri.localhost",
+    "tauriGlobalsInjected": true,
+    "nativeCalls": [],
+    "errors": [],
+    "connectionPrompt": true,
+    "scope": "Chromium with simulated WebView2 initialization; live public assets, mocked API only. No live pairing, session or trade."
+  },
+  "validation": {
+    "terminal_frontend_tests": 277,
+    "opcore_frontend_tests": 327,
+    "focused_browser_tests": 6,
+    "frontend_builds": "OpCore and Trading-Terminal TypeScript/Vite passed",
+    "baseline": "Unchanged Terminal: browser passed; simulated WebView2 failed to reach Connect Terminal.",
+    "fixed": "Browser and simulated WebView2 pass explicit connection, session isolation and navigation tests."
+  },
+  "limitations": [
+    "Actual installed Windows acceptance pending owner reopening OpCore.",
+    "No live account approval, trading settings change or trade.",
+    "OpCore retry UI source is not yet packaged/installed; earlier 0.7.21 artifacts must be rebuilt for the next PDI.",
+    "Windows reboot and WSL initialization still block the broader local Linux PDI."
+  ]
+}

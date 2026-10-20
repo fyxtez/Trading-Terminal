@@ -196,6 +196,12 @@ cross-project browser test with injected WebView2 globals at `http://tauri.local
 The old bundle passed the ordinary-browser case and failed that Windows case;
 the corrected bundle passes both. This is simulated WebView2 initialization,
 not an installed-app acceptance test.
+The [frontend-only delivery receipt](releases/2026-10-20-webview2-ui.json) records
+the static asset update at 15:53 UTC. The backend binary remains `00bcff6`, with the
+same PID and zero restarts. Only missing hash-named assets were added, then
+`browser-ui/index.html` was replaced atomically; old assets remain for existing
+tabs. To roll back this UI update, verify the recorded index hashes and atomically
+restore the backed-up `index.html`. No service restart or journal restore is needed.
 
 Only `/BTC?embed=opcore` may be framed. Its CSP allows the exact installed OpCore
 origins: `tauri://localhost`, `http://tauri.localhost`, `https://tauri.localhost`,
