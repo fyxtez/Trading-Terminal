@@ -1,7 +1,7 @@
 # Dependency policy
 
 Dependency lockfiles are committed for the frontend, backend, and Tauri shell.
-CI installs from those lockfiles, runs `npm audit --audit-level=high`, and runs
+CI installs from those lockfiles, scans the npm lockfile with OSV, and runs
 `cargo audit` against both Cargo lockfiles on every change. Known vulnerability
 advisories fail the job. Yanked or unmaintained transitive crates are reviewed
 and recorded rather than silently ignored.
@@ -20,7 +20,27 @@ and recorded rather than silently ignored.
   iterator, but that does not eliminate transitive risk. Keep Tauri/Wry patched
   and re-run the audit before every artifact is published.
 
-`npm audit` currently reports no vulnerabilities.
+## Security refresh (2026-10-21)
+
+The frontend resolves `source-map-js 1.2.2`, `vite 8.2.4`, and `vitest 4.1.12`.
+Both Rust lockfiles resolve `quinn-proto 0.11.18`, `rustls 0.23.46`,
+`rustls-webpki 0.103.16`, and `webpki-roots 1.0.10`; the Tauri shell uses
+`zip 9.0.0`. OSV reports no frontend issues, and both Cargo audits pass without
+vulnerability errors. No advisory suppressions were added.
+
+The remaining Cargo warnings are accepted pending review by 2026-11-21 or the
+next release, whichever comes first:
+
+- The backend still resolves the previously reviewed yanked `chacha20 0.10.1`.
+- Both lockfiles include unmaintained `zvariant 5.15.0`,
+  `zvariant_derive 5.15.0`, and `zbus_names 4.3.4` through the Linux
+  `keyring -> zbus-secret-service-keyring-store -> zbus` dependency graph
+  (`RUSTSEC-2026-0370`, `RUSTSEC-2026-0372`, `RUSTSEC-2026-0371`). Track the
+  keyring upstream migration before replacing these transitive crates.
+- Tauri still reports the reviewed `glib 0.18.5` unsoundness warning and
+  unmaintained `unic-*` crates. It also reports unmaintained
+  `proc-macro-error 1.0.4` (`RUSTSEC-2024-0370`) through the GTK/GLib macros.
+  Recheck these dependencies with the next Tauri/Wry update.
 
 ## Update cadence
 

@@ -343,7 +343,10 @@ fn validate_archive(path: &Path) -> Result<ValidatedBackup, String> {
         let mut entry = archive
             .by_index(index)
             .map_err(|_| "Could not read backup entry".to_string())?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|_| "Backup entry name is invalid".to_string())?
+            .into_owned();
         if entry.is_dir() || !allowed.contains(&name) || files.contains_key(&name) {
             return Err("Backup contains an unsupported or duplicate entry".into());
         }
@@ -548,6 +551,32 @@ mod tests {
     fn rejects_unknown_local_storage() {
         let invalid = BTreeMap::from([("binance-api-secret".into(), "secret".into())]);
         assert!(validate_frontend_storage(&invalid).is_err());
+    }
+
+    #[test]
+    fn rejects_archive_entries_outside_the_backup_allowlist() {
+        let root = temp_dir("unsupported-entry");
+        let archive_path = root.join("unsupported.zip");
+        for name in [
+            "../frontend/local-storage.json",
+            "/frontend/local-storage.json",
+            "data/binance-api-secret",
+        ] {
+            let mut writer = ZipWriter::new(std::io::Cursor::new(Vec::new()));
+            writer
+                .start_file(name, SimpleFileOptions::default())
+                .expect("entry");
+            writer.write_all(b"{}").expect("entry data");
+            let bytes = writer.finish().expect("archive").into_inner();
+            fs::write(&archive_path, bytes).expect("archive bytes");
+
+            assert_eq!(
+                validate_archive(&archive_path).expect_err("unsupported entry must fail"),
+                "Backup contains an unsupported or duplicate entry",
+                "entry: {name}"
+            );
+        }
+        fs::remove_dir_all(root).expect("cleanup");
     }
 
     #[test]
